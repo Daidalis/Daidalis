@@ -44,7 +44,7 @@ The minimum Node version is 22.13.0 because the SysML wrapper uses the stable pe
 ## Remaining release decisions and limits
 
 1. The advertised history replacement is complete. Any cached old GitHub views or undiscovered third-party clones require separate handling; the external private backup must not be published.
-2. Select a license for Manta-owned code. No project-wide license was chosen on the owner's behalf; upstream licenses/notices remain in place.
+2. The owner selected Apache 2.0 for Manta-owned code and original documentation on 27 October 2026. See the root LICENSE, NOTICE and THIRD_PARTY_NOTICES.md; upstream terms remain in place.
 3. Basic installation does not provision every professional solver. The exact managed NOS3/cFS/42 environment still needs the frozen archives, packages and manifests named in `vm/worker/native-inputs.json`; a verified public installer that recreates that entire bundle is not included. See [installation](installation.md) and [runner contract](nos3-runner.md).
 4. Manta is a local workspace, not an authenticated multi-user hosted service. The public marketing site is independent of the local application. See [security scope](../SECURITY.md).
 

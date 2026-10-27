@@ -87,7 +87,7 @@ def main():
     if (out/'verification.json').exists():
         raise SystemExit('Existing verification receipt must not be overwritten')
     here=Path(__file__).resolve().parent
-    shutil.copyfile(here/'engineering-fix.patch',out/'engineering-fix.patch')
+    shutil.copyfile(here/'engineering-fix.json',out/'engineering-fix.json')
     plan=here.parent/'nos3-plan'
     work=Path('/srv/manta/nos3'); fortytwo=Path('/srv/manta/42')
     job=Path('/srv/manta/runs')/('campaign-'+uuid.uuid4().hex)
@@ -184,7 +184,7 @@ def main():
         return values[0] if values else None
     files=[path for path in out.rglob('*') if path.is_file() and path!=out/'verification.json']
     manifest=[{'path':str(path.relative_to(out)),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'bytes':path.stat().st_size} for path in files]
-    selected_names=['telemetry-samples.jsonl','verification-summary.json','case.json','source-manifest.json','binary-manifest.json','pinned-source-hashes.json','engineering-fix.patch']
+    selected_names=['telemetry-samples.jsonl','verification-summary.json','case.json','source-manifest.json','binary-manifest.json','pinned-source-hashes.json','engineering-fix.json']
     selected=[m for m in manifest if Path(m['path']).name in selected_names]
     if any(m['bytes']>1000000 for m in selected) or sum(m['bytes'] for m in selected)>1700000:
         failure='Compact telemetry evidence exceeds the worker transfer budget; full evidence remains in guest.'

@@ -68,7 +68,7 @@ Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 和硬件平台尚不能视�
 
 ## 开始使用
 
-需要 **Node.js 22.13+** 与 npm。产品网站通过 GitHub Pages 独立发布；GitHub 仓库的访问权限独立管理，在维护者正式切换可见性之前，仓库仍为私有。
+需要 **Node.js 22.13+** 与 npm。产品网站通过 GitHub Pages 独立发布。
 
 ```sh
 git clone https://github.com/MingxiYe/Manta.git
@@ -135,6 +135,6 @@ Manta 管理项目上下文、任务协调、权限桥、产物导航和证据�
 
 仓库不包含密钥、运行聊天、虚拟机磁盘、下载的第三方工程及完整工程证据工作区。网站仅收录经整理的已记录示例，详见 [REPOSITORY_SCOPE.md](REPOSITORY_SCOPE.md)。
 
-**许可证：** 项目整体尚未选择分发许可证。上游组件保留各自的许可证与声明，本仓库不会重新授权这些组件。
+**许可证：** Manta 自有代码与原创文档采用 [Apache 2.0](LICENSE)，版权署名为 Copyright 2026 MingxiYe。详见 [NOTICE](NOTICE) 和[第三方声明](THIRD_PARTY_NOTICES.md)；随附组件与上游衍生内容保留各自许可。
 
 公开前检查、实际测试范围与未完成的发布条件见[公开源码审查](docs/public-readiness.md)。

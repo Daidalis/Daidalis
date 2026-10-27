@@ -4,3 +4,6 @@
 toolchains/** -text
 website/dist/assets/evidence/** -text
 website/dist/assets/evidence/*.csv whitespace=cr-at-eol
+
+# Preserve verbatim copies of pinned upstream license texts.
+third_party/licenses/** -text -whitespace

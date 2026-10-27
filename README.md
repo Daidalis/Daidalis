@@ -15,6 +15,7 @@
 </p>
 
 <p align="center">
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache_2.0-c9d7bb?style=flat-square&amp;labelColor=233c33"></a>
   <img alt="Research preview" src="https://img.shields.io/badge/status-research_preview-c9d7bb?style=flat-square&labelColor=233c33">
   <img alt="Node.js 22.13 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.13-c9d7bb?style=flat-square&labelColor=233c33">
   <img alt="Native Codex and Claude runtimes" src="https://img.shields.io/badge/agents-Codex_%2B_Claude_Code-c9d7bb?style=flat-square&labelColor=233c33">
@@ -76,7 +77,7 @@ Capella, Cameo, MATLAB/Simulink, FEM, RF, PCB, and hardware platforms should not
 
 ## Get started
 
-Requires **Node.js 22.13+** and npm. The product website is public. GitHub repository access is separate; during release preparation this repository remains private until the maintainer changes its visibility.
+Requires **Node.js 22.13+** and npm. The product website is published independently through GitHub Pages.
 
 ```sh
 git clone https://github.com/MingxiYe/Manta.git
@@ -159,4 +160,4 @@ Useful reading: [installation](docs/installation.md) · [roadmap](docs/ROADMAP.m
 
 The repository excludes keys, runtime chats, VM disks, downloaded third-party projects, and full engineering evidence workspaces. The website contains only a curated recorded example. See [REPOSITORY_SCOPE.md](REPOSITORY_SCOPE.md).
 
-**License:** a project-wide distribution license has not yet been selected. Upstream components retain their own licenses and notices; this repository does not relicense them.
+**License:** Manta-owned code and original documentation are licensed under [Apache 2.0](LICENSE). Copyright 2026 MingxiYe. See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md); bundled components and upstream-derived material retain their respective terms.

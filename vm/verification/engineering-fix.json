@@ -1,0 +1,36 @@
+{
+  "schema": "manta-nos3-engineering-fix-recipe-v1",
+  "purpose": "Describe the verified star-tracker frame correction without redistributing upstream source context.",
+  "originator": "Manta",
+  "recordedDate": "2026-10-27",
+  "upstream": {
+    "repository": "https://github.com/nasa-itc/generic_adcs",
+    "revision": "09a604fc10c8c79981ffeb2ee1792c7719674a10",
+    "files": [
+      {
+        "path": "components/generic_adcs/fsw/cfs/src/generic_adcs_ingest.c",
+        "sha256": "5e64a8780b2b6ba9bb23f4161dde5aa35d1d07d3b44d05f4d8b32cdd8546c0dd"
+      },
+      {
+        "path": "components/generic_adcs/fsw/shared/generic_adcs_adac.c",
+        "sha256": "55e1701642bc2b256dede40cb0ce7244baa1c95a78021e865a7ed05af58856f8"
+      }
+    ]
+  },
+  "implementation": {
+    "script": "vm/verification/instrument_startracker.py",
+    "mode": "fixed",
+    "changes": [
+      {
+        "stage": "cFS star-tracker ingest",
+        "description": "Preserve the sensor-frame attitude measurement; defer mounting to attitude determination."
+      },
+      {
+        "stage": "ADCS attitude determination",
+        "description": "Apply the sensor-to-body mounting exactly once, in the frame order defined by the independent rotation check."
+      }
+    ],
+    "patchEvidence": "The script generates a source patch from the pinned original files inside the isolated Linux guest for each run. The generated patch is retained in the private run evidence; this recipe contains no upstream source context."
+  },
+  "verificationScope": "Selected native NOS3/cFS/42 star-tracker software chain; no flight qualification or full-mission acceptance is implied."
+}

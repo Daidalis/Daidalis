@@ -28,6 +28,14 @@ inside production attitude determination. Originals and a patch manifest remain
 inside COPY. A baseline run is necessary: identity mounting alone hides both the
 double-application and noncommutative-order defects.
 
+`engineering-fix.json` is a Manta-authored description of the correction and
+the pinned `generic_adcs` files. It is not a bundled upstream source patch.
+`instrument_startracker.py` checks the original file hashes, applies the change
+only to the isolated Linux copy, and generates the actual source patch in that
+run's private evidence. `verify_all.py` transfers the JSON recipe alongside
+selected verification evidence; it does not substitute the recipe for the
+generated patch or the native execution results.
+
 `verify_startracker.py --sim-log SIM --fsw-log FSW --output REPORT` consumes the
 `MANTA_TRACE` JSON lines. It uses independent direction cosine matrix composition,
 not production quaternion multiplication. Expected body attitude is
