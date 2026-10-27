@@ -1,0 +1,1579 @@
+{
+  "version": "1.0.0",
+  "createdAt": "2026-10-22",
+  "checkedOn": "2026-10-22",
+  "name": "MBSE Studio 真实工程问题题库（来源核对版）",
+  "description": "13 个真实上游问题、4 个工程项目；中文题干与建议验收。尚未冻结或复现，不是已验证 benchmark。",
+  "scope": "系统接口、状态/安全、时间/性能、需求权衡和验证；不覆盖完整产品从立项到制造的所有 MBSE 活动。",
+  "licenseNote": "编者改写与上游内容分开；不捆绑上游代码、日志或标准正文。复用原始资产时须按各自许可证和许可范围处理。",
+  "projects": [
+    {
+      "id": "NOS3",
+      "name": "NASA NOS3",
+      "repository": "https://github.com/nasa/nos3",
+      "reality": "源自已制造、发射并运行的 STF-1 任务的真实开源仿真/飞行软件工程平台。",
+      "boundary": "当前 STF 参考任务是 generic design reference mission，不能当作实际 STF-1 完整飞行基线。",
+      "sources": [
+        {
+          "url": "https://ntrs.nasa.gov/citations/20200000017",
+          "title": "NASA STF-1 地面运行报告"
+        },
+        {
+          "url": "https://nos3.readthedocs.io/en/v1_07_03/STF_ConOps.html",
+          "title": "NOS3 STF 参考任务 ConOps"
+        }
+      ]
+    },
+    {
+      "id": "PX4",
+      "name": "PX4 自动驾驶平台",
+      "repository": "https://github.com/PX4/PX4-Autopilot",
+      "reality": "实际自动驾驶软件工程项目；数据集中既有真实设备报告，也有功能需求。",
+      "boundary": "不声称每个 issue 都经过飞行事故调查或本轮硬件复现。",
+      "sources": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot",
+          "title": "PX4 官方自动驾驶软件仓库"
+        }
+      ]
+    },
+    {
+      "id": "ArduPilot",
+      "name": "ArduPilot 自动驾驶平台",
+      "repository": "https://github.com/ArduPilot/ardupilot",
+      "reality": "实际 ArduCopter/Plane/Rover/Sub 软件工程项目，题目包含报告者的 SITL 和电池监控场景。",
+      "boundary": "SITL 报告不等于实体飞机已发生相同行为；开放提案不等于已批准规范。",
+      "sources": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot",
+          "title": "ArduPilot 官方仓库"
+        }
+      ]
+    },
+    {
+      "id": "Crazyflie",
+      "name": "Bitcraze Crazyflie",
+      "repository": "https://github.com/bitcraze/crazyflie-firmware",
+      "reality": "Crazyflie Nano/Bolt 四旋翼和定位标签的实际产品固件工程项目。",
+      "boundary": "本轮只核对公开源资料，不声称完成无线或空中试验。",
+      "sources": [
+        {
+          "url": "https://github.com/bitcraze/crazyflie-firmware",
+          "title": "Bitcraze 官方固件仓库"
+        },
+        {
+          "url": "https://www.bitcraze.io/2019/07/crazyflie-2-1-back-in-stock/",
+          "title": "Bitcraze 实际产品出货记录"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "taskCount": 13,
+    "projectCount": 4,
+    "sourceVerifiedCount": 13,
+    "reproducedCount": 0,
+    "runnableFrozenTaskCount": 0,
+    "closedCount": 3,
+    "openCount": 10
+  },
+  "tasks": [
+    {
+      "id": "nos3-351",
+      "title": "姿态测量链：重建坐标接口并修复一致性",
+      "project": "NOS3",
+      "repository": "https://github.com/nasa/nos3",
+      "issueUrl": "https://github.com/nasa/nos3/issues/351",
+      "status": "closed",
+      "category": "接口与坐标",
+      "difficulty": "高级",
+      "summary": "实际用户开发姿态对准模式时，发现星敏感器输出与动力学真值不一致，影响惯性系到机体系的变换。",
+      "publicPrompt": "你接手一条跨动力学、传感器模拟、通信和 ADCS 的姿态测量链。用户报告：由星敏感器提供的姿态用于 ECI 到机体系变换时结果错误，而用于诊断的动力学真值呈现不同结果。重建各接口的坐标、四元数与有效性约定，定位可复现的不一致，并提出满足测量链语义的修复。诊断真值只能用于验收，不能代替正常传感器输入。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "原始问题的症状与接口上下文；讨论/修复部分应由评测方剥离。",
+        "42、星敏感器模拟与 ADCS 相关配置和代码；接口约定仍需从被冻结版本确认。",
+        "可选接口子评测 quaternion-interface-v1：xyzw Hamilton；q_IS 为 sensor-to-inertial，q_BS 为 sensor-to-body，输出 q_IB 为 body-to-inertial。该约定由编者新增。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：评测方的已知旋转样本覆盖零旋转、单轴及组合旋转；输出姿态误差低于预先冻结的公差，比较考虑 q 与 -q 等价。",
+        "G3：对非单位安装姿态、启动和重启分别检查测量链；不能只在单位安装姿态下通过。",
+        "G4：无效/缺失输入按书面接口契约处理；正常测量路径未读取或替换为 42 truth，相关既有模式回归通过。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "评测方的已知旋转样本覆盖零旋转、单轴及组合旋转；输出姿态误差低于预先冻结的公差，比较考虑 q 与 -q 等价。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "对非单位安装姿态、启动和重启分别检查测量链；不能只在单位安装姿态下通过。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "无效/缺失输入按书面接口契约处理；正常测量路径未读取或替换为 42 truth，相关既有模式回归通过。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "历史问题重建",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、Docker/Compose、NOS3 及全部锁定子模块、cFS、42 和选定地面软件。先依对应版本说明部署；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "姿态",
+        "四元数",
+        "多仓库",
+        "历史问题"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/351",
+          "title": "NOS3 上游问题 #351（讨论可能含答案）"
+        },
+        {
+          "url": "https://github.com/nasa/nos3",
+          "title": "NASA NOS3 官方仓库"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/351",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "原始报告涉及 ECI 与机体系的姿态变换，以及星敏感器和 42 的输出比较。",
+        "官方 issue 页显示问题已关闭。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。",
+        "quaternion-interface-v1 采用编者声明的 xyzw Hamilton 和 q_IS/q_BS/q_IB 语义，使用独立旋转矩阵 oracle；通过它仅证明该接口约定，不是 NOS3 原生问题复现或修复。"
+      ],
+      "limitations": [
+        "可用的 quaternion-interface-v1 是独立接口子评测，upstreamReproduction=false；不得与原生 NOS3 仿真结果合并统计。",
+        "这是 NOS3 平台问题；没有证据说明它是实际 STF-1 的在轨故障。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22",
+      "contractChallenge": {
+        "id": "quaternion-interface-v1",
+        "available": true,
+        "scope": "interface-contract-only",
+        "upstreamReproduction": false,
+        "convention": "xyzw Hamilton",
+        "inputs": [
+          {
+            "name": "q_IS",
+            "meaning": "sensor-to-inertial，传感器坐标到惯性坐标的旋转四元数"
+          },
+          {
+            "name": "q_BS",
+            "meaning": "sensor-to-body，传感器安装坐标到机体坐标的旋转四元数"
+          }
+        ],
+        "output": {
+          "name": "q_IB",
+          "meaning": "body-to-inertial，机体坐标到惯性坐标的旋转四元数"
+        },
+        "note": "编者新增的纯接口约定子评测；不是上游 NOS3 原样接口，也不复现原始 issue。"
+      }
+    },
+    {
+      "id": "nos3-764",
+      "title": "惯性模式异常：诊断跨子系统前置条件",
+      "project": "NOS3",
+      "repository": "https://github.com/nasa/nos3",
+      "issueUrl": "https://github.com/nasa/nos3/issues/764",
+      "status": "open",
+      "category": "状态与前置条件",
+      "difficulty": "中级",
+      "summary": "默认任务配置运行 ADCS 测试时，惯性模式出现异常，需要区分系统行为、测试准备和操作程序问题。",
+      "publicPrompt": "在一个新建 NOS3 环境、默认配置下运行 generic_adcs_test，用户报告惯性模式异常。建立进入该模式所需的资源、设备状态、测量有效性与指令顺序模型。复现症状，判定应修改测试、程序还是产品行为，并给出可重复的处置与回归记录。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "默认任务配置、generic_adcs_test 及相关设备测试。",
+        "原始环境报告为 Windows 共享目录中的新虚拟机；正式题包需固定虚拟机镜像。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：在评测方定义的初始状态矩阵中，前置条件满足时测试可靠进入目标状态；条件不满足时产生明确诊断或有界失败。",
+        "G3：连续重复和测试顺序置换不依赖前次残留状态；设备状态、供电命令和模式事件可从日志追溯。",
+        "G4：ADCS 与相关传感器测试的改动及操作程序保持一致；未通过无限等待或删除断言规避异常。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "在评测方定义的初始状态矩阵中，前置条件满足时测试可靠进入目标状态；条件不满足时产生明确诊断或有界失败。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "连续重复和测试顺序置换不依赖前次残留状态；设备状态、供电命令和模式事件可从日志追溯。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "ADCS 与相关传感器测试的改动及操作程序保持一致；未通过无限等待或删除断言规避异常。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "开放诊断与回归",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、Docker/Compose、NOS3 及全部锁定子模块、cFS、42 和选定地面软件。先依对应版本说明部署；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "姿态",
+        "资源依赖",
+        "测试可靠性"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/764",
+          "title": "NOS3 上游问题 #764（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/764",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "报告给出的复现入口是默认配置下的 generic_adcs_test。",
+        "官方 issue 页仍为开放状态。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "nos3-800",
+      "title": "仿真时间加速：分析性能与同步预算",
+      "project": "NOS3",
+      "repository": "https://github.com/nasa/nos3",
+      "issueUrl": "https://github.com/nasa/nos3/issues/800",
+      "status": "open",
+      "category": "性能与时间同步",
+      "difficulty": "高级",
+      "summary": "NOS3 时间驱动请求加速后，实际加速约受限于 4 倍，需要定位限制并验证同步语义。",
+      "publicPrompt": "团队希望缩短长时任务仿真的等待时间。原始报告称时间驱动即使设置更高加速，实际约停在 4 倍。建立时间驱动、动力学、硬件模型、飞行软件与遥测链的时序及资源模型，给出可重复性能实验。若找不到可靠优化，提交有证据的瓶颈诊断与下一步实验即可；不得为得到更快结果牺牲同步或省略事件。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "主机资源清单、时间配置、代表任务及可重复的遥测负载；均待题包冻结。",
+        "NOS3 时间驱动和关联模块源码及原始性能问题描述。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：在固定硬件/负载上对 1x、2x、4x 和更高请求速率重复测量仿真时间/墙钟时间、CPU、事件数与延迟，输出原始数据。",
+        "G3：若提交优化，在相同负载下对照基线且预先规定统计和收益判据；事件计数/顺序及跨模块时钟偏差满足冻结的预算。",
+        "G4：若未找到优化，诊断须包含可重复反证实验、尚存不确定性及资源模型；不将“未定位”写成修复通过。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "在固定硬件/负载上对 1x、2x、4x 和更高请求速率重复测量仿真时间/墙钟时间、CPU、事件数与延迟，输出原始数据。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "若提交优化，在相同负载下对照基线且预先规定统计和收益判据；事件计数/顺序及跨模块时钟偏差满足冻结的预算。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "若未找到优化，诊断须包含可重复反证实验、尚存不确定性及资源模型；不将“未定位”写成修复通过。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "开放调查",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、Docker/Compose、NOS3 及全部锁定子模块、cFS、42 和选定地面软件。先依对应版本说明部署；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "性能",
+        "时序",
+        "仿真",
+        "开放调查"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/800",
+          "title": "NOS3 上游问题 #800（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/800",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "原始 issue 的目标是调查约 4x 的实际加速限制。",
+        "官方 issue 为开放状态。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "性能结果依赖主机、调度、网络、遥测及版本；未冻结环境不能比较排行榜。",
+        "这是开放调查题，不存在已核实的正确补丁。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "nos3-823",
+      "title": "星地链路：界定传输帧能力并设计最小扩展",
+      "project": "NOS3",
+      "repository": "https://github.com/nasa/nos3",
+      "issueUrl": "https://github.com/nasa/nos3/issues/823",
+      "status": "open",
+      "category": "协议与系统边界",
+      "difficulty": "高级",
+      "summary": "用户希望明确 NOS3 在 CCSDS 传输帧、分段与虚拟信道方面的能力和边界。",
+      "publicPrompt": "一个任务团队计划复用 NOS3 的星地链路，需要处理较大空间包和多个虚拟信道。先审核选定版本真实提供的协议层，区分 Space Packet 与 TM/TC Transfer Frame，不能把用户的能力猜测当已证事实。形成支持矩阵和接口模型，然后选定一种明确 TM 或 TC 协议子集，提出最小实现或充分说明缺口。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "相关 CI/TO、地面软件和 CryptoLib 的固定配置与接口资料。",
+        "评测方须另外提供并固定适用的 CCSDS 标准版本、帧类型与合法测试向量。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：按层给出有代码/文档证据的支持、缺失和未证实矩阵；明确本题选择的帧类型、版本、上限与拒绝行为。",
+        "G3：所选子集对多信道、大包/边界及错误输入的测试向量与独立解码器一致；不支持的组合被显式拒绝。",
+        "G4：Space Packet 与 Transfer Frame 的接口和长度约束可追溯，现有任务配置回归结果可复查。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "按层给出有代码/文档证据的支持、缺失和未证实矩阵；明确本题选择的帧类型、版本、上限与拒绝行为。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "所选子集对多信道、大包/边界及错误输入的测试向量与独立解码器一致；不支持的组合被显式拒绝。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "Space Packet 与 Transfer Frame 的接口和长度约束可追溯，现有任务配置回归结果可复查。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "需求澄清与架构设计",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、Docker/Compose、NOS3 及全部锁定子模块、cFS、42 和选定地面软件。先依对应版本说明部署；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "CCSDS",
+        "星地链路",
+        "接口",
+        "架构"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/823",
+          "title": "NOS3 上游问题 #823（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/823",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "原始 issue 询问 Transfer Frame 层的实现计划、分段与虚拟信道支持。",
+        "这是开放问题；issue 中的能力描述是用户理解，尚非官方能力认证。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "协议标准正文及确定版本尚未随题包分发；当前不能执行一致性认证。",
+        "不是已解决 bug，也不能把任意 TM/TC 协议实现视为正确答案。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "nos3-876",
+      "title": "遥测驱动测试：提高稳定性而保留故障检出",
+      "project": "NOS3",
+      "repository": "https://github.com/nasa/nos3",
+      "issueUrl": "https://github.com/nasa/nos3/issues/876",
+      "status": "open",
+      "category": "验证与测试时序",
+      "difficulty": "中级",
+      "summary": "GPS、ADCS、反作用轮的 OpenC3 Python 测试间歇失败，需要把设备动态和遥测新鲜度纳入验收。",
+      "publicPrompt": "团队报告 OpenC3 下 GPS、ADCS、反作用轮 Python 测试不够稳定。建立请求、应答、设备动态、遥测更新时间和断言之间的关系，设计有界且能检测真实故障的测试策略。改进重复性时，应分开通信超时、数据陈旧与控制未收敛，不得简单延长一切等待或删除断言。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "GPS/ADCS/RW 测试与 OpenC3 接口的固定版本。",
+        "评测方待提供可控制的延迟、丢包、陈旧遥测及设备故障注入入口。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：预先冻结重复次数、随机种子及时间预算；在正常延迟范围内通过并附逐次结果，不只展示最好一次。",
+        "G3：真实故障、持续丢包与陈旧数据分别被检出，失败有明确类型，任何重试均有上限且总执行时间有界。",
+        "G4：每个断言依赖的样本新鲜度和设备状态有证据；控制收敛标准没有因提高通过率而被弱化。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "预先冻结重复次数、随机种子及时间预算；在正常延迟范围内通过并附逐次结果，不只展示最好一次。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "真实故障、持续丢包与陈旧数据分别被检出，失败有明确类型，任何重试均有上限且总执行时间有界。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "每个断言依赖的样本新鲜度和设备状态有证据；控制收敛标准没有因提高通过率而被弱化。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "开放验证改进",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、Docker/Compose、NOS3 及全部锁定子模块、cFS、42 和选定地面软件。先依对应版本说明部署；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "遥测",
+        "时序",
+        "回归",
+        "故障注入"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/876",
+          "title": "NOS3 上游问题 #876（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/nasa/nos3/issues/876",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "官方 issue 点名 GPS、ADCS、RW Python 测试和 OpenC3 下的稳定性。",
+        "问题仍开放。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "原始 issue 叙述会随更新变化；必须固定代码和原始描述日期。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "px4-6488",
+      "title": "低电量处置：检验失效保护与模式切换的交互",
+      "project": "PX4",
+      "repository": "https://github.com/PX4/PX4-Autopilot",
+      "issueUrl": "https://github.com/PX4/PX4-Autopilot/issues/6488",
+      "status": "closed",
+      "category": "安全状态机",
+      "difficulty": "高级",
+      "summary": "历史报告称临界电池保护执行中可能被意外打断，需要厘清模式切换和保护动作的优先关系。",
+      "publicPrompt": "给定一个能够复现历史报告的 PX4 版本：临界低电量保护动作执行中，某些输入可能无意取消保护。建立保护原因、飞行模式、驾驶员/地面指令和权限的状态模型，明确应允许的主动接管与不应发生的意外退出，提出修复与回归。政策存在歧义时先记录待决项，不自行声称上游规范已经确定。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "历史 Commander 及相关状态机源码；具体修复前 SHA 尚待选定。",
+        "冻结版本对应的参数、模式指令与电池故障注入接口。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：在电池保护未触发、触发、持续触发及解除条件的输入矩阵中重放模式指令，结果符合冻结的转移/权限表。",
+        "G3：意外重复输入不解除正在执行的保护；经批准的人工接管按书面策略执行并记录原因。",
+        "G4：保护原因组合和边界状态回归无额外模式跳变；测试使用状态/事件证据而非只检查控制台文字。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "在电池保护未触发、触发、持续触发及解除条件的输入矩阵中重放模式指令，结果符合冻结的转移/权限表。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "意外重复输入不解除正在执行的保护；经批准的人工接管按书面策略执行并记录原因。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "保护原因组合和边界状态回归无额外模式跳变；测试使用状态/事件证据而非只检查控制台文字。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "历史行为重建",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、对应历史版本的 PX4 编译工具链、SITL/测试工具及需要的 MAVLink 或 ROS 2 依赖；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "失效保护",
+        "权限",
+        "状态机",
+        "历史问题"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot/issues/6488",
+          "title": "PX4 上游问题 #6488（讨论可能含答案）"
+        },
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot",
+          "title": "PX4 官方仓库"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot/issues/6488",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "2017 年原始报告称临界电池保护动作可能被无意中断。",
+        "issue 已关闭，但页面没有提供经本轮核验的对应修复。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "年代较早，当前主分支不能代表历史行为；需要单独修复旧依赖并选择问题基线。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "px4-29335",
+      "title": "延迟联网：恢复飞控到地面站的遥测链路",
+      "project": "PX4",
+      "repository": "https://github.com/PX4/PX4-Autopilot",
+      "issueUrl": "https://github.com/PX4/PX4-Autopilot/issues/29335",
+      "status": "open",
+      "category": "生命周期与网络接口",
+      "difficulty": "中级",
+      "summary": "实体飞控和网络电台启动较慢时，用户报告地面站之后仍不能建立 MAVLink 连接。",
+      "publicPrompt": "用户的飞控与地面站通过两个以太网电台连接，电台需要约 1—2 分钟联网。先启动系统再建立网络后，地面站仍收不到预期的 MAVLink 流量。构建启动、链路不可用、恢复与重连状态模型，复现并区分配置错误与生命周期缺陷，给出可验证的恢复策略。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "原始环境：6X-RT、两个以太网电台、QGroundControl，端口 14557。",
+        "需要冻结固件/参数与网络拓扑；软件层先用可控 UDP 网络故障代替实际电台。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：在先联网再启动、延迟联网及断开再恢复的矩阵中，健康网络恢复后在预先冻结时限内重新出现 MAVLink 心跳/遥测。",
+        "G3：记录抓包和状态日志；持续离线时重试负载有界，错误可诊断且无忙等/资源泄漏。",
+        "G4：软件网络替身和原始硬件复现结果分层报告，缺硬件时不得宣布原始设备症状已修复。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "在先联网再启动、延迟联网及断开再恢复的矩阵中，健康网络恢复后在预先冻结时限内重新出现 MAVLink 心跳/遥测。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "记录抓包和状态日志；持续离线时重试负载有界，错误可诊断且无忙等/资源泄漏。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "软件网络替身和原始硬件复现结果分层报告，缺硬件时不得宣布原始设备症状已修复。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "开放故障诊断",
+      "hardwareRequired": true,
+      "hardwareScope": "软件层可先用 Linux/UDP 故障替身；要宣称复现并修复原始症状，需 6X-RT、相关网络电台和地面站。",
+      "environment": "候选环境：Linux、对应历史版本的 PX4 编译工具链、SITL/测试工具及需要的 MAVLink 或 ROS 2 依赖；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "MAVLink",
+        "网络",
+        "启动",
+        "硬件复核"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot/issues/29335",
+          "title": "PX4 上游问题 #29335（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot/issues/29335",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "报告为飞控以太网电台链路延迟初始化后无法连接 QGroundControl。",
+        "issue 为开放且待分诊状态。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "未取得报告者的完整参数、日志和设备；软件替身不自动等价于真实电台时序。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "px4-29367",
+      "title": "伴随计算机：为 RTK 改正数据设计统一链路",
+      "project": "PX4",
+      "repository": "https://github.com/PX4/PX4-Autopilot",
+      "issueUrl": "https://github.com/PX4/PX4-Autopilot/issues/29367",
+      "status": "open",
+      "category": "跨系统数据接口",
+      "difficulty": "高级",
+      "summary": "ROS 2 伴随计算机用户希望经 DDS 注入 RTK 改正数据，减少并行通信链路。",
+      "publicPrompt": "一套 ROS 2 伴随计算机方案希望在使用 DDS 控制的同时向飞控注入 RTK 改正数据。审核现有输入通道和数据流，确认需求及边界，设计统一链路的最小改动，并验证消息到达导航接收端的接口语义。不要把消息桥接成功等同于实际厘米级定位已经实现。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "固定版本 PX4、消息定义、DDS 主题配置和 ROS 2 伴随端。",
+        "合法 RTCM 字节样本、分片/顺序约定和可观察的接收端替身；内容待评测方冻结。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：ROS 2 发入的合法样本按冻结接口约定完整抵达下游接收端，字节序列、长度、顺序及来源标识可核对。",
+        "G3：对边界长度、分片、截断、非法或过期输入有有界且明确的行为，并保持原有 MAVLink/DroneCAN 路径回归。",
+        "G4：无需额外 MAVLink 链路即可完成本题数据注入；控制和改正数据负载组合的延迟/丢失满足冻结预算。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "ROS 2 发入的合法样本按冻结接口约定完整抵达下游接收端，字节序列、长度、顺序及来源标识可核对。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "对边界长度、分片、截断、非法或过期输入有有界且明确的行为，并保持原有 MAVLink/DroneCAN 路径回归。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "无需额外 MAVLink 链路即可完成本题数据注入；控制和改正数据负载组合的延迟/丢失满足冻结预算。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "接口能力扩展",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、对应历史版本的 PX4 编译工具链、SITL/测试工具及需要的 MAVLink 或 ROS 2 依赖；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "ROS 2",
+        "DDS",
+        "RTK",
+        "消息接口"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot/issues/29367",
+          "title": "PX4 上游问题 #29367（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot/issues/29367",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "原始需求来自 ROS 2 伴随计算机经 DDS 注入 RTK 改正数据的使用场景。",
+        "issue 开放且关联一个提案 PR；本轮未确认实现被合并。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "软件消息测试不验证无线电、GNSS 接收机、天线或实际定位精度。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "ardupilot-32795",
+      "title": "电池保护：澄清异常配置下的安全行为",
+      "project": "ArduPilot",
+      "repository": "https://github.com/ArduPilot/ardupilot",
+      "issueUrl": "https://github.com/ArduPilot/ardupilot/issues/32795",
+      "status": "open",
+      "category": "需求与安全权衡",
+      "difficulty": "高级",
+      "summary": "Copter SITL 用户报告异常电池保护配置下没有执行有效动作，并指出文档对已有模式的描述有歧义。",
+      "publicPrompt": "Copter 团队需要明确电池保护配置异常、已有飞行模式与保护动作组合时应如何处理。基于报告和固定版本建立配置—触发—动作决策表，区分当前行为、明确需求和待决安全政策；提出有资源预算的策略与回归。对存在多种合理策略的部分，先形成评审可决策的选项，不把编者偏好写成上游规范。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "报告版本 Copter-4.6.3 与 4.7.0；具体 SHA 尚待冻结。",
+        "SITL 参数、电池注入、模式日志及该版本电池保护文档。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：对合法/非法配置、GUIDED/RTL/LAND/未解锁状态及保护触发组合生成决策表，与独立 SITL 日志逐项对照。",
+        "G3：若实现防御策略，异常值有明确拒绝或经评审的退化行为；合法配置保持兼容。未决策略先标记 blocked-policy。",
+        "G4：说明代码体积及检查范围的代价；未使用“更安全”口号替代动作优先级和允许接管规则。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "对合法/非法配置、GUIDED/RTL/LAND/未解锁状态及保护触发组合生成决策表，与独立 SITL 日志逐项对照。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "若实现防御策略，异常值有明确拒绝或经评审的退化行为；合法配置保持兼容。未决策略先标记 blocked-policy。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "说明代码体积及检查范围的代价；未使用“更安全”口号替代动作优先级和允许接管规则。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "安全需求澄清",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、对应版本 ArduPilot、waf、Python 测试工具和 Copter SITL；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "电池",
+        "失效保护",
+        "SITL",
+        "需求歧义"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot/issues/32795",
+          "title": "ArduPilot 上游问题 #32795（讨论可能含答案）"
+        },
+        {
+          "url": "https://github.com/ArduPilot/ardupilot",
+          "title": "ArduPilot 官方仓库"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot/issues/32795",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "报告在 Copter SITL 中涉及电池保护的异常参数与模式行为。",
+        "维护者在讨论中指出资源约束和文档歧义；issue 尚开放。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "拒绝异常值、告警或默认处置存在不同设计选项，未获项目批准前不能设唯一 golden 行为。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "ardupilot-33961",
+      "title": "预解锁诊断：报告正确的电池严重度",
+      "project": "ArduPilot",
+      "repository": "https://github.com/ArduPilot/ardupilot",
+      "issueUrl": "https://github.com/ArduPilot/ardupilot/issues/33961",
+      "status": "closed",
+      "category": "诊断与操作员信息",
+      "difficulty": "初级",
+      "summary": "电压已经低于临界阈值时，预解锁提示仍只显示低电压，影响操作员判断；解锁阻止本身正常。",
+      "publicPrompt": "为电池预解锁检查建立严重度和操作员信息需求。原始症状是电压低于低电量与临界两级阈值时，界面只报告较轻一级，虽然解锁仍被阻止。定位并修复诊断一致性，同时保护原有解锁限制和其他失败原因。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "AP_BattMonitor 及预解锁检查、消息接口。",
+        "评测方冻结修复前版本、阈值以及电池电压输入替身。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：对阈值以上、仅低于低阈值、低于临界阈值、边界及多电池组合，消息严重度与冻结判定表一致。",
+        "G3：较严重异常不得只显示较轻一级；有故障时解锁仍被阻止，健康样本不被新增误拦截。",
+        "G4：检查文本缓冲与错误原因优先关系，新增回归能在修复前失败而在修复后通过。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "对阈值以上、仅低于低阈值、低于临界阈值、边界及多电池组合，消息严重度与冻结判定表一致。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "较严重异常不得只显示较轻一级；有故障时解锁仍被阻止，健康样本不被新增误拦截。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "检查文本缓冲与错误原因优先关系，新增回归能在修复前失败而在修复后通过。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "历史问题重建",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、对应版本 ArduPilot、waf、Python 测试工具和 Copter SITL；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "电池",
+        "预解锁",
+        "诊断",
+        "历史问题"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot/issues/33961",
+          "title": "ArduPilot 上游问题 #33961（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot/issues/33961",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "报告明确说解锁仍被正确阻止，缺陷在预解锁信息严重度。",
+        "官方 issue 页显示问题已关闭。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "ardupilot-11348",
+      "title": "电池余量：把测量与容量不确定性纳入保护设计",
+      "project": "ArduPilot",
+      "repository": "https://github.com/ArduPilot/ardupilot",
+      "issueUrl": "https://github.com/ArduPilot/ardupilot/issues/11348",
+      "status": "open",
+      "category": "需求定义与量化权衡",
+      "difficulty": "高级",
+      "summary": "真实功能提案希望电池保护能表达容量百分比和不确定性，并保持已有配置兼容。",
+      "publicPrompt": "运营方在更换不同容量电池时，希望保护设置能够表达剩余裕度与测量/容量不确定性。区分返航所需能量、测量误差和实际容量变化，建立有单位的需求与约束模型，比较至少两种参数/估计方案。给出可测的兼容策略和仿真计划；不要自行宣称某个百分比就保证安全返航。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "上游功能提案与固定版本电池容量/电量保护参数。",
+        "评测方须提供容量、消耗和误差样本及需要保留的旧配置。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：量纲与参数依赖可机器检查；对不同容量和误差包络明确阈值/触发时机，不混淆剩余电量与已消耗电量。",
+        "G3：默认配置保持历史行为；无效容量、不同电池及禁用选项均有明确处理和测试。",
+        "G4：至少两种方案按误触发/漏触发、操作复杂度及实现代价比较，使用冻结输入重算可得相同结果。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "量纲与参数依赖可机器检查；对不同容量和误差包络明确阈值/触发时机，不混淆剩余电量与已消耗电量。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "默认配置保持历史行为；无效容量、不同电池及禁用选项均有明确处理和测试。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "至少两种方案按误触发/漏触发、操作复杂度及实现代价比较，使用冻结输入重算可得相同结果。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "开放设计提案",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、对应版本 ArduPilot、waf、Python 测试工具和 Copter SITL；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "电池",
+        "不确定性",
+        "权衡",
+        "需求定义"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot/issues/11348",
+          "title": "ArduPilot 上游问题 #11348（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot/issues/11348",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "原始开放功能提案讨论返航能量、测量误差和实际容量不确定性。",
+        "该提案希望默认值保持既有用户行为。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "原提案从 2019 年起开放；当前实现和相邻功能可能已演进，运行前必须重新审计固定版本。",
+        "任务评估需求和权衡能力；不存在一个已确认唯一正确的架构。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "crazyflie-1714",
+      "title": "定位协议：保证跨配置的接收语义一致",
+      "project": "Crazyflie",
+      "repository": "https://github.com/bitcraze/crazyflie-firmware",
+      "issueUrl": "https://github.com/bitcraze/crazyflie-firmware/issues/1714",
+      "status": "open",
+      "category": "线协议与配置管理",
+      "difficulty": "中级",
+      "summary": "定位系统在不同本地配置下可能把同一无线数据解释成不同结果，需要核对收发端接口契约。",
+      "publicPrompt": "Crazyflie 的 TDoA2 定位链在改变本地配置后出现数据解释问题。重建发送端、接收端与附加数据的协议契约，使用同一组原始字节在支持的配置中重放，定位不一致并修复。以真实发送端契约和独立向量为准，不把接收器实现当成规范。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "固定版本 crazyflie-firmware 与发送端 lps-node-firmware。",
+        "评测方冻结合法、边界、截断和附加数据样本；源报告中的解法部分须剥离。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：支持的本地配置中，对相同合法字节流得到一致的协议字段；仅允许实际处理对象数量按配置变化。",
+        "G3：截断、超长和无附加数据样本不被误识别成附加定位数据，长度越界检查由独立测试覆盖。",
+        "G4：默认配置和定位链既有测试回归通过；编译和运行时协议约束均有证据。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "支持的本地配置中，对相同合法字节流得到一致的协议字段；仅允许实际处理对象数量按配置变化。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "截断、超长和无附加数据样本不被误识别成附加定位数据，长度越界检查由独立测试覆盖。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "默认配置和定位链既有测试回归通过；编译和运行时协议约束均有证据。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "开放接口修复",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、对应版本 firmware 及子模块、C 编译器和上游单元测试工具；固件构建另需 ARM 工具链；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "协议",
+        "定位",
+        "配置",
+        "边界输入"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/bitcraze/crazyflie-firmware/issues/1714",
+          "title": "Crazyflie 上游问题 #1714（讨论可能含答案）"
+        },
+        {
+          "url": "https://github.com/bitcraze/crazyflie-firmware",
+          "title": "Bitcraze 官方固件仓库"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/bitcraze/crazyflie-firmware/issues/1714",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "原始 issue 提供收发端布局比较和主机侧字节重放观察。",
+        "问题开放并关联提案 PR #1717。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "主机协议检查不验证无线传播、定位误差或实际飞行。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    },
+    {
+      "id": "crazyflie-1628",
+      "title": "控制器模式：检查输入组合并评估变更影响",
+      "project": "Crazyflie",
+      "repository": "https://github.com/bitcraze/crazyflie-firmware",
+      "issueUrl": "https://github.com/bitcraze/crazyflie-firmware/issues/1628",
+      "status": "open",
+      "category": "控制契约与变更影响",
+      "difficulty": "高级",
+      "summary": "维护者要求检查 Mellinger 控制器对各轴模式输入的处理，并特别要求变更影响分析。",
+      "publicPrompt": "Mellinger 控制器被广泛使用。审核其各轴模式输入与设定值有效性的组合契约，建立需求—分支—输出—验证关系，找出未覆盖的合法或异常组合。提出最小兼容修改，并说明对现有飞行方式、控制器选择及参数的影响。\n\n先把问题写成可测需求与系统/接口模型，再提出方案并实现可复查的验证。所有数值公差、工况、时间预算应在运行前冻结；未执行的步骤明确标为未执行。不能仅凭图能渲染或文件齐全宣称工程通过。",
+      "inputs": [
+        "评测方待提供：完整 SHA 和子模块锁定的源代码快照（当前 baselineCommit 为 null）。",
+        "固定版本 controller_mellinger.c、相关模式/设定值类型及既有控制测试。",
+        "评测方冻结合法输入模式集合与需要维持的代表轨迹。"
+      ],
+      "deliverables": [
+        "requirements.md：场景、相关方、带 ID 的可测需求、假设及来源。",
+        "model.json：结构/行为/接口与需求、组件、验证之间的追溯关系；可附 SysML 文本。",
+        "verification.json：环境、基线、各 gate 的 pass/fail/not-run、原始日志路径及未运行原因。",
+        "change.md：方案权衡、影响范围、必要补丁和测试，以及尚不能支持的结论。"
+      ],
+      "acceptanceCriteria": [
+        "G0：提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+        "G1：每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+        "G2：对支持的各轴模式组合构建穷举/参数化测试，未启用的输入不能意外参与输出；未知组合被按契约拒绝或处理。",
+        "G3：代表轨迹与边界设定值的输出在冻结公差内，无非有限数或不允许的突变。",
+        "G4：变更影响表覆盖调用点、模式选择、参数和已有测试，兼容性偏差被明确列出且有审查结论。"
+      ],
+      "gates": [
+        {
+          "id": "G0",
+          "title": "基线与输入可重建",
+          "kind": "manifest",
+          "passCondition": "提交主仓库完整 SHA、全部相关子模块 SHA、工具版本和输入散列；评测方能在隔离环境重建同一状态。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G1",
+          "title": "场景与追溯可检查",
+          "kind": "model-review",
+          "passCondition": "每条验收需求有稳定 ID，并关联场景、组件/接口、变更和验证记录；模型无悬空引用；假设与来源可区分。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G2",
+          "title": "行为门槛 1",
+          "kind": "independent-replay",
+          "passCondition": "对支持的各轴模式组合构建穷举/参数化测试，未启用的输入不能意外参与输出；未知组合被按契约拒绝或处理。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G3",
+          "title": "行为门槛 2",
+          "kind": "independent-replay",
+          "passCondition": "代表轨迹与边界设定值的输出在冻结公差内，无非有限数或不允许的突变。",
+          "status": "planned-not-executed"
+        },
+        {
+          "id": "G4",
+          "title": "行为门槛 3",
+          "kind": "independent-replay",
+          "passCondition": "变更影响表覆盖调用点、模式选择、参数和已有测试，兼容性偏差被明确列出且有审查结论。",
+          "status": "planned-not-executed"
+        }
+      ],
+      "evidenceLevel": "source-verified",
+      "executionStatus": "not-reproduced",
+      "datasetReadiness": "curated-task-specification",
+      "taskType": "开放控制契约审计",
+      "hardwareRequired": false,
+      "hardwareScope": "编者设计的软件验收层不要求实物；硬件行为和真实飞行未纳入本轮。",
+      "environment": "候选环境：Linux、对应版本 firmware 及子模块、C 编译器和上游单元测试工具；固件构建另需 ARM 工具链；本轮未部署。",
+      "baselineCommit": null,
+      "baselineStatus": "未冻结；正式执行前须选择并记录可复现问题的版本。",
+      "tags": [
+        "控制",
+        "模式",
+        "变更影响",
+        "回归"
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/bitcraze/crazyflie-firmware/issues/1628",
+          "title": "Crazyflie 上游问题 #1628（讨论可能含答案）"
+        }
+      ],
+      "sourceNotes": [
+        {
+          "url": "https://github.com/bitcraze/crazyflie-firmware/issues/1628",
+          "checkedOn": "2026-10-22",
+          "summary": "已在项目官方 issue 页核对原始问题、状态及可见上下文；根因/修复信息保存在 evaluator 目录。"
+        }
+      ],
+      "upstreamFacts": [
+        "维护者在官方 issue 要求审查模式输入，并要求对修改做影响分析。",
+        "issue 仍开放。"
+      ],
+      "curatorAdditions": [
+        "任务中文改写、统一交付文件、G0/G1 及额外回归/边界工况均由编者新增。",
+        "验收方式是计划；尚无已运行的隐藏测试、环境镜像或自动评分器。"
+      ],
+      "limitations": [
+        "本题的软件测试不验证真实机体动力学、推力标定或空中稳定性；需要另设实机验收层。",
+        "仅核对公开一手来源；未下载并冻结完整仓库，未在本地复现问题或运行上游仿真。",
+        "公开 issue 链接及其标题、评论、关联 PR 可能泄漏诊断或历史答案；此版本用于浏览与探索，不是盲测。",
+        "正式盲测须制作剥离解答的冻结输入快照、锁定依赖并隔离网络及 evaluator 文件；还需检查训练数据污染。",
+        "本题验收矩阵由数据集编者提出，除明确引用的事实外不代表上游已经批准或实现的规范。",
+        "通过软件门槛只支持所测版本和工况，不代表硬件、实际飞行、系统认证或完整 MBSE 能力通过。"
+      ],
+      "checkedOn": "2026-10-22"
+    }
+  ]
+}

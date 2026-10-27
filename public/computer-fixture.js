@@ -1,0 +1,1 @@
+document.getElementById('form').addEventListener('submit',e=>{e.preventDefault();const v=document.getElementById('requirement').value.trim();document.getElementById('result').textContent=v?'已记录：'+v:'请输入需求名称';});

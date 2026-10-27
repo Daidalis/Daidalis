@@ -1,0 +1,20 @@
+{
+  "bundle": {
+    "file": "sysml-library.json.gz",
+    "gzipBytes": 203772,
+    "rawBytes": 1412201
+  },
+  "libraryUnresolvedReferences": 6,
+  "prepared": {
+    "file": "sysml-library.prepared.gz",
+    "gzipBytes": 9978024,
+    "rawBytes": 29807145
+  },
+  "snapshot": {
+    "file": "sysml-library.libcache.gz",
+    "gzipBytes": 2022070,
+    "rawBytes": 3263815
+  },
+  "toolkitVersion": "0.10.10",
+  "units": 96
+}

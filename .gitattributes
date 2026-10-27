@@ -1,0 +1,6 @@
+# Scripts must retain LF when checked out on Windows/WSL.
+* text=auto eol=lf
+# Pinned kernels and recorded evidence are verified byte-for-byte.
+toolchains/** -text
+website/dist/assets/evidence/** -text
+website/dist/assets/evidence/*.csv whitespace=cr-at-eol

@@ -1,0 +1,21 @@
+export function parseStl(bytes){
+ const buffer=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);if(buffer.byteLength>20_000_000)throw Error('STL 超过 20 MB 显示上限');
+ const triangles=[];let binary=false;
+ if(buffer.length>=84){const view=new DataView(buffer.buffer,buffer.byteOffset,buffer.byteLength),count=view.getUint32(80,true);binary=count>0&&84+count*50===buffer.length;if(binary){if(count>100000)throw Error('STL 超过 100000 个三角形的显示上限');for(let i=0;i<count;i++){const face=[];for(let j=0;j<3;j++){const at=84+i*50+12+j*12;face.push([view.getFloat32(at,true),view.getFloat32(at+4,true),view.getFloat32(at+8,true)]);}triangles.push(face);}}}
+ if(!binary){const source=new TextDecoder('utf-8',{fatal:true}).decode(buffer),points=[];for(const match of source.matchAll(/\bvertex\s+([+-]?[\d.eE]+)\s+([+-]?[\d.eE]+)\s+([+-]?[\d.eE]+)/g)){points.push(match.slice(1).map(Number));if(points.length>300000)throw Error('STL 超过三角形显示上限');}if(!points.length||points.length%3)throw Error('STL 没有完整的三角形');for(let i=0;i<points.length;i+=3)triangles.push(points.slice(i,i+3));}
+ const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(const triangle of triangles)for(const p of triangle)for(let i=0;i<3;i++){if(!Number.isFinite(p[i])||Math.abs(p[i])>1e12)throw Error('STL 坐标无效');min[i]=Math.min(min[i],p[i]);max[i]=Math.max(max[i],p[i]);}
+ return {triangles,bounds:{min,max,dimensions:max.map((n,i)=>n-min[i])},triangleCount:triangles.length};
+}
+export function mountNativeGeometry(host,{bytes,name='原生 STL'}={}){
+ const geometry=parseStl(bytes);host.innerHTML='<div class="pm-geometry"><div><strong></strong><span class="muted">拖动旋转 · 滚轮缩放</span><button type="button" class="button compact" data-geometry-reset>复位</button></div><canvas aria-label="原生 STL 三维模型" role="img"></canvas><p></p></div>';
+ host.querySelector('strong').textContent=name;host.querySelector('p').textContent=`${geometry.triangleCount} 个实际网格三角形 · 包围尺寸 ${geometry.bounds.dimensions.map(v=>Number(v.toPrecision(6))).join(' × ')}（模型原生长度单位）`;
+ const canvas=host.querySelector('canvas'),ctx=canvas.getContext('2d'),center=geometry.bounds.min.map((v,i)=>(v+geometry.bounds.max[i])/2),size=Math.max(...geometry.bounds.dimensions)||1;let yaw=.6,pitch=-.35,zoom=1,drag;
+ function draw(){const width=Math.max(250,canvas.clientWidth),height=380,dpr=window.devicePixelRatio||1;canvas.width=width*dpr;canvas.height=height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);const scale=Math.min(width,height)*.65/size*zoom;
+  const project=p=>{const x=p[0]-center[0],y=p[1]-center[1],z=p[2]-center[2],x1=x*Math.cos(yaw)+z*Math.sin(yaw),z1=-x*Math.sin(yaw)+z*Math.cos(yaw),y1=y*Math.cos(pitch)-z1*Math.sin(pitch),z2=y*Math.sin(pitch)+z1*Math.cos(pitch);return [width/2+x1*scale,height/2-y1*scale,z2];};
+  const faces=geometry.triangles.map(tri=>tri.map(project)).sort((a,b)=>a.reduce((s,p)=>s+p[2],0)-b.reduce((s,p)=>s+p[2],0));
+  for(const tri of faces){const a=tri[0],b=tri[1],c=tri[2],signed=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.closePath();ctx.fillStyle=signed<0?'#98b5aa':'#d0ded6';ctx.fill();ctx.strokeStyle='#637e72';ctx.lineWidth=.5;ctx.stroke();}
+ }
+ const down=e=>{drag={x:e.clientX,y:e.clientY,yaw,pitch};canvas.setPointerCapture(e.pointerId);},move=e=>{if(!drag)return;yaw=drag.yaw+(e.clientX-drag.x)*.008;pitch=drag.pitch+(e.clientY-drag.y)*.008;draw();},up=()=>{drag=null;},wheel=e=>{e.preventDefault();zoom=Math.max(.1,Math.min(10,zoom*Math.exp(-e.deltaY*.001)));draw();},reset=()=>{yaw=.6;pitch=-.35;zoom=1;draw();};
+ canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);canvas.addEventListener('wheel',wheel,{passive:false});host.querySelector('[data-geometry-reset]').addEventListener('click',reset);const resize=new ResizeObserver(draw);resize.observe(canvas);draw();
+ return {geometry,destroy(){resize.disconnect();canvas.removeEventListener('pointerdown',down);canvas.removeEventListener('pointermove',move);canvas.removeEventListener('pointerup',up);canvas.removeEventListener('pointercancel',up);canvas.removeEventListener('wheel',wheel);}};
+}

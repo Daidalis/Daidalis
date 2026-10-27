@@ -1,0 +1,27 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+
+const manifestPath=process.argv[2];
+if(!manifestPath||!path.isAbsolute(manifestPath))throw new Error('Pass the absolute path to one isolated boundary.json');
+const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
+if(manifest.schema!=='manta-requirements-first-eval-v1'||manifest.initialWorkspaceEntries?.length||!manifest.referenceImportDisabled||!manifest.externalMcpDisabled||!manifest.nos3Disabled||!manifest.computerDisabled||!manifest.disabledAgentTools?.includes('run_command'))throw new Error('The evaluation manifest does not establish the required empty, isolated boundary');
+if(fs.readdirSync(manifest.workspace).length)throw new Error('The blank project has changed before the frozen first prompt');
+const promptFile=process.env.MANTA_STF_PROMPT_FILE;
+if(!promptFile||!path.isAbsolute(promptFile))throw new Error('Set MANTA_STF_PROMPT_FILE to the absolute path of the reviewed requirements-only prompt');
+const prompt=fs.readFileSync(promptFile,'utf8').trim();
+if(!prompt)throw new Error('The requirements prompt must not be empty');
+const promptHash=createHash('sha256').update(prompt).digest('hex');
+const base=`http://127.0.0.1:${manifest.port}`;
+const json=async(route,options)=>{const response=await fetch(base+route,options);const value=await response.json();if(!response.ok)throw new Error(`${response.status} ${JSON.stringify(value)}`);return value;};
+const bootstrap=await json('/api/bootstrap');
+if(bootstrap.projects.length!==1||bootstrap.projects[0].id!==manifest.projectId||bootstrap.threads.length!==1||bootstrap.threads[0].id!==manifest.coordinatorThreadId)throw new Error('The live Manta instance no longer matches this isolated manifest');
+const nativeCodex=bootstrap.providers.find(p=>p.id==='codex-local');
+if(nativeCodex?.type!=='codex-app-server'||nativeCodex.runtime!=='codex-app-server')throw new Error('The isolated STF evaluation requires the native Codex app-server provider; a generic model API provider is not equivalent');
+if(!nativeCodex.configured)throw new Error('Configure the isolated Codex provider in Manta first; do not send its key through chat');
+const history=await json(`/api/threads/${manifest.coordinatorThreadId}/messages`);
+if(history.messages.some(message=>message.role==='user')||bootstrap.runs.length)throw new Error('The first task has already started; do not duplicate it');
+const submitted=await json(`/api/threads/${manifest.coordinatorThreadId}/messages`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({content:prompt,providerId:'codex-local',permissionMode:'auto'})});
+const receipt={schema:'manta-requirements-first-submission-v1',projectId:manifest.projectId,coordinatorThreadId:manifest.coordinatorThreadId,runId:submitted.run.id,promptSha256:promptHash,promptSource:promptFile,permissionMode:'auto',submittedAt:new Date().toISOString()};
+fs.writeFileSync(path.join(path.dirname(manifestPath),'submission.json'),JSON.stringify(receipt,null,2)+'\n',{mode:0o600,flag:'wx'});
+process.stdout.write(JSON.stringify({runId:receipt.runId,projectId:receipt.projectId,url:`${base}/?project=${manifest.projectId}`,promptSha256:promptHash})+'\n');

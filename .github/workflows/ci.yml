@@ -1,0 +1,55 @@
+name: Install and verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 22
+          - os: ubuntu-latest
+            node: 24
+          - os: macos-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: node scripts/audit-public.mjs
+      - run: npm test
+      - run: npm run smoke
+      - run: npm run doctor
+      - run: node website/scripts/check.mjs
+      - name: Check known dependency advisories
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: npm audit --audit-level=high
+
+  windows-browser-smoke:
+    name: Windows / Node 22 / browser service only
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run smoke
+      - run: node website/scripts/check.mjs
+      # Full Windows suite, native desktop and solver provisioning are not asserted.

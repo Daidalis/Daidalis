@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="640" viewBox="0 0 1600 640" role="img" aria-labelledby="title desc">
+  <title id="title">Manta — Engineering, in conversation.</title>
+  <desc id="desc">Manta brand cover with abstract orbital paths and a connected systems diagram. From intent to models, simulations and evidence.</desc>
+  <defs>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.9" fill="#233c33" opacity="0.11"/>
+    </pattern>
+    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#edf1e6"/>
+      <stop offset="1" stop-color="#f6f5ee"/>
+    </linearGradient>
+    <clipPath id="right"><rect x="935" y="0" width="665" height="640"/></clipPath>
+  </defs>
+  <rect width="1600" height="640" rx="20" fill="#f6f5ee"/>
+  <rect x="935" width="665" height="640" fill="url(#field)"/>
+  <rect x="935" width="665" height="640" fill="url(#grid)"/>
+  <path d="M935 0v640" stroke="#d9dfd1"/>
+  <g transform="translate(74 58) scale(.132) translate(-34 -88)" fill="#233c33">
+    <path d="M256 151C246 151 239 145 238 132C231 138 229 154 232 170C192 176 140 157 62 118C70 207 111 266 177 279C209 286 224 305 241 326C245 331 249 333 252 334C250 365 263 385 274 404C280 414 281 423 278 432C288 419 287 408 280 395C267 373 264 357 265 334C270 332 273 330 277 326C294 305 309 286 341 279C407 266 448 207 456 118C378 157 326 176 286 170C289 154 287 138 280 132C279 145 272 151 262 151Z"/>
+  </g>
+  <text x="153" y="100" fill="#233c33" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700" letter-spacing="7">MANTA</text>
+  <rect x="76" y="171" width="7" height="7" rx="3.5" fill="#c46e45"/>
+  <text x="99" y="180" fill="#687b67" font-family="Arial, Helvetica, sans-serif" font-size="13" letter-spacing="2.7">A CONVERSATIONAL WORKSPACE FOR SYSTEMS ENGINEERING</text>
+  <g fill="#233c33" font-family="Georgia, 'Times New Roman', serif" font-size="82" letter-spacing="-3">
+    <text x="70" y="294">Engineering,</text>
+    <text x="70" y="389">in conversation.</text>
+  </g>
+  <text x="76" y="460" fill="#61705e" font-family="Arial, Helvetica, sans-serif" font-size="22">From intent to models, simulations &amp; evidence</text>
+  <path d="M76 518H850" stroke="#d3dacb"/>
+  <text x="76" y="559" fill="#687b67" font-family="Arial, Helvetica, sans-serif" font-size="13" letter-spacing="1.1">NATURAL LANGUAGE</text>
+  <path d="M265 554h56m-7-5 7 5-7 5" fill="none" stroke="#99aa91" stroke-width="1.4"/>
+  <text x="343" y="559" fill="#687b67" font-family="Arial, Helvetica, sans-serif" font-size="13" letter-spacing="1.1">PROFESSIONAL TOOLS</text>
+  <path d="M540 554h56m-7-5 7 5-7 5" fill="none" stroke="#99aa91" stroke-width="1.4"/>
+  <text x="618" y="559" fill="#687b67" font-family="Arial, Helvetica, sans-serif" font-size="13" letter-spacing="1.1">REVIEWABLE RESULTS</text>
+  <g clip-path="url(#right)" fill="none">
+    <circle cx="1294" cy="307" r="174" stroke="#9cad94" stroke-width="1" opacity=".44"/>
+    <circle cx="1294" cy="307" r="235" stroke="#a8b69e" stroke-width="1" opacity=".35"/>
+    <circle cx="1294" cy="307" r="308" stroke="#a8b69e" stroke-width="1" opacity=".22"/>
+    <ellipse cx="1294" cy="307" rx="337" ry="116" transform="rotate(-37 1294 307)" stroke="#648060" stroke-width="1.4" opacity=".65"/>
+    <ellipse cx="1294" cy="307" rx="320" ry="80" transform="rotate(34 1294 307)" stroke="#a8b69e" stroke-width="1" opacity=".45"/>
+    <path d="M1038 83h24m-12-12v24M1516 539h24m-12-12v24" stroke="#83977b" opacity=".55"/>
+    <path d="M1115 245h180v67m0 70v89m-153-72v-44h79m146 44v-44h-72" stroke="#849a7c" stroke-width="1.5"/>
+    <path d="M1115 245h87" stroke="#233c33" stroke-width="1.5"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <rect x="1003" y="210" width="200" height="72" rx="10" fill="#f8f8f1" stroke="#bcc9b2"/>
+    <text x="1022" y="236" fill="#7e9274" font-size="10" letter-spacing="1.6">INTENT</text>
+    <text x="1022" y="259" fill="#233c33" font-size="17">A system to build</text>
+    <rect x="1219" y="308" width="212" height="74" rx="10" fill="#233c33"/>
+    <text x="1240" y="334" fill="#b9c9ad" font-size="10" letter-spacing="1.6">MANTA</text>
+    <text x="1240" y="359" fill="#f6f5ee" font-size="16">Connect the engineering</text>
+    <rect x="1038" y="398" width="196" height="72" rx="10" fill="#f8f8f1" stroke="#bcc9b2"/>
+    <text x="1057" y="424" fill="#7e9274" font-size="10" letter-spacing="1.6">DESIGN</text>
+    <text x="1057" y="447" fill="#233c33" font-size="17">Models &amp; interfaces</text>
+    <rect x="1299" y="471" width="208" height="72" rx="10" fill="#f8f8f1" stroke="#bcc9b2"/>
+    <text x="1318" y="497" fill="#7e9274" font-size="10" letter-spacing="1.6">REVIEW</text>
+    <text x="1318" y="520" fill="#233c33" font-size="17">Results &amp; open questions</text>
+  </g>
+  <circle cx="1440" cy="118" r="6" fill="#c46e45"/>
+  <circle cx="1219" cy="346" r="4" fill="#c46e45" stroke="#f6f5ee" stroke-width="3"/>
+  <circle cx="1295" cy="471" r="3.5" fill="#789269"/>
+  <text x="1003" y="590" fill="#87977f" font-family="Arial, Helvetica, sans-serif" font-size="11" letter-spacing="2">ONE CONVERSATION. A CONNECTED ENGINEERING PROCESS.</text>
+</svg>

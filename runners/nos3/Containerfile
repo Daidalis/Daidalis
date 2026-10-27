@@ -1,0 +1,14 @@
+# Optional dedicated Linux COMPONENT worker. No image is pulled/built by Manta.
+# Supply an immutable base image digest from your approved image registry.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+# Base must already contain Node >=22, git, tar, clang; no apt/pip/global install.
+WORKDIR /opt/manta
+COPY server/nos3.mjs server/nos3.mjs
+COPY server/nos3/ server/nos3/
+COPY server/sandbox.mjs server/sandbox.mjs
+COPY runners/nos3/ runners/nos3/
+USER 10001:10001
+ENV MANTA_NOS3_SOURCE=/source MANTA_NOS3_DATA=/jobs MANTA_NOS3_CC=/usr/bin/clang MANTA_NOS3_BIND=0.0.0.0
+EXPOSE 8093
+ENTRYPOINT ["node", "runners/nos3/worker.mjs"]

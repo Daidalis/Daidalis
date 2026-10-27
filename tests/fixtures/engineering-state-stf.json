@@ -1,0 +1,286 @@
+{
+  "schema": "manta-stf-engineering-takeover-fixture-v1",
+  "date": "2026-10-23",
+  "purpose": "Read-only curated STF reference facts as input to application engineering-state tests. This fixture does not define the complete STF acceptance matrix.",
+  "caseCompleted": false,
+  "simulationExecuted": false,
+  "baselineCommit": "5a3bdee6be9a2c67fdf994ae6db56d5c60395302",
+  "sourceInventory": "research/stf-source-inventory.json",
+  "source": {
+    "path": "docs/wiki/STF_ConOps.md",
+    "pinned_source_url": "https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md",
+    "online_url": "https://nos3.readthedocs.io/en/latest/STF_ConOps.html",
+    "local_sha256": "49c273773cbb24ef65f87763754e70575f34f4417c155010e0be22266e63bc7c",
+    "online_version_resolved": false
+  },
+  "sourceExtract": "# STF public reference objectives\n\n- L0-01: STF shall collect science over the United States: Contiguous United States (CONUS), Alaska (AK), and Hawaii (HI).\n- L0-02: STF shall limit science collection to near the United States.\n- L0-03: STF shall have automated on-board science with fault detection and correction.\n- L0-04: STF shall collect science data for a duration of at least 3 months.\n- L0-05: STF shall get all science data to the ground in under 24 hours from collection.\n- L0-06: STF shall prioritize spacecraft health over science data collection\n\nL1–L4 are TBD in the source. These imported public objectives are not automatically approved for the Manta engineering project.\n",
+  "requirements": [
+    {
+      "id": "L0-01",
+      "summary": "在 CONUS、AK、HI 上空采集科学数据",
+      "gaps": [
+        "覆盖率、重访、观测质量等可量化指标未定",
+        "默认52度轨道与AK覆盖目标存在待分析关系；需载荷视场/观测几何，不能只用矩形触发推断全覆盖",
+        "参考载荷是样例设备，不是已定义性能的降水仪器"
+      ],
+      "candidate_work": [
+        "定义科学产品、空间/时间覆盖、精度和有效数据标准",
+        "轨道/覆盖/载荷视场与指向协同设计",
+        "轨道/季节/初始条件场景覆盖和科学数据端到端验收"
+      ],
+      "original": "L0-01: STF shall collect science over the United States: Contiguous United States (CONUS), Alaska (AK), and Hawaii (HI).",
+      "source": "https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md",
+      "sourceLines": "23",
+      "approval": "not_approved",
+      "verification": "not_executed",
+      "authority": "public reference objective, not Manta user-approved requirement baseline"
+    },
+    {
+      "id": "L0-02",
+      "summary": "把科学采集限制在美国附近",
+      "gaps": [
+        "near没有量化",
+        "地理/坐标/时标/有效性规范与边界行为没有已批准来源",
+        "地理触发不是证明所有科学测量足迹均符合范围"
+      ],
+      "candidate_work": [
+        "明确near、边界、容差、时间延迟及无效/过时GPS处理",
+        "分析矩形框与地理边界/载荷足迹差异",
+        "边界内外、临界值、跳变/抖动、GPS故障场景验证"
+      ],
+      "original": "L0-02: STF shall limit science collection to near the United States.",
+      "source": "https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md",
+      "sourceLines": "24",
+      "approval": "not_approved",
+      "verification": "not_executed",
+      "authority": "public reference objective, not Manta user-approved requirement baseline"
+    },
+    {
+      "id": "L0-03",
+      "summary": "自动执行星上科学采集并检测和纠正故障",
+      "gaps": [
+        "完整故障集、检测延迟/误报/漏报、冗余和恢复准则未分配",
+        "教程描述不是实际测试结果",
+        "ConOps载荷自保护断通信并断电恢复，与教程重启整星的具体策略需要统一确认"
+      ],
+      "candidate_work": [
+        "故障/危险分析与故障覆盖、可检测性、响应/恢复指标",
+        "正常/故障/重复故障/重启循环/组合故障的模式设计",
+        "单元、集成、系统故障注入与实物响应验证"
+      ],
+      "original": "L0-03: STF shall have automated on-board science with fault detection and correction.",
+      "source": "https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md",
+      "sourceLines": "25",
+      "approval": "not_approved",
+      "verification": "not_executed",
+      "authority": "public reference objective, not Manta user-approved requirement baseline"
+    },
+    {
+      "id": "L0-04",
+      "summary": "科学数据采集持续至少三个月",
+      "gaps": [
+        "运行数分钟仿真不能验证三个月",
+        "材料、辐射、热、寿命、硬件选型/鉴定及可靠性证据缺失或未核验",
+        "仿真加速及外推需要模型适用性/相关性证据"
+      ],
+      "candidate_work": [
+        "明确从何时起计、可用率/允许中断、寿命和成功标准",
+        "三个月轨道季节/食期、能源、温度、数据、软件长期资源与可靠性分析",
+        "长时运行、复位/维护/老化及适用硬件寿命/环境试验"
+      ],
+      "original": "L0-04: STF shall collect science data for a duration of at least 3 months.",
+      "source": "https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md",
+      "sourceLines": "26",
+      "approval": "not_approved",
+      "verification": "not_executed",
+      "authority": "public reference objective, not Manta user-approved requirement baseline"
+    },
+    {
+      "id": "L0-05",
+      "summary": "采集后的全部科学数据在24小时内到达地面",
+      "gaps": [
+        "没有闭合数据生成→存储→传输→SOC接收的24h预算/RTM",
+        "默认常连接或单次文件下载不能证明真实24h目标",
+        "GS服务/网络容量成本、SOC流程未定义",
+        "QuickLook单一文件类型与当前DS表多类型存在需核对差异"
+      ],
+      "candidate_work": [
+        "明确地面交付终点、数据有效/完整性与丢包/异常处理",
+        "科学数据率、存储、接触窗口、链路容量、调度及重传预算",
+        "全任务数据年龄与完整性验证，站点中断、失联、积压/满存储和时间故障场景"
+      ],
+      "original": "L0-05: STF shall get all science data to the ground in under 24 hours from collection.",
+      "source": "https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md",
+      "sourceLines": "27",
+      "approval": "not_approved",
+      "verification": "not_executed",
+      "authority": "public reference objective, not Manta user-approved requirement baseline"
+    },
+    {
+      "id": "L0-06",
+      "summary": "航天器健康优先于科学采集",
+      "gaps": [
+        "未找到完整的健康约束和危害闭合",
+        "电压映射成SOC的模型适用性需确认；教程60/90/40等数值不自动成为批准性能指标",
+        "安全模式并不自动证明热安全/硬件安全和所有故障情形"
+      ],
+      "candidate_work": [
+        "定义健康约束、危险阈值、模式优先级、恢复授权和资源裕度",
+        "能源/热/姿态/通信/软件健康约束交叉验证",
+        "边界、极端、竞争触发和操作员误操作情境验证；适用硬件保护试验"
+      ],
+      "original": "L0-06: STF shall prioritize spacecraft health over science data collection",
+      "source": "https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md",
+      "sourceLines": "28",
+      "approval": "not_approved",
+      "verification": "not_executed",
+      "authority": "public reference objective, not Manta user-approved requirement baseline"
+    }
+  ],
+  "unfinishedConditions": [
+    {
+      "topic": "lower-level-requirements",
+      "status": "unresolved",
+      "detail": "L1–L4, allocated budgets, measurable science product quality and approved verification/acceptance criteria remain to be defined."
+    },
+    {
+      "topic": "science-quality",
+      "status": "not_verified",
+      "detail": "A sample payload and geographic trigger do not prove scientific product quality, coverage, or Alaska observability."
+    },
+    {
+      "topic": "contact-limited-downlink",
+      "status": "not_verified",
+      "detail": "Default near always-connected lossless radio assumptions cannot demonstrate delivery of all science in under 24 hours under real contact and capacity constraints."
+    },
+    {
+      "topic": "hardware",
+      "status": "applicability_pending",
+      "detail": "Real product and physical test articles, procurement and qualification conditions have not been established; the demo does not waive them."
+    },
+    {
+      "topic": "HIL",
+      "status": "not_executed",
+      "detail": "No HIL execution is represented by this fixture or by HTTP tests."
+    },
+    {
+      "topic": "environment",
+      "status": "applicability_pending",
+      "detail": "Applicable thermal, vibration, EMC and radiation work requires an explicit engineering applicability decision and valid evidence."
+    },
+    {
+      "topic": "lifetime",
+      "status": "not_verified",
+      "detail": "Three months of scientific operation requires accepted software, resource, operational and applicable hardware lifetime evidence; short simulations are insufficient."
+    },
+    {
+      "topic": "independent-assurance",
+      "status": "unassigned",
+      "detail": "Responsible acceptance and independent assurance roles are not appointed by a test harness or a second agent."
+    }
+  ],
+  "documentedGaps": [
+    {
+      "id": "G01",
+      "kind": "observed-gap",
+      "claim": "L1–L4均TBD；V&V Appendix C/D均TODO",
+      "sources": [
+        "conops",
+        "vv"
+      ]
+    },
+    {
+      "id": "G02",
+      "kind": "observed-gap",
+      "claim": "ConOps明确简化：样例载荷、近似常在线无损地面链、SOC细节省略；不可把这些默认假设作为真实任务已完成的证明",
+      "sources": [
+        "conops",
+        "radioconfig"
+      ]
+    },
+    {
+      "id": "G03",
+      "kind": "observed-maturity-limit",
+      "claim": "Rapid Tumbling仅outline且自述运行缓慢；DRM索引不是11个可运行闭合验收",
+      "sources": [
+        "rapid",
+        "drm"
+      ]
+    },
+    {
+      "id": "G04",
+      "kind": "observed-version-mismatch",
+      "claim": "多份教程仍注明2025 dev commit；RF场景为2026-06-11 dev645d9bec；本地repo为2026-06-30 pin。网上latest未解析成版本，不保证等同本地",
+      "sources": [
+        "lowpower",
+        "rfscenario",
+        "flightbuild"
+      ]
+    },
+    {
+      "id": "G05",
+      "kind": "observed-potential-document-conflict",
+      "claim": "QuickLook说单一DS类型，而当前ds_file_tbl.c至少00–06七个已定义类型；须结合生成配置/实际运行核对，不能立刻定为运行bug",
+      "sources": [
+        "quicklook",
+        "ds"
+      ]
+    },
+    {
+      "id": "G06",
+      "kind": "observed-potential-document-conflict",
+      "claim": "ConOps载荷断通信/断电与故障教程整星重启策略不完全同层；需正式故障策略和配置追溯",
+      "sources": [
+        "conops",
+        "faultscience"
+      ]
+    },
+    {
+      "id": "G07",
+      "kind": "documentation-review-required",
+      "claim": "SDP Static Code Analysis段写GCOV；要区分静态分析与覆盖率，不能据工具名称声明静态分析或MC/DC已满足。单元指南100%MC/DC与后文schedule允许则追求满覆盖也需统一",
+      "sources": [
+        "sdp"
+      ]
+    },
+    {
+      "id": "G08",
+      "kind": "observed-configuration-divergence",
+      "claim": "cfg/sims/nos3-simulator.xml使用GENERIC_RADIO_42_PROVIDER但关闭约束/延迟；sc-1-nos3-simulator.xml用GENERIC_RADIO_PROVIDER；普通单星脚本选择前者。本地没有cfg/build，实际受测配置仍须采集",
+      "sources": [
+        "radioconfig",
+        "missionconfig"
+      ]
+    },
+    {
+      "id": "G09",
+      "kind": "observed-environment-scope",
+      "claim": "NAS本地46顶层submodules仅3初始化，cfg/build、fsw/build、sims/build未见；不推断隔离VM/runner已不存在或未构建。需另查执行副本manifest",
+      "sources": [
+        "ci",
+        "missionconfig"
+      ]
+    },
+    {
+      "id": "G10",
+      "kind": "not-established",
+      "claim": "未发现已批准完整系统需求/预算/RTM、实物鉴定、科学产品有效性和最终接受记录。搜索范围为已跟踪docs/cfg及3个已初始化submodule，不是断言全球资料不存在",
+      "sources": [
+        "conops",
+        "sdp",
+        "vv"
+      ]
+    },
+    {
+      "id": "G11",
+      "kind": "engineering-question",
+      "claim": "默认52度倾角与AK观测区域、样例载荷足迹/指向/数据有效性的关系需要分析；不能从进入矩形框推断满足科学覆盖",
+      "sources": [
+        "orbconfig",
+        "conops",
+        "lc"
+      ]
+    }
+  ],
+  "testEvidenceBoundary": "Only actual fixture processing and application configuration bookkeeping may be labelled passed by these tests. No NASA approval, NOS3 execution, flight acceptance, or scientific validation is asserted."
+}

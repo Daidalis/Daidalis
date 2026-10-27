@@ -1,0 +1,30 @@
+{
+  "name": "@sysml/wasm",
+  "type": "module",
+  "description": "SysML v2 / KerML toolkit for the browser: parsing, checking, interchange JSON, PlantUML emission (wasm)",
+  "version": "0.10.10",
+  "license": "Apache-2.0 AND EPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Open-MBEE/sysml-toolkit"
+  },
+  "files": [
+    "sysmlv2_bg.wasm",
+    "sysmlv2.js",
+    "sysmlv2.d.ts",
+    "stdlib",
+    "cli",
+    "buildinfo.json",
+    "LICENSE",
+    "LICENSE-EPL-2.0",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "main": "sysmlv2.js",
+  "types": "sysmlv2.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

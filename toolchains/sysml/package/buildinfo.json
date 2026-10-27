@@ -1,0 +1,9 @@
+{
+  "name": "@sysml/wasm",
+  "version": "0.10.10",
+  "commit": "339ef0e",
+  "dirty": false,
+  "builtAt": "2026-10-16T09:45:12.458Z",
+  "toolchain": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "optimizer": "wasm-opt version 117 (version_117)"
+}

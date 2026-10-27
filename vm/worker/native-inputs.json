@@ -1,0 +1,13 @@
+{
+  "schema": "manta-nos3-native-inputs-v1",
+  "stagedFiles": {
+    "nos3-source.tar.gz": "f018c2c3564a209575df0fbded99a8007f0edb268f232395d9f54bf1c922b5c3",
+    "42-assets.tar.gz": "0339b425b9220ae3d723d0a90bc4ed02ca56a5462279f2a6abda07456a910152",
+    "42-assets-manifest.json": "de831c50047b3376e1fb5400bf062fc197b5edd536266a91172080ad3af19a61",
+    "source/manifest.json": "640ed78a5cb1a6753e6fb0dcd8162a5c0e75c821e89c9a05e4a61e5b0c08aa8f",
+    "source/integrity.json": "fadfb8bd140f81a0488f4668ccb4e19f785bf12349fe42dcf872856ebf1c485d",
+    "source/packages/itc-common-Release_1.10.2_arm64.deb": "1d8454267aa26ed05f027032dd130733ead6dee3c1f91e2c7ab68e0290a16c6e",
+    "source/packages/nos-engine-Release_1.6.2_arm64.deb": "594c565fe9a5a7266b41b836821482873880521fca7dd2e3d1ef611f10d8d220",
+    "nos3-plan/run_native.py": "078fd40fa7db7cf166bd824d429b6849997176dc2d09f739107f3958fe5189e1"
+  }
+}

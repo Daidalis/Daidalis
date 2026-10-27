@@ -1,0 +1,42 @@
+# Local runtime, generated output, and credentials
+node_modules/
+.local/
+data/
+work/
+outputs/
+build/
+.env
+.env.*
+!.env.example
+*.log
+*.pid
+*.tmp
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Isolated VM state and downloaded inputs
+vm/state/
+vm/assets/
+vm/handoff/
+vm/host/module-cache/
+vm/host/pycache/
+vm/host/manta-vm
+vm/host/vm-probe
+*.raw
+*.qcow2
+*.vmdk
+*.iso
+id_ed25519*
+
+# Owner-specific hosting identity and local secrets
+website/.openai/hosting.json
+.npmrc
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Maintainer-only planning and conversation references
+/project-notes/

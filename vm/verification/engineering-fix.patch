@@ -1,0 +1,24 @@
+--- a/components/generic_adcs/fsw/cfs/src/generic_adcs_ingest.c
++++ b/components/generic_adcs/fsw/cfs/src/generic_adcs_ingest.c
+@@ -183,7 +183,8 @@
+     St->valid   = st->Generic_star_tracker.IsValid;
+     double q[4] = {st->Generic_star_tracker.Q0, st->Generic_star_tracker.Q1, st->Generic_star_tracker.Q2,
+                    st->Generic_star_tracker.Q3};
+-    QxQ(q, St->qbs, St->q);
++    /* Preserve raw sensor-frame attitude; mounting is applied once in AD_st. */
++    for (int i = 0; i < 4; ++i) St->q[i] = q[i];
+ }
+ 
+ void Generic_ADCS_ingest_novatel_gps(CFE_MSG_Message_t *Msg, Generic_ADCS_DI_Gps_Tlm_Payload_t *Gps)
+--- a/components/generic_adcs/fsw/shared/generic_adcs_adac.c
++++ b/components/generic_adcs/fsw/shared/generic_adcs_adac.c
+@@ -757,7 +757,8 @@
+     if (DI_ST->valid)
+     {
+         valid_st_cnt = valid_st_cnt + 1;
+-        QxQ(DI_ST->q, DI_ST->qbs, qST);
++        /* C_BN = C_BS C_SN, vector-first/scalar-last passive convention. */
++        QxQ(DI_ST->qbs, DI_ST->q, qST);
+     }
+ 
+     if (valid_st_cnt > 0.0)

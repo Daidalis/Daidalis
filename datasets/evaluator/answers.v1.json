@@ -1,0 +1,266 @@
+{
+  "version": "1.0.0",
+  "createdAt": "2026-10-22",
+  "visibility": "evaluator-only",
+  "notice": "此文件含历史讨论、诊断和解法线索，禁止通过公共题库 API 或启动任务自动导入给 agent。",
+  "answers": [
+    {
+      "taskId": "nos3-351",
+      "upstreamTitle": "Star Tracker's Quaternion seems to be off",
+      "issueUrl": "https://github.com/nasa/nos3/issues/351",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "closed",
+      "resolutionEvidence": "closed-with-linked-change",
+      "sourceSummary": "上游历史讨论及提交涉及串口编号、解析标志初始化、四元数向量维度和安装姿态配置等多处改动。问题于 2025-01-15 关闭并关联 PR #430；本轮未检查其完整 diff 或复现修复。",
+      "knownFixReferences": [
+        {
+          "url": "https://github.com/nasa/nos3/pull/430",
+          "kind": "issue-linked-pull-request",
+          "verification": "关联由 issue 页核对；完整差异未复查"
+        }
+      ],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "nos3-764",
+      "upstreamTitle": "ADCS Inertial Mode Errors",
+      "issueUrl": "https://github.com/nasa/nos3/issues/764",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "maintainer-diagnosis-only",
+      "sourceSummary": "2025-07-22 维护者评论称测试未开启相应开关，并讨论应补测试还是记录在操作程序。它是讨论中的诊断，不是已核验合并修复；公开状态仍 open。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "nos3-800",
+      "upstreamTitle": "Examine NOS3 Time Performance",
+      "issueUrl": "https://github.com/nasa/nos3/issues/800",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "no-confirmed-resolution",
+      "sourceSummary": "维护者使用 gprofng 调查，评论称若干进程 CPU 时间仅占墙钟时间的小部分，未找到显著可优化的用户函数；后续评论关注无线电输出负载。没有确认的解法或 golden patch。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "nos3-823",
+      "upstreamTitle": "CCSDS Transfer Frame (TF) Implementation in NOS3",
+      "issueUrl": "https://github.com/nasa/nos3/issues/823",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "no-confirmed-resolution",
+      "sourceSummary": "页面未见确认的实现方案或解决提交。不能根据 issue 作者的“似乎不完整”推断所有分支都无传输帧支持。编者要求先做版本化能力审计再冻结扩展范围。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "nos3-876",
+      "upstreamTitle": "Update Python Test scripts for Reliability",
+      "issueUrl": "https://github.com/nasa/nos3/issues/876",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "in-progress-notes-only",
+      "sourceSummary": "原始描述附阶段性改动：重试请求、添加延迟、修复 setup 导入、增加 ADCS 等待；作者仍称数据请求和姿态到达间歇失败。这些不是已确认的完整修复。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "px4-6488",
+      "upstreamTitle": "Battery failsafe action can be interrupted unintentionally",
+      "issueUrl": "https://github.com/PX4/PX4-Autopilot/issues/6488",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "closed",
+      "resolutionEvidence": "closed-without-verified-fix",
+      "sourceSummary": "原报告将路径关联到当时 Commander 中处理围栏的逻辑。页面无完整讨论、明确修复或关闭原因，本数据集不推断已经修复，不提供 golden patch。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "px4-29335",
+      "upstreamTitle": "[Bug] Mavlink link not established if broadcast failed at the beginning",
+      "issueUrl": "https://github.com/PX4/PX4-Autopilot/issues/29335",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "no-confirmed-resolution",
+      "sourceSummary": "原报告称起始广播失败后端口没有数据，提供了启动顺序和硬件环境。尚无已确认根因/解决提交；不能仅从标题认定应修改某个广播函数。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "px4-29367",
+      "upstreamTitle": "uXRCE-DDS: expose rtcm_corrections so RTK corrections can be injected from ROS 2",
+      "issueUrl": "https://github.com/PX4/PX4-Autopilot/issues/29367",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "proposal-linked-not-verified",
+      "sourceSummary": "报告者提出暴露 rtcm_corrections；页面链接 PR #29368。该提案还讨论并行 MAVLink/DDS 的负担。链接不等于已合并正确解；本轮未复查提案差异。",
+      "knownFixReferences": [
+        {
+          "url": "https://github.com/PX4/PX4-Autopilot/pull/29368",
+          "kind": "linked-proposal",
+          "verification": "仅核对 issue 关联；非确认修复"
+        }
+      ],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "ardupilot-32795",
+      "upstreamTitle": "Battery failsafe may not execute any valid failsafe action",
+      "issueUrl": "https://github.com/ArduPilot/ardupilot/issues/32795",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "maintainer-discussion-no-fixed-policy",
+      "sourceSummary": "原报告认为非法 BATT_FS_LOW_ACT 值可使触发后保持 GUIDED。维护者表示受 flash 大小限制不能覆盖全部异常配置，并澄清现有 LAND/FS_OPTIONS 行为。这是开放政策与实现权衡，不存在已核实唯一解。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "ardupilot-33961",
+      "upstreamTitle": "AP_BattMonitor: PreArm reports low voltage failsafe when voltage is already critical",
+      "issueUrl": "https://github.com/ArduPilot/ardupilot/issues/33961",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "closed",
+      "resolutionEvidence": "closed-with-linked-change",
+      "sourceSummary": "原始报告已给出根因：arming_checks 先检查 low、再 critical，短路使先前消息占用缓冲。页面关联 PR #33963，但本轮未读取完整 diff、冻结基线或运行测试。",
+      "knownFixReferences": [
+        {
+          "url": "https://github.com/ArduPilot/ardupilot/pull/33963",
+          "kind": "issue-linked-pull-request",
+          "verification": "仅核对 issue 关联；修复效果未复现"
+        }
+      ],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "ardupilot-11348",
+      "upstreamTitle": "Battery failsafe as percentage (rather than mAh)",
+      "issueUrl": "https://github.com/ArduPilot/ardupilot/issues/11348",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "no-confirmed-resolution",
+      "sourceSummary": "提案建议 BATT_UNC_LOW_PCT/BATT_UNC_CRT_PCT，按容量百分比叠加现有 mAh 裕度；示例 5000 mAh、1000 mAh 基础裕度加 20% 得 2000 mAh 触发阈值。它只是提案，不是已接受的规范或确定实现。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "crazyflie-1714",
+      "upstreamTitle": "TDoA2 Packet Layout Depends on CONFIG_DECK_LOCO_NR_OF_ANCHORS and Causes Data Misinterpretation",
+      "issueUrl": "https://github.com/bitcraze/crazyflie-firmware/issues/1714",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "proposal-linked-not-verified",
+      "sourceSummary": "报告称 TDoA2 发送线格式固定为 8 anchor slots，而接收结构随 4—8 的本地配置改变布局；会偏移时间戳/距离及 LPP 起点。PR #1717 提议固定 anchor 数。仅核对 issue 中的提案，未独立复现或确认合并。",
+      "knownFixReferences": [
+        {
+          "url": "https://github.com/bitcraze/crazyflie-firmware/pull/1717",
+          "kind": "linked-proposal",
+          "verification": "仅核对 issue 关联；不是已确认修复"
+        }
+      ],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    },
+    {
+      "taskId": "crazyflie-1628",
+      "upstreamTitle": "Check all mode input to Mellinger controller",
+      "issueUrl": "https://github.com/bitcraze/crazyflie-firmware/issues/1628",
+      "checkedOn": "2026-10-22",
+      "upstreamStatus": "open",
+      "resolutionEvidence": "no-confirmed-resolution",
+      "sourceSummary": "维护者称 controller_mellinger.c 部分路径假设 mode.y/z 已设置而未检查，并链接 #1596。没有已确认完整修复，本数据集不指定唯一补丁。",
+      "knownFixReferences": [],
+      "baselineCommit": null,
+      "goldenPatchAvailable": false,
+      "goldenPatchNote": "未制作或独立复现 golden patch。上游关闭或关联 PR 本身不等于已验证修复。",
+      "evaluatorGuidance": [
+        "不得向 agent 自动导入本记录；使用前先按原始来源核对并冻结版本。",
+        "以独立行为检查和有效模型关系验收，不要求逐字复制历史补丁。",
+        "仅文档/文件存在性检查不能计作 native simulation 或硬件通过。"
+      ]
+    }
+  ]
+}

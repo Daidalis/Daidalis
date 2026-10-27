@@ -1,0 +1,21 @@
+{
+  "schema": "manta-sysml-toolchain-v1",
+  "name": "@sysml/wasm",
+  "version": "0.10.10",
+  "commit": "339ef0e",
+  "repository": "https://github.com/Open-MBEE/sysml-toolkit",
+  "release": "https://github.com/Open-MBEE/sysml-toolkit/releases/tag/v0.10.10",
+  "archive": "sysml-wasm-0.10.10.tgz",
+  "archiveSha256": "93d6ef0a2140fceabc3115cd95d629146bc004c3959bfa23d715cce8b06cc13c",
+  "digestSource": "GitHub release assets API digest, asset ID 646958267; SHA256SUMS release file excludes wasm asset",
+  "license": "Apache-2.0 AND EPL-2.0 (bundled OMG standard library)",
+  "files": {
+    "sysmlv2.js": "3c4d015fdce693a103c5a3d6c880c5d930a72bb6fb8cd54ce638abc38aaab52b",
+    "sysmlv2_bg.wasm": "e935616fb6a0e3df5210d8c1ee3e5dbe007032b84038517768ecf1f1b67e6da5",
+    "stdlib/sysml-library.json.gz": "04cbfb6549c7cd7ff2cc23f4ed0d6b9126c6a5ecab71a068b0fb87c6f94413bf",
+    "stdlib/sysml-library.libcache.gz": "0d18e66b335c4c70ead1d01de04cfbd9af894878881131481327fe065410b44f",
+    "stdlib/sysml-library.prepared.gz": "118905d6fbe10ea2e19f99a1cd7431a63cd3b251612e70f5ee5847ec950070b6",
+    "buildinfo.json": "a5850dd3fb89cc99a855a9da727a9c14517dbe901fc6eeac1f8799e4c643a4d5",
+    "package.json": "6f3f967f6918125cb064d6cd657d6fac851caca98b06453c6c9e6c9731d7e965"
+  }
+}

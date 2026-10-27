@@ -1,0 +1,119 @@
+{
+  "schema": "manta-stf-native-case-v1",
+  "caseType": "stf-low-power",
+  "recipeVersion": 1,
+  "title": "STF critical low-power recovery: actual LC/SC/EPS chain",
+  "upstream": {
+    "nos3": "5a3bdee6be9a2c67fdf994ae6db56d5c60395302",
+    "generic_eps": "1aad19930ada314091d5be0b75bfd4379a39765d",
+    "lc": "5daef363c95d71c1ff3c5e9dcd4dddab560e8b39",
+    "sc": "4ff66c2b7f9d02eb7806bb3d085e1cfeb1f4ae72",
+    "mgr": "e4f56752df4549ffe074b79d768374f51099357b",
+    "sample": "9d1a76dc391fefe7a42314052c1f10fa527f526b"
+  },
+  "sourceFiles": [
+    {
+      "variant": "original",
+      "path": "change-low-power/original/cfg/nos3_defs/tables/lc_def_adt.c",
+      "sha256": "9e3a3016b4d32ae685f3bc222cb15e59e0cf3cdcf1d9f29295f95431bb07ac7e"
+    },
+    {
+      "variant": "original",
+      "path": "change-low-power/original/cfg/nos3_defs/tables/lc_def_wdt.c",
+      "sha256": "cd57f574332a3a20adf2e4967d06317fc50fb872f11825b743d2f0f34e81d188"
+    },
+    {
+      "variant": "original",
+      "path": "change-low-power/original/cfg/nos3_defs/tables/sc_rts003.c",
+      "sha256": "bef1d78f3e8eb28b35e759cad8852fc840e4b24f4a8b6f41f70380c01163d8f2"
+    },
+    {
+      "variant": "original",
+      "path": "change-low-power/original/cfg/nos3_defs/tables/sc_rts026.c",
+      "sha256": "56a69931db8cea1c6c9bffc211ac093937201f19b25c13fe3f30171e74512d9e"
+    },
+    {
+      "variant": "original",
+      "path": "change-low-power/original/cfg/nos3_defs/tables/sc_rts029.c",
+      "sha256": "86f5c2387e50d428897b8e7afb5c24a45ba65d2377eba13c2475d67cb99bad2f"
+    },
+    {
+      "variant": "modified",
+      "path": "change-low-power/modified/cfg/nos3_defs/tables/lc_def_adt.c",
+      "sha256": "180e737d03af3a523875a677ae6ee0c1fe91ec76834b3d3985995178994f2ce9"
+    },
+    {
+      "variant": "modified",
+      "path": "change-low-power/modified/cfg/nos3_defs/tables/lc_def_wdt.c",
+      "sha256": "9e53ae9f126a4d1bd5e997966340cc284f92fb62ad26dd6f37b4163b2a914d56"
+    },
+    {
+      "variant": "modified",
+      "path": "change-low-power/modified/cfg/nos3_defs/tables/sc_rts003.c",
+      "sha256": "b4e22f998791162e3e6eb1566ee1f10f1bfb0c6ac281869727946d762fc12ff6"
+    },
+    {
+      "variant": "modified",
+      "path": "change-low-power/modified/cfg/nos3_defs/tables/sc_rts015.c",
+      "sha256": "777a4b5a864dd143b77b9f28f9ee9dd646dc272939fcc0180c70b2c8a7760221"
+    },
+    {
+      "variant": "modified",
+      "path": "change-low-power/modified/cfg/nos3_defs/tables/sc_rts026.c",
+      "sha256": "e482d09ff3b0348a2bb0b03c69919f6bee6ca712f18fca21015169cb8d760ef0"
+    },
+    {
+      "variant": "modified",
+      "path": "change-low-power/modified/cfg/nos3_defs/tables/sc_rts029.c",
+      "sha256": "1dc200b98aa7d995eba4b55bf452730535c25212abd13a1387aac9087a56cc38"
+    }
+  ],
+  "parameters": {
+    "applyProtection": true
+  },
+  "scenario": {
+    "initialSOCPercent": 65,
+    "aboveCriticalSOCPercent": 55,
+    "criticalSOCPercent": 35,
+    "criticalBatteryMillivolts": 23760,
+    "switchOnCode": 170,
+    "switchOffCode": 0,
+    "description": "Enter Science through native RTS26, activate parasitic switch7, inject SOC via native EPS simulator command bus, observe actual I2C EPS telemetry; re-enter Science and repeat critical condition.",
+    "commandPacing": "Native EPS per-message subscription limit requires switch-off commands paced one second apart; zero-delay burst caused a real dropped switch7 command and is retained as a failed iteration."
+  },
+  "expectedChecks": [
+    {
+      "id": "above-critical-preserved",
+      "criterion": "At 55% SOC no critical-power Safe transition; switch7 remains on."
+    },
+    {
+      "id": "critical-safe-all-off",
+      "criterion": "Below 40% SOC actual MGR mode becomes Safe and all eight actual EPS switches report off."
+    },
+    {
+      "id": "reentry-rearms",
+      "criterion": "After a new Science entry, the repeated critical condition again reaches Safe with all eight switches off."
+    }
+  ],
+  "scope": "Selected native flight-software and virtual EPS/42 integration regression. Not full STF development or hardware/mission qualification.",
+  "unverified": [
+    "Original complete mission scheduler and all-device configuration",
+    "Hardware/HIL and real EPS voltage/SOC calibration",
+    "End-to-end science products and ground delivery",
+    "Structural, thermal, radiation, lifetime and environmental qualification",
+    "Mission authority acceptance and independent assurance"
+  ],
+  "sourcePaths": [
+    "stf-engineering/change-low-power/original/cfg/nos3_defs/tables/lc_def_adt.c",
+    "stf-engineering/change-low-power/original/cfg/nos3_defs/tables/lc_def_wdt.c",
+    "stf-engineering/change-low-power/original/cfg/nos3_defs/tables/sc_rts003.c",
+    "stf-engineering/change-low-power/original/cfg/nos3_defs/tables/sc_rts026.c",
+    "stf-engineering/change-low-power/original/cfg/nos3_defs/tables/sc_rts029.c",
+    "stf-engineering/change-low-power/modified/cfg/nos3_defs/tables/lc_def_adt.c",
+    "stf-engineering/change-low-power/modified/cfg/nos3_defs/tables/lc_def_wdt.c",
+    "stf-engineering/change-low-power/modified/cfg/nos3_defs/tables/sc_rts003.c",
+    "stf-engineering/change-low-power/modified/cfg/nos3_defs/tables/sc_rts015.c",
+    "stf-engineering/change-low-power/modified/cfg/nos3_defs/tables/sc_rts026.c",
+    "stf-engineering/change-low-power/modified/cfg/nos3_defs/tables/sc_rts029.c"
+  ]
+}

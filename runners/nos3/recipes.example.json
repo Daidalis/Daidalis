@@ -1,0 +1,12 @@
+{
+  "build": {
+    "isolation": "dedicated-disposable-worker",
+    "commands": [["make", "all"], ["python3", "/opt/manta/runners/nos3/verify-build.py"]],
+    "resultFile": "manta-verification/build.json"
+  },
+  "integration": {
+    "isolation": "dedicated-disposable-worker",
+    "commands": [["make", "all"], ["python3", "/opt/manta/runners/nos3/run-and-verify-integration.py", "--dedicated-disposable-worker", "--image-lock", "/opt/manta-nos3-site/images.lock.json"]],
+    "resultFile": "manta-verification/integration.json"
+  }
+}
