@@ -6,7 +6,7 @@ Scope: product documentation, standalone frontend website, and an interactive re
 
 - English and Chinese README with a self-contained SVG brand cover, a walkthrough screenshot, truthful integration matrix, quickstart and links to detailed docs.
 - A dependency-free static website in `website/`, with a product introduction, Coordinator/thread walkthrough, artifact views, telemetry comparison, check outcomes, downloads, and local setup instructions.
-- A private hosted Site: https://manta-engineering.bonny-bean-8265.chatgpt.site . Access uses the owner's ChatGPT account; repository and website sharing are separate.
+- Deployment target: GitHub Pages. The owner enables Pages and runs the static workflow; use its successful deployment URL. This historical interaction/evidence review does not claim GitHub Pages is already live. See [deployment setup](github-pages.md).
 - Site source commit: `1566790298221332c001e0851b6a2823ad172df7`. Saved version 1 deployed successfully. No model endpoint, API key, live Agent or solver is required by the static walkthrough.
 
 ## Verification performed

@@ -1,14 +1,44 @@
-# Manta website
+# Manta product website
 
-Dependency-free static product website with an interactive, recorded STF low-power walkthrough. It does not send model requests or connect to the local Manta service. No credentials are embedded.
+A dependency-free static showcase with an illustrative Coordinator/thread workflow and recorded STF evidence. It does not send model requests, run a solver, or connect to the local Manta application.
+
+## Publish with GitHub Pages
+
+The repository includes [the Pages workflow](../.github/workflows/website-pages.yml). The maintainer enables Pages manually:
+
+1. Open the repository’s **Settings → Pages**.
+2. Under **Build and deployment → Source**, choose **GitHub Actions**.
+3. Open **Actions → Publish product website → Run workflow**, select `main`, and run it.
+4. Use the URL shown by the successful `github-pages` deployment. For `MingxiYe/Manta`, the expected default address is `https://mingxiye.github.io/Manta/`.
+
+After activation, changes under `website/` on `main` publish automatically. The workflow never installs application packages or starts Manta/Agents. It checks the evidence and export, reads Pages metadata, uploads only an isolated static export, and deploys with GitHub’s short-lived workflow token. No PAT or model key is required. The `github-pages` environment can be restricted to `main`.
+
+GitHub Free supports Pages for public repositories; private-repository Pages requires an eligible paid plan. Enabling a website does not require making the application repository public if the account supports private-repository Pages. A website-only public repository can instead contain `website/` and this workflow while the application remains private. Keep the same folder layout. See [GitHub’s publishing-source documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+The expected address is not proof of a successful deployment. Check the actual workflow result and deployed page after enabling Pages. Existing engineering requirements and tool-provisioning limits are unaffected.
+
+## Preview and validate locally
 
 ```sh
 cd website
+npm test
 npm start
 ```
 
-Open the printed local URL. The default port is 4320; set `PORT` to change it. `npm test` checks static references and verifies the bundled data against original CSV/model hashes. Browser QA should additionally cover thread navigation, chapter keyboard controls, artifacts, data variants, sample inspection, downloads and a narrow viewport.
+No `npm install` is needed for this website. Node.js 22+ is sufficient for its built-in-module scripts; the Manta application has its own Node requirement.
 
-`dist/` is the deployable static directory; `scripts/` uses only built-in Node modules. The product site is public; GitHub repository access is a separate permission and stays private until the maintainer changes it. The tracked `.openai/hosting.example.json` is a template, not access to the existing hosted Site. For a separate deployment, configure your own hosting target; Sites publication uses a site-specific `.openai/hosting.json` outside the public source. There is no CI auto-deploy to GitHub Pages.
+To reproduce a project subpath before deploying, choose a new, empty output location outside the checkout:
 
-Raw telemetry and the model snapshot are byte-preserved from recorded native runs; see [evidence provenance](dist/assets/evidence/README.md). The webpage uses illustrative Coordinator/thread dialogue and step-based thread statuses; it does not claim that the retained runs were produced by these exact conversations. The design map is explanatory. Coordinator stays in the main chat, while the right pane opens the flat thread overview, individual conversations, and artifacts. Direct intervention and routing use clearly labeled scripted examples. It is not a live Agent demo or complete STF acceptance.
+```sh
+node scripts/prepare-pages.mjs --output /absolute/path/to/manta-pages --base-url https://mingxiye.github.io/Manta/
+node scripts/check.mjs --root /absolute/path/to/manta-pages
+SITE_ROOT=/absolute/path/to/manta-pages SITE_BASE_PATH=/Manta/ npm start
+```
+
+Open the printed URL, normally `http://127.0.0.1:4320/Manta/`. `PORT` changes the preview port. Browser QA covers inline thread references, the right overview, artifact return navigation, baseline/corrected data, and downloads.
+
+`dist/` contains publishable assets. The exporter rejects links, hidden configuration and unsupported files, preserves original evidence bytes, and limits the static export to 1,000 files / 8 MiB. It generates canonical/Open Graph URLs from the configured Pages base URL and adds an empty `.nojekyll` marker. Only the generated HTML metadata differs from the source export.
+
+## Recorded demo scope
+
+Raw telemetry and the model snapshot are byte-preserved from native runs; see [evidence provenance](dist/assets/evidence/README.md). Dialogue and thread statuses are illustrative, not a historical Agent execution transcript. The explanatory design map is not a live SysML semantic model. The demo does not establish complete STF development or mission acceptance.

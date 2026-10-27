@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://manta-engineering.bonny-bean-8265.chatgpt.site">Website & interactive demo</a> ·
+  <a href="https://mingxiye.github.io/Manta/">Website & interactive demo</a> ·
   <a href="#get-started">Get started</a> ·
   <a href="docs/demo.md">STF walkthrough</a> ·
   <a href="README.zh-CN.md">简体中文</a>
@@ -31,9 +31,11 @@ The ambition is simple: **make complex engineering approachable through language
 
 ## See it before you install it
 
-**[Explore the interactive walkthrough →](https://manta-engineering.bonny-bean-8265.chatgpt.site/#demo)**
+**[Explore the interactive walkthrough →](https://mingxiye.github.io/Manta/#demo)**
 
-[![Illustrative Coordinator and peer threads with recorded STF evidence](docs/assets/recorded-demo.png)](https://manta-engineering.bonny-bean-8265.chatgpt.site/#demo)
+GitHub Pages is the publishing target; the maintainer must enable it before this address becomes available. [Deployment setup](docs/github-pages.md).
+
+[![Illustrative Coordinator and peer threads with recorded STF evidence](docs/assets/recorded-demo.png)](https://mingxiye.github.io/Manta/#demo)
 
 Follow a selected STF low-power engineering iteration. The Coordinator stays in the main conversation; open a peer thread in the right pane, try a labelled scripted follow-up, and inspect its reviewed handoff. Design relationships, the frozen test recipe, telemetry and evidence open from the conversation.
 

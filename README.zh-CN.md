@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://manta-engineering.bonny-bean-8265.chatgpt.site">产品网站与交互演示</a> ·
+  <a href="https://mingxiye.github.io/Manta/">产品网站与交互演示</a> ·
   <a href="#开始使用">开始使用</a> ·
   <a href="docs/demo.md">STF 演示指南</a> ·
   <a href="README.md">English</a>
@@ -25,7 +25,9 @@ Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以�
 
 ## 先看看它如何工作
 
-**[打开 STF 交互演示 →](https://manta-engineering.bonny-bean-8265.chatgpt.site/#demo)**
+**[打开 STF 交互演示 →](https://mingxiye.github.io/Manta/#demo)**
+
+网站改用 GitHub Pages；维护者启用 Pages 后此地址才会可用。[配置说明](docs/github-pages.md)。
 
 演示选择了一次 STF 低电量处理的软件集成迭代。Coordinator 保留在主聊天，右侧打开平级 thread；你可以体验已标注的介入和转发示例，查看交付与复核，再从聊天中打开设计关系、固定测试配方、原始与修复配置的遥测及证据。
 
@@ -66,7 +68,7 @@ Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 和硬件平台尚不能视�
 
 ## 开始使用
 
-需要 **Node.js 22.13+** 与 npm。产品网站已经公开；GitHub 仓库的访问权限独立管理，在维护者正式切换可见性之前，仓库仍为私有。
+需要 **Node.js 22.13+** 与 npm。产品网站通过 GitHub Pages 独立发布；GitHub 仓库的访问权限独立管理，在维护者正式切换可见性之前，仓库仍为私有。
 
 ```sh
 git clone https://github.com/MingxiYe/Manta.git

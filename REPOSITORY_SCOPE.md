@@ -8,6 +8,6 @@ The website includes an explicitly bounded recorded low-power example: two origi
 
 The application is a local workspace, not an authenticated multi-user network service. Agent connections and professional runners require their documented configuration; an application installation does not automatically provision the engineering stack. See [README.md](README.md), [SECURITY.md](SECURITY.md) and [environment setup](docs/local-linux-vm.md).
 
-The product website can be served independently as static files. A hosted website and the source repository have separate access controls. Hosting manifests with a live owner's Site identity belong in local configuration; the public website directory supplies a template for a new deployment.
+The product website can be served independently as static files. Its GitHub Pages workflow deploys only a checked static export; the owner enables Pages in repository settings. Website access and source-repository access remain separate. No ChatGPT hosting identity or credential is required.
 
 Upstream components retain their own licenses and notices. The pinned SysML package is included with its upstream license and notices; the repository does not relicense third-party work. No complete STF, flight qualification or certification package is included.
