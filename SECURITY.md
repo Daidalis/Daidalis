@@ -12,6 +12,10 @@ The static product website and recorded demo do not connect to the local applica
 
 Configure model and tool credentials through the documented application or service environment. Keys entered in the model settings UI remain in service-process memory and must be re-entered after restart; configured environment variables are resolved by the local service. Do not place credentials in frontend assets, project prompts, command arguments, committed environment files or example data.
 
+Public event, approval and task/chat records apply the provider’s known-key redaction policy before storage and delivery to the UI (configured key values of at least six characters). This is not a general secret scanner: unknown or previously removed credentials, encoded secrets and credentials deliberately written into project files still require review. Original engineering files and evidence downloads retain their bytes rather than being silently rewritten.
+
+An Agent can read project files within its granted permissions and send their contents to the chosen model endpoint. The document viewer’s credential-filename filter is not a universal Agent access policy: project read tools and native runtimes need separate credential-access review. Keep unrelated credentials outside Agent-readable projects.
+
 Runtime state, conversations, VM/runner credentials and engineering project files belong outside the public source distribution. Review files and Git history before publishing or sharing a repository. If a real credential is exposed, revoke or rotate it with its issuer; deleting a file or rewriting a commit does not revoke the credential.
 
 ## Report a vulnerability privately

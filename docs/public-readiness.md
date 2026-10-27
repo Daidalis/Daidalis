@@ -8,7 +8,7 @@ The source snapshot removes personal reference screenshots, internal planning/re
 
 No real API keys, private keys, GitHub/AWS/Slack tokens, JWTs or private conversation links were identified in the inspected source and pre-release reachable history. Known test credentials are synthetic. The scanner expands compressed packages and reports locations rather than credential values. Its tests cover redaction, deleted historical credentials and compressed content. This is a heuristic review, not a guarantee that arbitrary secrets or image content can always be detected.
 
-**The owner subsequently authorized replacing the existing repository history with the sanitized snapshot.** The advertised main branch was replaced using an exact force-with-lease, and the maintenance checkout was aligned with that clean root to prevent accidental reintroduction of the old commits. The complete old history is retained only as an external private backup. Repository visibility was not changed.
+**The owner subsequently authorized replacing the existing repository history with the sanitized snapshot.** The advertised main branch was replaced using an exact force-with-lease, and the maintenance checkout was aligned with that clean root to prevent accidental reintroduction of the old commits. A complete old-history backup is kept outside the source distribution. The maintainer checkout can still retain unreachable old objects and reflogs; these are not transferred by a fresh clone of the advertised main branch. Do not publish a zip of the whole working folder or its `.git` directory. Repository visibility was not changed.
 
 Replacing advertised Git history does not prove that GitHub has purged cached views or every internal reference. Follow [GitHub’s sensitive-data removal guidance](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository) before treating the old server-side data as irretrievable. Fresh clones of the advertised main branch receive the sanitized history.
 
@@ -49,3 +49,10 @@ The minimum Node version is 22.13.0 because the SysML wrapper uses the stable pe
 4. Manta is a local workspace, not an authenticated multi-user hosted service. The public marketing site is independent of the local application. See [security scope](../SECURITY.md).
 
 These checks do not complete STF development, physical qualification or independent mission acceptance. The case priority remains complete STF, then Apollo.
+
+
+## Follow-up disclosure and runtime-record review
+
+On 27 October 2026, the advertised source and reachable history were scanned again, including nested compressed contents. Independent text, image/metadata and archive reviews identified no new real credential or private personal content in the published source snapshot. GitHub’s repository owner identity and curated engineering job identifiers remain intentionally visible. GitHub cached history, old Actions logs/artifacts and third-party copies were not verified by this review.
+
+A synthetic-credential reproduction identified an application logging gap: nested tool arguments, approvals and delegated task text could bypass string-only redaction. The fix separates active execution inputs from saved public metadata, redacts nested event/approval/task/chat records, and sanitizes known credentials when replaying older runtime records. Original engineering files and evidence bytes are unchanged. Seven privacy regressions and the related 144-test regression set passed, with no failures or skips. This is a targeted fix, not a full security assessment; unknown/retired credentials, old private disk records and native-runtime private session logs remain outside automatic cleanup. The running application was not redeployed by this source review.
