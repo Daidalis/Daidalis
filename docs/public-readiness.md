@@ -8,7 +8,9 @@ The source snapshot removes personal reference screenshots, internal planning/re
 
 No real API keys, private keys, GitHub/AWS/Slack tokens, JWTs or private conversation links were identified in the inspected source and pre-release reachable history. Known test credentials are synthetic. The scanner expands compressed packages and reports locations rather than credential values. Its tests cover redaction, deleted historical credentials and compressed content. This is a heuristic review, not a guarantee that arbitrary secrets or image content can always be detected.
 
-**The old private Git history still contains personal reference material. Deleting files in a new commit does not remove it.** Do not expose the pre-release repository merely by changing its visibility. Preserve it privately and publish the sanitized snapshot with a fresh history, or explicitly review and authorize a history cleanup first. No remote history rewrite or visibility change was performed by this review.
+**The owner subsequently authorized replacing the existing repository history with the sanitized snapshot.** The advertised main branch was replaced using an exact force-with-lease, and the maintenance checkout was aligned with that clean root to prevent accidental reintroduction of the old commits. The complete old history is retained only as an external private backup. Repository visibility was not changed.
+
+Replacing advertised Git history does not prove that GitHub has purged cached views or every internal reference. Follow [GitHub’s sensitive-data removal guidance](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository) before treating the old server-side data as irretrievable. Fresh clones of the advertised main branch receive the sanitized history.
 
 ## Executed validation
 
@@ -41,7 +43,7 @@ The minimum Node version is 22.13.0 because the SysML wrapper uses the stable pe
 
 ## Remaining release decisions and limits
 
-1. Resolve the old private repository's history before making that repository public. A clean source export is distinct from an ordinary clone of its old history.
+1. The advertised history replacement is complete. Any cached old GitHub views or undiscovered third-party clones require separate handling; the external private backup must not be published.
 2. Select a license for Manta-owned code. No project-wide license was chosen on the owner's behalf; upstream licenses/notices remain in place.
 3. Basic installation does not provision every professional solver. The exact managed NOS3/cFS/42 environment still needs the frozen archives, packages and manifests named in `vm/worker/native-inputs.json`; a verified public installer that recreates that entire bundle is not included. See [installation](installation.md) and [runner contract](nos3-runner.md).
 4. Manta is a local workspace, not an authenticated multi-user hosted service. The public marketing site is independent of the local application. See [security scope](../SECURITY.md).
