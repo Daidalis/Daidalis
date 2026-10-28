@@ -4,6 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {createRequire} from 'node:module';
 import {spawn} from 'node:child_process';
+import {createContainerDesktop} from './container-desktop.mjs';
 
 const require=createRequire(import.meta.url);
 const APPLE_SCRIPTS={
@@ -60,17 +61,38 @@ async function desktopTools(){let names=[];try{names=await fs.readdir('/Applicat
 
 async function loadPlaywright(){for(const spec of ['playwright',...(process.env.MBSE_NODE_MODULES?[path.join(process.env.MBSE_NODE_MODULES,'playwright')]:[])]){try{return require(spec);}catch{}}return null;}
 
-export async function createComputerService({root,dataDir,workspacesDir,requestApproval=async()=>false,emit=()=>{}}={}){
+export async function createComputerService({root,dataDir,workspacesDir,store,requestApproval=async()=>false,emit=()=>{},desktopAdapter=null,browserFetch=null}={}){
   const shots=path.join(dataDir||path.join(root,'.local'),'computer-screenshots');await fs.mkdir(shots,{recursive:true});
+  const containerDesktop=desktopAdapter?desktopAdapter(shots):process.env.MANTA_DESKTOP_SOCKET?createContainerDesktop({socketPath:process.env.MANTA_DESKTOP_SOCKET,shots}):null;
+  if(containerDesktop)await containerDesktop.refresh();
   const playwright=await loadPlaywright();let appTools=await desktopTools();let engineeringAvailable=false;try{await fs.access(path.join(root,'public/engineering.html'));engineeringAvailable=true;}catch{}let browser;let desktopEnabled=false;const sessions=new Map(),locks=new Map();
+  let browserInstalled=Boolean(playwright);
+  if(playwright&&os.platform()!=='darwin'){try{await fs.access(process.env.MBSE_CHROME_PATH||playwright.chromium.executablePath());}catch{browserInstalled=false;}}
   const allowedHosts=(process.env.MBSE_COMPUTER_HOSTS||'docs.px4.io,github.com,raw.githubusercontent.com,nos3.readthedocs.io,emanual.robotis.com,bitcraze.io,www.bitcraze.io,example.com').split(',').map(s=>s.trim()).filter(Boolean);
   let baseUrl=process.env.MBSE_BASE_URL||`http://127.0.0.1:${process.env.PORT||4317}`;
   const validNavigation=(value,projectId)=>validateBrowserUrl(value,{baseUrl,allowedHosts,projectId});
   async function ensureBrowser(){if(!playwright)throw new Error('Playwright unavailable. Install optional dependencies with npm install.');if(!browser){const opts={headless:process.env.MBSE_BROWSER_VISIBLE!=='1',args:['--disable-extensions','--disable-background-networking']};if(process.env.MBSE_CHROME_PATH)opts.executablePath=process.env.MBSE_CHROME_PATH;else if(os.platform()==='darwin')opts.channel='chrome';try{browser=await playwright.chromium.launch(opts);}catch(e){throw new Error('Isolated browser could not start. Install Chrome or run npx playwright install chromium. '+e.message.slice(0,180));}}return browser;}
-  async function session(projectId){if(!projectId||!/^[a-zA-Z0-9_-]+$/.test(projectId))throw new Error('A valid projectId is required');if(!sessions.has(projectId)){const b=await ensureBrowser();const context=await b.newContext({viewport:{width:1120,height:760},acceptDownloads:false,serviceWorkers:'block'});await context.route('**/*',async route=>{try{const u=new URL(route.request().url());if(!['http:','https:'].includes(u.protocol))return route.abort();validateBrowserRequest(u.href,{baseUrl,allowedHosts,projectId,method:route.request().method(),body:route.request().postData()});await route.continue();}catch{await route.abort();}});if(typeof context.routeWebSocket==='function')await context.routeWebSocket('**/*',ws=>ws.close());const page=await context.newPage();sessions.set(projectId,{context,page,version:0});context.on('page',p=>{if(sessions.get(projectId)?.page!==p)p.close().catch(()=>{});});await page.goto(engineeringAvailable?baseUrl+'/engineering.html?projectId='+encodeURIComponent(projectId):baseUrl+'/computer-fixture.html',{waitUntil:'domcontentloaded',timeout:15000});}return sessions.get(projectId);}
+  async function session(projectId){if(!projectId||!/^[a-zA-Z0-9_-]+$/.test(projectId))throw new Error('A valid projectId is required');if(!sessions.has(projectId)){const b=await ensureBrowser();const context=await b.newContext({viewport:{width:1120,height:760},acceptDownloads:false,serviceWorkers:'block'});await context.route('**/*',async route=>{try{const u=new URL(route.request().url());if(!['http:','https:'].includes(u.protocol))return route.abort();validateBrowserRequest(u.href,{baseUrl,allowedHosts,projectId,method:route.request().method(),body:route.request().postData()});if(browserFetch){const result=await browserFetch({url:u.href,method:route.request().method(),body:route.request().postData()});await route.fulfill({status:result.status,headers:result.headers,body:Buffer.from(result.contentBase64,'base64')});}else await route.continue();}catch{await route.abort();}});if(typeof context.routeWebSocket==='function')await context.routeWebSocket('**/*',ws=>ws.close());const page=await context.newPage();sessions.set(projectId,{context,page,version:0});context.on('page',p=>{if(sessions.get(projectId)?.page!==p)p.close().catch(()=>{});});await page.goto(engineeringAvailable?baseUrl+'/engineering.html?projectId='+encodeURIComponent(projectId):baseUrl+'/computer-fixture.html',{waitUntil:'domcontentloaded',timeout:15000});}return sessions.get(projectId);}
   async function snapshot(s){const name=crypto.randomUUID()+'.png',file=path.join(shots,name);await s.page.screenshot({path:file,type:'png',timeout:12000});return {imageUrl:'/api/computer/screenshots/'+name,url:s.page.url(),width:1120,height:760,screenVersion:s.version,text:(await s.page.locator('body').innerText({timeout:3000}).catch(()=>'' )).slice(0,16000)};}
   async function approve(payload,ctx){if(ctx.source==='user')return true;return !!(await requestApproval({runId:ctx.runId,projectId:payload.projectId,tool:'computer_use',args:{action:payload.action,...payload.args},signal:ctx.signal}));}
   async function innerAction(payload,ctx={}){const {projectId,action,args={}}=payload;if(ctx.signal?.aborted)throw new Error('Cancelled');emit({projectId,runId:ctx.runId,type:'computer.action',message:action,data:{action,args:{...args,text:args.text?String(args.text).slice(0,120):undefined}}});
+    if(containerDesktop&&action.startsWith('desktop.')){
+      if(action==='desktop.enable'){
+        if(ctx.source!=='user'||args.consent!==true)throw Error('Desktop access requires explicit user consent in the app');
+        await containerDesktop.refresh();
+        const workspace=store?.workspace(projectId);
+        if(!workspace)throw Error('Project workspace unavailable');
+        const result=await containerDesktop.action({...payload,args:{...args,workspace}},ctx);desktopEnabled=true;return result;
+      }
+      if(action==='desktop.disable'){
+        if(ctx.source!=='user')throw Error('Only the user can disable desktop access');
+        const result=await containerDesktop.action(payload,ctx);desktopEnabled=false;return result;
+      }
+      if(action==='desktop.apps'){await containerDesktop.refresh();return {tools:containerDesktop.status().tools};}
+      if(!desktopEnabled)throw Error('Enable desktop access with explicit consent first');
+      if(!await approve(payload,ctx))throw Error('Desktop action rejected');
+      return containerDesktop.action(payload,ctx);
+    }
     if(action==='desktop.enable'){if(ctx.source!=='user'||args.consent!==true)throw new Error('Desktop access requires explicit user consent in the app');desktopEnabled=true;return {ok:true,message:'Desktop bridge enabled for this server session. macOS may still require Screen Recording and Accessibility permissions.'};}
     if(action==='desktop.disable'){desktopEnabled=false;return {ok:true};}
     if(action==='desktop.apps'){appTools=await desktopTools();return {tools:appTools,detection:'Known application names in /Applications only; launch, license and model compatibility are not verified.'};}
@@ -99,9 +121,10 @@ export async function createComputerService({root,dataDir,workspacesDir,requestA
     if(mutating)s.version++;return {ok:true,...await snapshot(s),scope:'isolated-browser'};
   }
   return {
+    async refresh(){if(containerDesktop)await containerDesktop.refresh();},
     setBaseUrl(value){if(sessions.size)throw new Error('Cannot change computer origin with active sessions');const u=new URL(value);if(u.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(u.hostname))throw new Error('Computer fixture must use the local app origin');baseUrl=u.origin;},
-    status(){return {browser:{available:!!playwright,status:browser?'running':playwright?'ready':'missing-dependency',sessions:sessions.size,width:1120,height:760},desktop:{available:os.platform()==='darwin',status:desktopEnabled?'enabled-permissions-not-verified':'requires-consent',requiresPermissions:true,tools:appTools},engineeringUrl:baseUrl+'/engineering.html',allowedHosts,defaultUrl:engineeringAvailable?baseUrl+'/engineering.html':baseUrl+'/computer-fixture.html',notes:['Browser uses a fresh isolated context without account cookies.','Native desktop requires explicit session consent and macOS OS permissions.']};},
-    async action(payload,ctx={}){const key=payload.projectId||'desktop';const prev=locks.get(key)||Promise.resolve();const next=prev.catch(()=>{}).then(()=>innerAction(payload,ctx));locks.set(key,next);try{return await next;}finally{if(locks.get(key)===next)locks.delete(key);}},
+    status(){return {browser:{available:browserInstalled,status:browser?'running':browserInstalled?'ready':playwright?'missing-browser':'missing-dependency',sessions:sessions.size,width:1120,height:760},desktop:containerDesktop?{...containerDesktop.status(),status:desktopEnabled?'enabled':'requires-consent',requiresPermissions:true}:{available:os.platform()==='darwin',status:desktopEnabled?'enabled-permissions-not-verified':'requires-consent',requiresPermissions:true,tools:appTools},engineeringUrl:baseUrl+'/engineering.html',allowedHosts,defaultUrl:engineeringAvailable?baseUrl+'/engineering.html':baseUrl+'/computer-fixture.html',notes:['Browser uses a fresh isolated context without account cookies.',containerDesktop?'Virtual desktop requires explicit consent; project displays share the managed project filesystem.':'Native desktop requires explicit session consent and macOS OS permissions.']};},
+    async action(payload,ctx={}){const key=payload.action?.startsWith('desktop.')?'desktop':payload.projectId||'desktop';const prev=locks.get(key)||Promise.resolve();const next=prev.catch(()=>{}).then(()=>innerAction(payload,ctx));locks.set(key,next);try{return await next;}finally{if(locks.get(key)===next)locks.delete(key);}},
     async readScreenshot(name){if(!/^[a-f0-9-]+\.png$/.test(name))throw new Error('Invalid screenshot');const buffer=await fs.readFile(path.join(shots,name));return {buffer,contentType:'image/png'};},
     async close(){for(const s of sessions.values())await s.context.close().catch(()=>{});sessions.clear();await browser?.close().catch(()=>{});browser=undefined;}
   };

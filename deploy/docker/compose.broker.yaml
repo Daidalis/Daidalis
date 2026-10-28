@@ -1,0 +1,64 @@
+# Explicit opt-in; run with a rootless Docker context, without compose.flight.yaml.
+# Compose >= 2.24.4 for !override. No socket is exposed to manta or its task containers.
+services:
+  manta:
+    cpus: ${MANTA_TASK_CPUS:-2}
+    environment:
+      MANTA_EXECUTION_MODE: broker
+      MANTA_NATIVE_AGENTS: enabled
+      MANTA_BROKER_NATIVE_SOCKET: /broker-control/native.sock
+      MANTA_MODEL_SOCKET: /model-control/model.sock
+      MANTA_BROKER_FLIGHT: ${MANTA_BROKER_FLIGHT:-0}
+      MANTA_BROKER_SOCKET: /broker-control/broker.sock
+      MANTA_DESKTOP_SOCKET: ""
+    volumes:
+      - broker-control:/broker-control:ro
+      - model-control:/model-control
+    depends_on:
+      broker:
+        condition: service_healthy
+  desktop:
+    profiles: !override [shared-desktop-only]
+  broker:
+    image: manta-broker:${MANTA_TAG:-local}
+    build:
+      context: .
+      target: broker
+    user: "1000:1000"
+    # Socket group as seen INSIDE the rootless user namespace. The installer
+    # detects this without chmod/chown of the socket or adding host groups.
+    group_add: ["${MANTA_ROOTLESS_SOCKET_GID:-0}"]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # Long-lived browser/MCP/native relays each keep a bounded Docker CLI process.
+    pids_limit: 512
+    cpus: ${MANTA_TASK_CPUS:-2}
+    mem_limit: 2g
+    memswap_limit: 2g
+    restart: "no"
+    environment:
+      MANTA_TASK_DOCKER_HOST: unix:///run/task-docker.sock
+      MANTA_TASK_IMAGE: manta-app:${MANTA_TAG:-local}
+      MANTA_TASK_PROJECTS_VOLUME: ${COMPOSE_PROJECT_NAME:-manta}_projects
+      MANTA_BROKER_ID: ${COMPOSE_PROJECT_NAME:-manta}
+      MANTA_TASK_CPUS: ${MANTA_TASK_CPUS:-2}
+      MANTA_MODEL_VOLUME: ${COMPOSE_PROJECT_NAME:-manta}_model-control
+      MANTA_TASK_FLIGHT_IMAGE: ${MANTA_TASK_FLIGHT_IMAGE:-}
+    volumes:
+      - type: bind
+        source: ${MANTA_ROOTLESS_SOCKET:?Set MANTA_ROOTLESS_SOCKET to your rootless daemon socket}
+        target: /run/task-docker.sock
+        read_only: true
+      - broker-control:/broker-control
+    tmpfs: ["/tmp:rw,nosuid,nodev,size=512m,mode=1777"]
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/broker-control/broker.sock'); s.close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+volumes:
+  model-control:
+  broker-control:

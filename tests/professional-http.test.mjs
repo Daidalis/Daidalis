@@ -52,3 +52,17 @@ test('professional workbench identifies real source parameters and escapes sourc
 });
 
 test('native workbench time controls and output filters apply only to appropriate tools',()=>{assert.deepEqual(parseOutputSignals('a[1,2].x, temperature\nq[1]'),['a[1,2].x','temperature','q[1]']);const c=renderProfessionalWorkbench({path:'models/EPS.cir',catalog:{environment:{status:'ready'}}});assert.doesNotMatch(c,/name="stopTime"|name="signals"/);assert.match(c,/隔离求解环境 · 可用/);const s=renderProfessionalWorkbench({path:'models/System.sysml'});assert.doesNotMatch(s,/value="simulate"/);assert.match(renderProfessionalWorkbench({path:'models/Cube.scad'}),/生成几何/);});
+
+test('invalid new-file hash fails before requesting approval',async()=>{
+ let approvals=0;
+ const runtime=createToolRuntime({store:{workspace:()=>'/tmp'},professionalModels:{},requestApproval:async()=>{approvals++;return true;}});
+ await assert.rejects(runtime.execute('save_professional_model',{path:'A.mo',content:'model A end A;',expectedHash:'not-a-hash'},{projectId:'p',runId:'r'}),/JSON null/);
+ assert.equal(approvals,0);
+});
+
+test('gateway string-null is create-only and does not bypass overwrite guards',async()=>{
+ let saved,approved;
+ const runtime=createToolRuntime({store:{workspace:()=>'/tmp'},professionalModels:{saveModel:async input=>{saved=input;throw Error('Model revision conflict: existing file');}},requestApproval:async input=>{approved=input;return true;}});
+ await assert.rejects(runtime.execute('save_professional_model',{path:'A.mo',content:'model A end A;',expectedHash:'null'},{projectId:'p',runId:'r'}),/revision conflict/);
+ assert.equal(saved.expectedHash,null);assert.equal(approved.args.expectedHash,null);
+});

@@ -124,7 +124,7 @@ function publicConfig(config,status={}) {
 /** Project-scoped MCP connections. Configuration methods are for trusted UI routes,
  * never agent tools. Processes are explicit user-configured executables, not an OS
  * sandbox; remote isolated workers are preferred for engineering dependencies. */
-export function createConnectorService({store,env=process.env,fetchImpl=globalThis.fetch}={}) {
+export function createConnectorService({store,env=process.env,fetchImpl=globalThis.fetch,stdioTransportFactory=null}={}) {
   if(!store?.dataDir||typeof store.workspace!=='function')fail('Connector service requires a project store');
   const sessions=new Map(),connectionControllers=new Map(),runtimeKeys=new Map(),statuses=new Map();
   const configRoot=path.join(store.dataDir,'project-connectors');
@@ -206,7 +206,8 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
           const isolated={HOME:home,USERPROFILE:home,HOMEDRIVE:'',HOMEPATH:'',APPDATA:path.join(home,'AppData','Roaming'),LOCALAPPDATA:path.join(home,'AppData','Local'),LOGNAME:'',USER:'',USERNAME:'',PATH:`${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`,SHELL:'/bin/sh',TERM:'dumb',TMPDIR:tmp,TMP:tmp,TEMP:tmp,LANG:'en_US.UTF-8',...config.env,...childEnv};
           // The SDK merges its default safe environment; override every default
           // identity/home field so no user-global MCP or tool configuration is read.
-          transport=new StdioClientTransport({command:config.command,args:config.args,cwd,env:isolated,stderr:'pipe',maxBufferSize:MAX_WIRE_BYTES});
+          const parameters={command:config.command,args:config.args,cwd,env:isolated,stderr:'pipe',maxBufferSize:MAX_WIRE_BYTES};
+          transport=stdioTransportFactory?await stdioTransportFactory(parameters,{workspace}):new StdioClientTransport(parameters);
           transport.stderr?.on('data',chunk=>{if(session.stderr.length<8000)session.stderr+=redactString(chunk.toString(),secrets).slice(0,8000-session.stderr.length);});
         } else transport=new StreamableHTTPClientTransport(new URL(httpURL(config.url)),{requestInit:{redirect:'error'},fetch:lockedFetch(config.url,token),redirectPolicy:'same-origin',reconnectionOptions:{maxRetries:0}});
         client.onclose=()=>{session.closed=true;if(sessions.get(key)===pending){sessions.delete(key);connectionControllers.delete(key);}statuses.set(key,{status:'disconnected'});};
@@ -281,7 +282,11 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
         const result=await session.client.callTool({name:toolName,arguments:args},undefined,{signal:options.signal,timeout:session.config.timeoutMs});
         const safe=bounded(result,session.secrets);
         return {connectorId,toolName,effect:info.effect,untrusted:true,result:safe.value,truncated:safe.truncated};
-      } catch(error){throw new Error(redactString(`MCP tool failed: ${error.message||error}`,session.secrets).slice(0,2000));}
+      } catch(error){
+        // A cancelled/timed-out isolated process must not keep mutating the project.
+        if(stdioTransportFactory&&session.config.transport==='stdio')await disconnect(projectId,connectorId);
+        throw new Error(redactString(`MCP tool failed: ${error.message||error}`,session.secrets).slice(0,2000));
+      }
     },
     async closeProject(projectId){project(projectId);for(const config of configs(projectId))await disconnect(projectId,config.id);},
     async close(){for(const key of [...sessions.keys()]){const split=key.indexOf(':');await disconnect(key.slice(0,split),key.slice(split+1));}runtimeKeys.clear();}

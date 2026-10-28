@@ -1,0 +1,149 @@
+name: Docker acceptance
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      live_model:
+        description: Run paid model acceptance using configured MANTA_MODEL secrets
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  minimal-amd64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build without optional tools
+        run: docker build --target application --build-arg TOOLCHAINS= --build-arg WITH_MODELICA=0 --build-arg WITH_ORBIT42=0 -t manta-ci .
+      - name: Test in an unprivileged networkless container
+        run: >-
+          docker run --rm --network none --read-only --user 1000:1000
+          --cap-drop ALL --security-opt no-new-privileges
+          --tmpfs /tmp:rw,nosuid,nodev,exec,size=1g
+          manta-ci env -u MBSE_DATA_DIR -u MBSE_PYTHON npm test
+      - name: Check broker request policy
+        run: docker run --rm --network none --read-only manta-ci python3 tests/broker_policy_test.py
+      - name: Smoke without optional services or model credentials
+        run: >-
+          docker run --rm --network none --read-only --user 1000:1000
+          --cap-drop ALL --security-opt no-new-privileges
+          --tmpfs /tmp:rw,nosuid,nodev,exec,size=1g
+          manta-ci env -u MBSE_DATA_DIR -u MBSE_PYTHON npm run smoke
+
+  full-amd64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: manta-ci-full
+      MANTA_TAG: ci-full
+      MANTA_ENV_FILE: .env.example
+      MANTA_MODELICA: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build full engineering image
+        run: docker compose build manta
+      - name: Test full image with constrained solver process budget
+        run: >-
+          docker run --rm --network none --read-only --pids-limit 64
+          --cap-drop ALL --security-opt no-new-privileges
+          --tmpfs /tmp:rw,nosuid,nodev,exec,size=1g
+          manta-app:ci-full env -u MBSE_DATA_DIR -u MBSE_PYTHON
+          node --test tests/shared-container-runner.test.mjs
+      - name: Start application and desktop
+        run: docker compose --profile desktop up -d --wait
+      - name: Exercise engineering jobs and project desktop workflows
+        run: |
+          docker compose exec -T -e MANTA_ACCEPT_BROWSER=1 -e MANTA_ACCEPT_DESKTOP=1 manta node deploy/docker/acceptance.mjs
+          docker compose exec -T manta node deploy/docker/desktop-acceptance.mjs
+          docker compose exec -T manta node deploy/docker/gis-orbit-acceptance.mjs
+      - name: Capture logs
+        if: failure()
+        run: docker compose --profile desktop logs --tail 100
+      - name: Remove CI deployment
+        if: always()
+        run: docker compose --profile desktop down -v
+
+  flight-amd64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COMPOSE_PROJECT_NAME: manta-ci-flight
+      MANTA_ENV_FILE: .env.example
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the optional native flight stack
+        run: sh install.sh --tools=nos3
+      - name: Exercise component, build and native integration cases (STF deferred)
+        run: sh deploy/docker/compose.sh exec -T -e MANTA_ACCEPT_NOS3=1 -e MANTA_ACCEPT_STF=0 manta node deploy/docker/flight-acceptance.mjs
+      - name: Capture logs
+        if: failure()
+        run: sh deploy/docker/compose.sh logs --tail 100
+      - name: Remove CI deployment
+        if: always()
+        run: sh deploy/docker/compose.sh down -v
+
+  rootless-broker-amd64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      COMPOSE_PROJECT_NAME: manta-ci-broker
+      MANTA_TAG: ci-broker
+      MANTA_ENV_FILE: .env.example
+      MANTA_TOOLS: scipy,ngspice,openscad,browser,desktop,gis
+      MANTA_MODELICA: '1'
+      MANTA_ORBIT42: '1'
+      MANTA_BROKER_FLIGHT: '1'
+      MANTA_TASK_CPUS: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Provision rootless Docker on the disposable CI runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y uidmap dbus-user-session slirp4netns rootlesskit
+          export XDG_RUNTIME_DIR=/run/user/$(id -u)
+          dockerd-rootless-setuptool.sh install --force
+          echo "DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock" >> "$GITHUB_ENV"
+          echo 'DOCKER_CONTEXT=' >> "$GITHUB_ENV"
+      - name: Build and start the isolated deployment
+        run: sh deploy/docker/install-broker.sh
+      - name: Verify isolation, Auto policy and numerical jobs
+        run: |
+          docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/broker-acceptance.mjs
+          docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/acceptance.mjs
+      - name: Exercise GIS, orbit and native NOS3 component/build/integration
+        run: |
+          docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/gis-orbit-acceptance.mjs
+          docker compose --env-file deploy/local/broker.env exec -T -e MANTA_ACCEPT_NOS3=1 -e MANTA_ACCEPT_STF=0 manta node deploy/docker/flight-acceptance.mjs
+      - name: Exercise orbit-to-ground against pinned public state boundaries
+        run: |
+          curl --fail --location --retry 3 https://msdis-archive.missouri.edu/archive/missouri_vector_data/TIGER_Data/TIGER2024/tl_2024_us_state.zip -o /tmp/states.zip
+          echo 'e30bad8922b177b5991bf8606d3d95de8f5f0b4bab25848648de53b25f72c17f  /tmp/states.zip' | sha256sum --check
+          docker compose --env-file deploy/local/broker.env exec -T manta sh -c 'cat > /tmp/states.zip' < /tmp/states.zip
+          docker compose --env-file deploy/local/broker.env exec -T -e MANTA_STATE_ZIP=/tmp/states.zip manta node deploy/docker/orbit-ground-acceptance.mjs
+      - name: Exercise isolated numerical, evaluator, MCP, browser and desktop services
+        run: |
+          docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/broker-services-acceptance.mjs
+          docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/desktop-acceptance.mjs
+      - name: Exercise native concurrency while desktop sessions remain open
+        run: docker compose --env-file deploy/local/broker.env exec -T -e MANTA_NATIVE_PARALLEL=1 manta node deploy/docker/broker-native-acceptance.mjs
+      - name: Opt-in real model repository acceptance
+        if: github.event_name == 'workflow_dispatch' && inputs.live_model
+        env:
+          OPENAI_API_KEY: ${{ secrets.MANTA_MODEL_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.MANTA_MODEL_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.MANTA_MODEL_ID }}
+        run: >-
+          docker compose --env-file deploy/local/broker.env exec -T
+          -e OPENAI_API_KEY -e OPENAI_BASE_URL -e OPENAI_MODEL
+          -e MANTA_TEST_TYPES=codex-app-server,claude-agent,openai-responses
+          manta node deploy/docker/live-repository-acceptance.mjs
+      - name: Capture broker logs
+        if: failure()
+        run: docker compose --env-file deploy/local/broker.env logs --tail 100
+      - name: Remove isolated CI deployment
+        if: always()
+        run: |
+          if [ -f deploy/local/broker.env ]; then docker compose --env-file deploy/local/broker.env down -v; fi
+          docker volume ls -q --filter label=manta.native-state=manta-ci-broker | xargs -r docker volume rm

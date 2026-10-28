@@ -1,6 +1,72 @@
 # Public-source readiness review
 
+The historical source review below was performed on 27 October 2026.
+The subsequent Linux Docker edition and interactive trial are documented in
+[Docker deployment](docker.md); its build and runtime scope differ from the original VM setup.
+
 Reviewed on 27 October 2026. This report separates the sanitized source snapshot from the pre-release private repository and from full engineering-tool provisioning.
+
+## Linux rootless follow-up, 28 October 2026
+
+Local Linux amd64 checks on the Docker adaptation branch (uncommitted):
+
+| Check | Observed result |
+| --- | --- |
+| Full Node regression in an offline non-root container | 724 tests: 710 passed, 0 failed, 14 skipped |
+| Broker request policy | 4 Python tests passed, including the NOS3 default deadline |
+| Rootless task boundaries | Project/credential/network boundaries, memory/PID limits, Auto policy, cancellation and detached-child cleanup passed |
+| Native Codex and Claude | Actual model-backed clamp repository repair passed; source-only changes and unchanged tests verified independently |
+| API-mode Agent | Same model-backed clamp repair passed through isolated commands |
+| Native session persistence and lifecycle | Five concurrent native sessions each resumed in a new disposable task container; cancellation prevented the executing child from writing its delayed marker |
+| ngspice / OpenSCAD / OpenModelica | Actual isolated solver runs passed |
+| GIS / NASA 42 / orbit-to-ground | Native outputs, real supplied Census boundary controls and evidence integrity passed |
+| NOS3 | 324 component cases, native build, and integration checks (baseline, fixed, negative-sign, invalid, sensor-bias, runtime-restored) passed |
+
+The 14 Node skips are three macOS-only sandbox checks, two legacy NOS3 source/compiler
+paths, and nine STF/reference-asset checks. Independent rootless acceptance covers
+the Linux task boundary and native NOS3 path; it does not make those skipped tests
+pass. STF remains deferred. CPU quota was explicitly disabled because this server
+lacks CPU-controller delegation; memory and PID limits were checked. Browser/desktop,
+external connectors and the local numerical service remain disabled in broker mode.
+Windows/macOS/ARM64 validation and a packaged desktop shell remain deferred.
+
+Docker CI now includes a rootless job and an opt-in model-backed acceptance job.
+The workflow has been validated locally for syntax, but has not run on GitHub.
+This follow-up does not rerun or extend the historical source-disclosure audit below.
+
+## Isolated service follow-up, 28 October 2026
+
+The later broker service update adds project-specific Chromium/virtual-desktop
+and stdio MCP containers, the fixed SciPy numerical adapter, and restores the
+bounded-data evaluator. HTTP MCP retains its explicit endpoint and credential
+policy in the trusted application. This supersedes the disabled-service list in
+the earlier rootless follow-up above.
+
+The service update passed a full 728-test Node regression: 714 passed, 14 original
+skips, zero failures. The final MCP cancellation and noVNC relay changes additionally
+passed all 17 targeted session/desktop/MCP regressions. Four new session tests cover cancellation during startup, malformed
+worker output, closed-session use and external/symlinked workspace rejection.
+The four Python broker policy tests also passed.
+
+Actual rootless checks passed for SciPy parameter scans and output hashes, the
+explicit-scope evaluator route, real MCP SDK catalog/tool calls with unrelated
+project/model-credential/socket access denied and a non-cooperative cancelled server
+prevented from writing a delayed marker, Chromium screenshots with protected
+API denial and Manual approvals, and two project desktops opening OpenSCAD and
+writing separate files. noVNC HTTP and the real WebSocket/RFB handshake were
+exercised, including 24 successive HTTP connections and closing the previous tunnel
+on project switch. The mixed
+load test kept two desktop sessions open while five native Codex/Claude sessions
+ran and resumed; cancellation also passed. It exposed the old broker PID limit,
+which was corrected by bounding Docker CLI parallelism and assigning 512 PIDs to
+the control service. Repetition recorded zero PID-limit hits. These tests used
+synthetic local data and no paid model requests.
+
+Browser and desktop session state is temporary and subject to the documented
+lifetime/output limits; saved project files persist. Stdio MCP remains offline;
+network-dependent integrations need an explicitly configured HTTP MCP server.
+STF, legacy VM management, other-platform validation and native desktop packaging
+remain deferred. The updated Docker CI has not been run on GitHub.
 
 ## Source disclosure
 

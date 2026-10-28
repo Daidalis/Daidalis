@@ -1,0 +1,22 @@
+{
+  "schema": "manta-nos3-sdk-v1",
+  "nos3Revision": "5a3bdee6be9a2c67fdf994ae6db56d5c60395302",
+  "deploymentRevision": "312ac3bab2d808163f2979edf85e21b86049e32f",
+  "architecture": "amd64",
+  "packages": [
+    {
+      "file": "itc-common-Release_1.10.2_amd64.deb",
+      "url": "https://raw.githubusercontent.com/nasa-itc/deployment/312ac3bab2d808163f2979edf85e21b86049e32f/nos3_filestore/packages/ubuntu/itc-common-Release_1.10.2_amd64.deb",
+      "sha256": "e72700b93462bd2235b9b3dd3e86101333fc9d2df4d615336a764f5c593d8d7e",
+      "bytes": 671714,
+      "metadata": "Package: itc-common\nVersion: 1.10.2\nArchitecture: amd64\n"
+    },
+    {
+      "file": "nos-engine-Release_1.6.2_amd64.deb",
+      "url": "https://raw.githubusercontent.com/nasa-itc/deployment/312ac3bab2d808163f2979edf85e21b86049e32f/nos3_filestore/packages/ubuntu/nos-engine-Release_1.6.2_amd64.deb",
+      "sha256": "04f6d6637962a9efa965532846889b3db4954ba6d8c54c8de20e4e0a50325cd2",
+      "bytes": 1619290,
+      "metadata": "Package: nos_engine\nVersion: 1.6.2\nArchitecture: amd64\n"
+    }
+  ]
+}

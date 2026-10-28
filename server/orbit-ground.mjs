@@ -97,6 +97,14 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
       if(!ready.environment.ready)throw Error(ready.environment.reason||'Orbit-ground environment is not ready');
       const source=await inputSource(job);
       const request={schema:'manta-orbit-ground-input-v1',jobId:job.id,inputHash:job.inputHash,orbit:{jobId:job.orbit.jobId,receiptSha256:job.orbit.receiptSha256,modelSha256:job.orbit.modelSha256},census:{path:job.census.path,sha256:job.census.sha256,base64:source.toString('base64'),expectedSourceEpsg:4269,featureIdField:'STATEFP'},maxSamples:job.maxSamples};
+      if(runner.requiresNativeFiles){
+        request.nativeFiles={};
+        for(const name of ['receipt.json','time.42','PosN.42','PosW.42']){
+          const key='native-'+name,bytes=await readRegular(safePath(folder(job),key),4*1024*1024);
+          if(sha(bytes)!==job.artifactHashes[key]?.sha256)throw Error('Native orbit snapshot changed: '+name);
+          request.nativeFiles[name]=bytes.toString('base64');
+        }
+      }
       const output=await runner.run(request,{signal:controller.signal,timeoutMs:job.timeoutMs});
       if(controller.signal.aborted)throw Error('Orbit-ground job cancelled or timed out');
       job.status=output.success?'completed':'failed';job.reason=output.success?undefined:String(output.diagnostics||'Isolated orbit-ground worker failed').slice(0,2000);job.finishedAt=now();
@@ -119,7 +127,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
       const gisReady=gis.status==='fulfilled'&&gis.value?.environment?.ready===true;
       const workerReady=worker.status==='fulfilled'&&worker.value?.ready===true;
       const reasons=[!orbitReady&&'Pinned NASA 42 unavailable',!gisReady&&'Pinned GDAL/PROJ unavailable',!workerReady&&(worker.status==='fulfilled'?worker.value.reason:'Reviewed worker unavailable')].filter(Boolean);
-      return {tool:{id:'orbit-ground',name:'NASA 42 × state-boundary ground-track cross-check',operations:['submit','get','wait','cancel'],scope:'Bounded point classification only, no footprint, coverage/revisit, approval or STF mission verification'},environment:{ready:orbitReady&&gisReady&&workerReady,state:orbitReady&&gisReady&&workerReady?'ready':'blocked',reason:reasons.join('; ')||null,isolated:true,hostGlobalChanges:false},inputContract:{orbit42Job:'completed, integrity-verified and native PosW/time receipt-pinned',census:'caller-provided source-<SHA256>.zip, EPSG:4269, STATEFP; source URL/provenance requires separate evidence',sourceHashAllowlist:permitted?[...permitted]:null,maxSamples:{min:2,max:201}}};
+      return {tool:{id:'orbit-ground',name:'NASA 42 × state-boundary ground-track cross-check',operations:['submit','get','wait','cancel'],scope:'Bounded point classification only, no footprint, coverage/revisit, approval or STF mission verification'},environment:{ready:orbitReady&&gisReady&&workerReady,state:orbitReady&&gisReady&&workerReady?'ready':'blocked',reason:reasons.join('; ')||null,isolated:worker.status==='fulfilled'&&worker.value.isolated===true,hostGlobalChanges:false},inputContract:{orbit42Job:'completed, integrity-verified and native PosW/time receipt-pinned',census:'caller-provided source-<SHA256>.zip, EPSG:4269, STATEFP; source URL/provenance requires separate evidence',sourceHashAllowlist:permitted?[...permitted]:null,maxSamples:{min:2,max:201}}};
     },
     async submit(args={},ctx={}){
       if(closed)throw Error('Orbit-ground service is closed');aborted(ctx.signal);
@@ -153,6 +161,14 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
       const jobId='orbitground_'+crypto.randomUUID().replaceAll('-',''),relative=`engineering/orbit-ground/${jobId}`;
       const job={id:jobId,jobId,projectId,threadId:ctx.threadId||null,runId:ctx.runId||null,status:'queued',createdAt:now(),relative,orbit,census,maxSamples,inputHash,timeoutMs,artifactHashes:{}};
       await fs.mkdir(safePath(ws,relative,{write:true}),{recursive:true,mode:0o700});
+      if(runner.requiresNativeFiles){
+        for(const name of ['receipt.json','time.42','PosN.42','PosW.42']){
+          const entry=orbitResult.artifacts.find(item=>item.path===root+name);
+          const bytes=await readRegular(safePath(ws,root+name),4*1024*1024);
+          if(!entry||sha(bytes)!==entry.sha256)throw fail('Native orbit evidence changed: '+name,'REVISION_CONFLICT');
+          await artifact(job,'native-'+name,bytes,name==='receipt.json'?'application/json':'text/plain');
+        }
+      }
       await artifact(job,'source.zip',source,'application/zip');
       await artifact(job,'input.json',Buffer.from(JSON.stringify({schema:'manta-orbit-ground-input-record-v1',jobId,orbit,census,maxSamples,inputHash},null,2)+'\n'),'application/json');
       jobs.set(job.id,job);await persist(job);queue.push(job);queueMicrotask(pump);return publicJob(job);

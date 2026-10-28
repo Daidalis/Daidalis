@@ -1,0 +1,66 @@
+name: manta
+x-limits: &limits
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  cpus: 4
+  mem_limit: 8g
+  memswap_limit: 8g
+  restart: "no"
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+services:
+  manta:
+    <<: *limits
+    image: manta-app:${MANTA_TAG:-local}
+    build:
+      context: .
+      target: application
+      args: {TOOLCHAINS: "${MANTA_TOOLS-scipy,ngspice,openscad,browser,desktop,gis}", WITH_MODELICA: "${MANTA_MODELICA:-1}", WITH_ORBIT42: "${MANTA_ORBIT42:-1}"}
+    user: "1000:1000"
+    env_file:
+      - ${MANTA_ENV_FILE:-.env.example}
+    ports:
+      - "127.0.0.1:${MANTA_PORT:-4317}:8080"
+      - "127.0.0.1:${MANTA_DESKTOP_PORT:-6080}:8081"
+    environment:
+      PORT: "${MANTA_PORT:-4317}"
+      MANTA_PROJECTS_ROOT: /projects
+      MANTA_NATIVE_AGENTS: enabled
+      MANTA_EXECUTION_MODE: shared-container
+      MANTA_DESKTOP_SOCKET: /desktop-control/desktop.sock
+    volumes:
+      - state:/data
+      - projects:/projects
+      - home:/home/node
+      - desktop-control:/desktop-control:ro
+    tmpfs: ["/tmp:rw,nosuid,nodev,exec,size=1g,mode=1777"]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+  desktop:
+    <<: *limits
+    image: manta-app:${MANTA_TAG:-local}
+    profiles: [desktop]
+    user: "1000:1000"
+    command: [python3, deploy/desktop/service.py]
+    volumes:
+      - desktop-control:/desktop-control
+      - desktop-data:/desktop-data
+      - projects:/projects
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=1g,mode=1777
+      - /home/node:rw,nosuid,nodev,size=64m,uid=1000,gid=1000,mode=700
+    environment: {DISPLAY: ":99", HOME: /home/node, OMP_NUM_THREADS: "1", OPENBLAS_NUM_THREADS: "1"}
+    network_mode: none
+volumes:
+  state:
+  projects:
+  home:
+  desktop-control:
+  desktop-data:

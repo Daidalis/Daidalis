@@ -142,7 +142,7 @@ export function dependencyLocationPolicy(dependencies,{platform=process.platform
 }
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const SCOPE='declared-model-numerical-analysis';
-export async function createEngineeringService({root,dataDir,store,emit=()=>{},pythonPath,professionalCatalog=professionalToolCatalog,probeExecutor=spawnBounded,probeTimeoutMs=120000,locationPolicy=dependencyLocationPolicy}={}){
+export async function createEngineeringService({root,dataDir,store,emit=()=>{},pythonPath,professionalCatalog=professionalToolCatalog,probeExecutor=spawnBounded,numericalRunner=null,probeTimeoutMs=120000,locationPolicy=dependencyLocationPolicy}={}){
   root=root||process.cwd();dataDir=dataDir||path.join(root,'.local');
   const python=pythonPath||process.env.MBSE_PYTHON||findExe([path.join(root,'.venv',process.platform==='win32'?'Scripts':'bin',process.platform==='win32'?'python.exe':'python3'),'python3','python']);
   const dependencies=process.env.MBSE_ENGINEERING_DEPS||path.join(root,'.local','engineering-deps');
@@ -186,7 +186,7 @@ export async function createEngineeringService({root,dataDir,store,emit=()=>{},p
         // Match the actual solver's isolated Python import path. A local check
         // must not accidentally succeed against unrelated user/site packages.
         const source=`import sys;sys.path.insert(0,${JSON.stringify(dependencies)});\nimport scipy,numpy,matplotlib,json;print(json.dumps({"python":sys.version.split()[0],"scipy":scipy.__version__,"numpy":numpy.__version__,"matplotlib":matplotlib.__version__}))`;
-        const result=await probeExecutor(python,['-I','-c',source],{env,timeoutMs:probeLimit,maxBytes:64000});
+        const result=numericalRunner?await numericalRunner.probe({timeoutMs:probeLimit}):await probeExecutor(python,['-I','-c',source],{env,timeoutMs:probeLimit,maxBytes:64000});
         if(result.code!==0){
           const detail=String(result.stderr||result.stdout||'Python dependency check failed').slice(-1000);
           const missing=/ModuleNotFoundError|No module named/i.test(detail);
@@ -239,10 +239,17 @@ export async function createEngineeringService({root,dataDir,store,emit=()=>{},p
       const requirements=[{id:'R-TEMP-MIN',text:`载荷全时域温度 ≥ ${parameters.minTemperature} °C`},{id:'R-TEMP-MAX',text:`载荷全时域温度 ≤ ${parameters.maxTemperature} °C`},{id:'R-TRACK',text:`末10%时域跟踪误差 ≤ ${parameters.finalTolerance} K`},{id:'R-CONSERVATION',text:'独立能量积分相对误差 < 0.005'},{id:'R-NUMERICS',text:'线性极限模型与矩阵指数解析解误差 < 1e-5 K'}];
       await Promise.all([fs.writeFile(path.join(dir,'model.py'),PYTHON),fs.writeFile(path.join(dir,'model.json'),JSON.stringify(specification,null,2)),fs.writeFile(path.join(dir,'parameters.json'),JSON.stringify({parameters,scan},null,2)),fs.writeFile(path.join(dir,'requirements.json'),JSON.stringify(requirements,null,2))]);
       emit({projectId,runId:ctx.runId,type:'engineering.started',message:'SciPy 热动力学仿真已启动',data:{id,model}});
-      const execution=await spawnBounded(python,['-I','-c',`import sys;sys.path.insert(0,${JSON.stringify(dependencies)});\n${PYTHON}`,dir],{cwd:dir,env,timeoutMs:30000,maxBytes:12000,signal:ctx.signal});
+      let execution;
+      if(numericalRunner){
+        const isolated=await numericalRunner.run({parameters,scan},{signal:ctx.signal});
+        const expected=['result.json','series.csv','temperature.svg'];
+        if(!Array.isArray(isolated.files)||isolated.files.length!==expected.length)throw Error('Invalid numerical output bundle');
+        for(const name of expected){const file=isolated.files.find(f=>f.name===name);if(!file||typeof file.contentBase64!=='string')throw Error('Missing numerical output');const bytes=Buffer.from(file.contentBase64,'base64');if(bytes.length>8*1024*1024||sha(bytes)!==file.sha256)throw Error('Numerical output integrity mismatch');await fs.writeFile(safePath(dir,name,{write:true}),bytes);}
+        execution={code:0,stdout:'Isolated SciPy execution completed',isolation:isolated.brokerIsolation};
+      }else execution=await spawnBounded(python,['-I','-c',`import sys;sys.path.insert(0,${JSON.stringify(dependencies)});\n${PYTHON}`,dir],{cwd:dir,env,timeoutMs:30000,maxBytes:12000,signal:ctx.signal});
         if(execution.code!==0)throw Error('求解失败：'+execution.stderr.slice(-1000));
         const result=JSON.parse(await fs.readFile(path.join(dir,'result.json'),'utf8'));
-        const manifest={id,projectId,model:MODEL,modelVersion:'1.0.0',createdAt:new Date().toISOString(),scope:SCOPE,upstreamReproduction:false,hardwareValidation:false,solver:result.solver,parameters,scan,sourceHash:sha(PYTHON),inputHash:sha(JSON.stringify({parameters,scan})),execution:{exitCode:execution.code,stdout:execution.stdout},files:[]};
+        const manifest={id,projectId,model:MODEL,modelVersion:'1.0.0',createdAt:new Date().toISOString(),scope:SCOPE,upstreamReproduction:false,hardwareValidation:false,solver:result.solver,parameters,scan,sourceHash:sha(PYTHON),inputHash:sha(JSON.stringify({parameters,scan})),execution:{exitCode:execution.code,stdout:execution.stdout,...(execution.isolation?{isolation:execution.isolation}:{})},files:[]};
         for(const file of FILES.filter(f=>f!=='manifest.json'))manifest.files.push({file,sha256:sha(await fs.readFile(path.join(dir,file)))});
         await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(manifest,null,2));
         const artifacts=FILES.map(file=>({name:file,path:`${relative}/${file}`,url:`/api/engineering/outputs/${id}/${file}?projectId=${encodeURIComponent(projectId)}`}));
