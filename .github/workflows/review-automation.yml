@@ -1,0 +1,197 @@
+name: Review automation
+run-name: 'PR review · ${{ inputs.branch || github.ref_name }}'
+
+on:
+  push:
+    branches: ['work/**']
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Existing work/<task> branch in this repository'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.event.deleted != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: write
+    outputs:
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+    steps:
+      - name: Create or find the task PR
+        id: pr
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TASK_BRANCH: ${{ inputs.branch || github.ref_name }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const branch = process.env.TASK_BRANCH?.trim();
+            if (!branch?.startsWith('work/') || branch.length <= 5) {
+              throw new Error('Specify an existing work/<task> branch in this repository.');
+            }
+            const skip = async message => {
+              core.notice(message);
+              await core.summary.addHeading('Review skipped').addRaw(message).write();
+            };
+            const {data: metadata} = await github.rest.repos.get({owner, repo});
+            const [{data: head}, {data: base}] = await Promise.all([
+              github.rest.repos.getBranch({owner, repo, branch}),
+              github.rest.repos.getBranch({owner, repo, branch: metadata.default_branch})
+            ]);
+            if (context.eventName === 'push' && context.sha !== head.commit.sha) {
+              await skip('The branch has newer commits; the newer push will trigger its review.');
+              return;
+            }
+            const {data: comparison} = await github.rest.repos.compareCommitsWithBasehead({
+              owner, repo, basehead: `${base.commit.sha}...${head.commit.sha}`, per_page: 1
+            });
+            if (comparison.ahead_by === 0 || comparison.files?.length === 0) {
+              await skip('The branch has no file changes relative to the default branch. No PR or AI review is needed.');
+              return;
+            }
+            const findPr = async () => (await github.rest.pulls.list({
+              owner, repo, head: `${owner}:${branch}`, base: metadata.default_branch, state: 'open'
+            })).data[0];
+            let pr = await findPr();
+            if (!pr) {
+              try {
+                pr = (await github.rest.pulls.create({
+                  owner, repo, head: branch, base: metadata.default_branch, draft: true,
+                  title: branch.slice(5).replace(/[-_/]+/g, ' '),
+                  body: '## Goal\n\nDescribe the problem to solve or the feature to implement.\n\n## Scope\n\nDescribe the modules or interfaces involved and what is deferred.'
+                })).data;
+              } catch (error) {
+                // Another run may have created the same PR after our lookup.
+                if (error.status !== 422) throw error;
+                pr = await findPr();
+                if (!pr) throw error;
+              }
+            }
+            core.setOutput('pr_number', pr.number);
+            await core.summary.addHeading('PR ready').addLink(`PR #${pr.number}`, pr.html_url).write();
+            // The pinned Claude Code Action accepts workflow_dispatch, not push.
+            // Only push runs dispatch; the dispatched run proceeds to review.
+            if (context.eventName === 'push') {
+              await github.rest.actions.createWorkflowDispatch({
+                owner, repo, workflow_id: 'review-automation.yml',
+                ref: metadata.default_branch, inputs: {branch}
+              });
+              core.notice(`Requested AI review for PR #${pr.number} from the default branch workflow.`);
+            }
+
+  review:
+    name: AI review and summary
+    needs: prepare
+    if: github.event_name == 'workflow_dispatch' && needs.prepare.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: pr-review-${{ github.repository }}-${{ needs.prepare.outputs.pr_number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      SUMMARY_MARKER: '<!-- ai-pr-review -->'
+      ANTHROPIC_BASE_URL: https://api.deepseek.com/anthropic
+      ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ vars.AI_REVIEW_MODEL || 'deepseek-flash' }}
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ vars.AI_REVIEW_MODEL || 'deepseek-flash' }}
+      ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ vars.AI_REVIEW_MODEL || 'deepseek-flash' }}
+    steps:
+      - name: Check the PR and review configuration
+        id: current
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          HAS_API_KEY: ${{ secrets.DEEPSEEK_API_KEY != '' }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const {data: pr} = await github.rest.pulls.get({
+              owner, repo, pull_number: Number(process.env.PR_NUMBER)
+            });
+            if (pr.state !== 'open' || pr.changed_files === 0) {
+              core.notice('The PR is closed or has no file changes; skipping review.');
+              return;
+            }
+            if (pr.head.repo?.full_name.toLowerCase() !== `${owner}/${repo}`.toLowerCase() ||
+                !pr.head.ref.startsWith('work/')) {
+              throw new Error('Only work/<task> branches in this repository are supported.');
+            }
+            if (process.env.HAS_API_KEY !== 'true') {
+              throw new Error('Configure the DEEPSEEK_API_KEY repository Actions secret first.');
+            }
+            const {data: base} = await github.rest.repos.getBranch({owner, repo, branch: pr.base.ref});
+            // Resolve the latest head only after acquiring this PR's concurrency slot.
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('base_sha', base.commit.sha);
+            core.setOutput('started_at', new Date().toISOString());
+            core.setOutput('ready', 'true');
+      - name: Load the default branch review prompt
+        if: steps.current.outputs.ready == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ steps.current.outputs.base_sha }}
+          persist-credentials: false
+      - name: Review with the official Claude Code Action
+        if: steps.current.outputs.ready == 'true'
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1
+        with:
+          github_token: ${{ github.token }}
+          anthropic_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          allowed_bots: 'github-actions[bot]'
+          classify_inline_comments: 'false'
+          show_full_output: 'false'
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ needs.prepare.outputs.pr_number }}
+            REVIEWED HEAD SHA: ${{ steps.current.outputs.head_sha }}
+            DEFAULT BRANCH SHA: ${{ steps.current.outputs.base_sha }}
+            SUMMARY MARKER: ${{ env.SUMMARY_MARKER }}
+
+            Read and follow the review instructions in .github/prompts/review.md.
+          claude_args: >-
+            --model ${{ vars.AI_REVIEW_MODEL || 'deepseek-flash' }}
+            --max-turns 30
+            --tools "Read,Glob,Grep,Bash"
+            --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api --method GET:*),Bash(gh pr comment:*),Bash(gh api --method PATCH repos/${{ github.repository }}/issues/comments/*)"
+      - name: Confirm the review summary was published
+        if: steps.current.outputs.ready == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          REVIEWED_HEAD: ${{ steps.current.outputs.head_sha }}
+          STARTED_AT: ${{ steps.current.outputs.started_at }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const pull_number = Number(process.env.PR_NUMBER);
+            const {data: pr} = await github.rest.pulls.get({owner, repo, pull_number});
+            if (pr.state !== 'open' || pr.head.sha !== process.env.REVIEWED_HEAD) {
+              core.notice('The PR is closed or has new commits; this review is outdated.');
+              return;
+            }
+            // GitHub uses the issue-comment API for ordinary PR comments too.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pull_number, per_page: 100
+            });
+            const summary = comments.find(comment =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.startsWith(process.env.SUMMARY_MARKER) &&
+              comment.body.includes(process.env.REVIEWED_HEAD) &&
+              Date.parse(comment.updated_at) >= Date.parse(process.env.STARTED_AT) - 2000
+            );
+            if (!summary) {
+              throw new Error('The AI task finished, but no published summary was found for this review. Check the model output and tool permissions.');
+            }
+            await core.summary.addHeading('Review summary published')
+              .addLink(`PR #${pull_number} review summary`, summary.html_url).write();
