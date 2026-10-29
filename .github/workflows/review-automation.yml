@@ -20,8 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     concurrency:
-      # A skipped automatic run must not cancel a maintainer's manual review.
-      group: pr-review-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr_number }}-${{ github.event_name }}
+      # Active reviews share one group; skipped events cannot cancel them.
+      group: >-
+        pr-review-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr_number }}-${{
+          github.event_name == 'pull_request' &&
+          (github.event.pull_request.head.repo.full_name != github.repository || github.actor == 'dependabot[bot]') &&
+          'restricted' || 'active'
+        }}
       cancel-in-progress: true
     permissions:
       contents: read
