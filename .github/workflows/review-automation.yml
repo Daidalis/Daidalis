@@ -103,6 +103,10 @@ jobs:
         with:
           github_token: ${{ github.token }}
           anthropic_api_key: ${{ secrets.AI_REVIEW_API_KEY }}
+          # claude.ai/install.sh is unreachable from the runner's network
+          # (an HTML page is served instead of the script), so use the
+          # claude binary preinstalled on the self-hosted runner.
+          path_to_claude_code_executable: /usr/local/bin/claude
           allowed_bots: 'github-actions[bot]'
           classify_inline_comments: 'false'
           show_full_output: 'false'
