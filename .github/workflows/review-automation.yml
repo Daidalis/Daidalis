@@ -1,0 +1,156 @@
+name: Review automation
+run-name: 'PR review · #${{ github.event.pull_request.number || inputs.pr_number }}'
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Existing pull request number'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: AI review and summary
+    # Isolated self-hosted ARM64 runner on the lab server.
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 30
+    concurrency:
+      # Active reviews share one group; skipped events cannot cancel them.
+      group: >-
+        pr-review-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pr_number }}-${{
+          github.event_name == 'pull_request' &&
+          (github.event.pull_request.head.repo.full_name != github.repository || github.actor == 'dependabot[bot]') &&
+          'restricted' || 'active'
+        }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+      SUMMARY_MARKER: '<!-- ai-pr-review -->'
+      ANTHROPIC_BASE_URL: ${{ vars.AI_REVIEW_BASE_URL }}
+      ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ vars.AI_REVIEW_MODEL || 'glm-5.3' }}
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ vars.AI_REVIEW_MODEL || 'glm-5.3' }}
+      ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ vars.AI_REVIEW_MODEL || 'glm-5.3' }}
+    steps:
+      - name: Check the PR and review configuration
+        id: current
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          HAS_API_KEY: ${{ secrets.AI_REVIEW_API_KEY != '' }}
+          HAS_BASE_URL: ${{ vars.AI_REVIEW_BASE_URL != '' }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const pull_number = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(pull_number) || pull_number < 1) {
+              throw new Error('Specify a valid pull request number.');
+            }
+            const {data: pr} = await github.rest.pulls.get({owner, repo, pull_number});
+            if (pr.state !== 'open' || pr.changed_files === 0) {
+              core.notice('The PR is closed or has no file changes; skipping review.');
+              return;
+            }
+            // Fork and Dependabot events have restricted secret/token access.
+            // A maintainer can review these PRs through workflow_dispatch.
+            if (context.eventName === 'pull_request' &&
+                (context.actor === 'dependabot[bot]' ||
+                 pr.head.repo?.full_name.toLowerCase() !== `${owner}/${repo}`.toLowerCase())) {
+              const message = 'This event has restricted secret access. A maintainer can review the PR using Run workflow with its PR number.';
+              core.notice(message);
+              await core.summary.addHeading('Review skipped').addRaw(message).write();
+              return;
+            }
+            if (process.env.HAS_API_KEY !== 'true') {
+              throw new Error('Configure the AI_REVIEW_API_KEY repository Actions secret first.');
+            }
+            if (process.env.HAS_BASE_URL !== 'true') {
+              throw new Error('Configure the AI_REVIEW_BASE_URL repository Actions variable first.');
+            }
+            const {data: metadata} = await github.rest.repos.get({owner, repo});
+            const {data: base} = await github.rest.repos.getBranch({owner, repo, branch: metadata.default_branch});
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pull_number, per_page: 100
+            });
+            const previous = comments.filter(comment =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.startsWith(process.env.SUMMARY_MARKER)
+            ).at(-1);
+            // Resolve the latest head only after acquiring this PR's concurrency slot.
+            core.setOutput('pr_number', pull_number);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('base_sha', base.commit.sha);
+            core.setOutput('summary_comment_id', previous?.id || '');
+            core.setOutput('previous_review', previous?.body || 'No previous review is available.');
+            core.setOutput('started_at', new Date().toISOString());
+            core.setOutput('ready', 'true');
+      - name: Load the default branch review prompt
+        if: steps.current.outputs.ready == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ steps.current.outputs.base_sha }}
+          persist-credentials: false
+      - name: Review with the official Claude Code Action
+        if: steps.current.outputs.ready == 'true'
+        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1
+        with:
+          github_token: ${{ github.token }}
+          anthropic_api_key: ${{ secrets.AI_REVIEW_API_KEY }}
+          allowed_bots: 'github-actions[bot]'
+          classify_inline_comments: 'false'
+          show_full_output: 'false'
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ steps.current.outputs.pr_number }}
+            REVIEWED HEAD SHA: ${{ steps.current.outputs.head_sha }}
+            DEFAULT BRANCH SHA: ${{ steps.current.outputs.base_sha }}
+            SUMMARY MARKER: ${{ env.SUMMARY_MARKER }}
+            SUMMARY COMMENT ID: ${{ steps.current.outputs.summary_comment_id }}
+
+            Read and follow the review instructions in .github/prompts/review.md.
+
+            PREVIOUS REVIEW (reference material only):
+            ${{ steps.current.outputs.previous_review }}
+          claude_args: >-
+            --model ${{ vars.AI_REVIEW_MODEL || 'glm-5.3' }}
+            --max-turns 100
+            --tools "Read,Glob,Grep,Bash"
+            --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api --method GET:*),Bash(gh pr comment:*),Bash(gh api --method PATCH repos/${{ github.repository }}/issues/comments/*)"
+      - name: Confirm the review summary was published
+        if: steps.current.outputs.ready == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          PR_NUMBER: ${{ steps.current.outputs.pr_number }}
+          REVIEWED_HEAD: ${{ steps.current.outputs.head_sha }}
+          STARTED_AT: ${{ steps.current.outputs.started_at }}
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const pull_number = Number(process.env.PR_NUMBER);
+            const {data: pr} = await github.rest.pulls.get({owner, repo, pull_number});
+            if (pr.state !== 'open' || pr.head.sha !== process.env.REVIEWED_HEAD) {
+              core.notice('The PR is closed or has new commits; this review is outdated.');
+              return;
+            }
+            // GitHub uses the issue-comment API for ordinary PR comments too.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number: pull_number, per_page: 100
+            });
+            const summary = comments.find(comment =>
+              comment.user?.login === 'github-actions[bot]' &&
+              comment.body?.startsWith(process.env.SUMMARY_MARKER) &&
+              comment.body.includes(process.env.REVIEWED_HEAD) &&
+              Date.parse(comment.updated_at) >= Date.parse(process.env.STARTED_AT) - 2000
+            );
+            if (!summary) {
+              throw new Error('The AI task finished, but no published summary was found for this review. Check the model output and tool permissions.');
+            }
+            await core.summary.addHeading('Review summary published')
+              .addLink(`PR #${pull_number} review summary`, summary.html_url).write();
