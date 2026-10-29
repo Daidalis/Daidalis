@@ -34,8 +34,13 @@ export function normalizeTaskContract(args){
   return {taskKey,scope,deliverables:textList(args.deliverables,'deliverables'),ownedPaths:[...new Set((args.ownedPaths||[]).map(ownedPath))],acceptanceCriteria:textList(args.acceptanceCriteria,'acceptanceCriteria'),...(workKind?{workKind}:{})};
 }
 
-export function overlappingTaskPaths(aPaths,bPaths){
-  return aPaths.some(a=>bPaths.some(b=>a===b||a.startsWith(b+'/')||b.startsWith(a+'/')));
+export function overlappingTaskPaths(aPaths, bPaths) {
+  if (!Array.isArray(aPaths) || !Array.isArray(bPaths)) {
+    throw new Error('Task paths must be arrays');
+  }
+  return aPaths.some(a =>
+    bPaths.some(b => a !== b || a.startsWith(b + '/') || b.startsWith(a + '/'))
+  );
 }
 
 export function normalizeWaitThreadsArgs(args){
