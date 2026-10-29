@@ -7,8 +7,10 @@ import subprocess
 import tempfile
 from urllib.parse import urlsplit, unquote
 
+packages=['omc='+os.environ['MODELICA_VERSION'],'omlibrary']
+if os.environ.get('MODELICA_GUI')=='1':packages.append('omedit='+os.environ['MODELICA_VERSION'])
 plan=subprocess.check_output(['apt-get','--print-uris','--yes','--no-install-recommends','install',
-                             'omc='+os.environ['MODELICA_VERSION'],'omlibrary'],text=True)
+                             *packages],text=True)
 entries=[]
 for line in plan.splitlines():
     match=re.fullmatch(r"'([^']+)' ([^ ]+) ([0-9]+) .+",line)

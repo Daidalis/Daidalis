@@ -6,14 +6,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 FROM base AS tools
 # Comma-separated, validated by the installer. Omit groups to save actual image space.
-ARG TOOLCHAINS=scipy,ngspice,openscad,browser,desktop,gis
+ARG TOOLCHAINS=scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab
 COPY deploy/docker/install-tools.sh /opt/install-tools.sh
-RUN TOOLCHAINS="$TOOLCHAINS" sh /opt/install-tools.sh
+COPY deploy/docker/fetch-packages.py /opt/fetch-packages.py
+RUN --mount=type=cache,target=/var/cache/apt,id=manta-tool-packages,sharing=locked TOOLCHAINS="$TOOLCHAINS" sh /opt/install-tools.sh
 ARG WITH_MODELICA=1
 ARG MODELICA_VERSION=1.27.1-1
 COPY deploy/docker/install-modelica.sh /opt/install-modelica.sh
 COPY deploy/docker/fetch-modelica.py /opt/fetch-modelica.py
-RUN --mount=type=cache,target=/var/cache/apt,id=manta-modelica-packages,sharing=locked WITH_MODELICA="$WITH_MODELICA" MODELICA_VERSION="$MODELICA_VERSION" sh /opt/install-modelica.sh
+RUN --mount=type=cache,target=/var/cache/apt,id=manta-modelica-packages,sharing=locked TOOLCHAINS="$TOOLCHAINS" WITH_MODELICA="$WITH_MODELICA" MODELICA_VERSION="$MODELICA_VERSION" sh /opt/install-modelica.sh
 COPY deploy/runner/worker.py /opt/runner/worker.py
 RUN dpkg-query -W > /opt/runner/packages.txt
 

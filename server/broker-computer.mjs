@@ -3,7 +3,7 @@ import path from 'node:path';
 import {Duplex} from 'node:stream';
 import {randomUUID} from 'node:crypto';
 import {createBrokerSession} from './broker-session.mjs';
-import {validateBrowserRequest} from './computer.mjs';
+import {relayBrowserRequest} from './browser-relay.mjs';
 export async function createBrokerComputer({root,dataDir,store,requestApproval=async()=>false,fetchImpl=fetch}={}){
  const shots=path.join(dataDir,'computer-screenshots');await fs.mkdir(shots,{recursive:true});
  const sessions=new Map(),locks=new Map();
@@ -22,15 +22,8 @@ export async function createBrokerComputer({root,dataDir,store,requestApproval=a
   },onClose:()=>{for(const tunnel of item.tunnels.values())tunnel.destroy();item.tunnels.clear();if(activeDesktop===projectId){activeDesktop=null;desktopState={};}},onCall:async(method,args,signal)=>{
    if(method==='approval')return requestApproval({projectId,runId:item.ctx.runId,tool:'computer_use',args:{action:item.payload?.action,...item.payload?.args},signal:item.ctx.signal||signal});
    if(method!=='fetch')throw Error('Unsupported computer callback');
-   if(!args||typeof args.url!=='string'||args.url.length>16000||!['GET','POST'].includes(args.method)||String(args.body||'').length>64000)throw Error('Invalid browser request');
-   const url=validateBrowserRequest(args.url,{baseUrl,allowedHosts,projectId,method:args.method,body:args.body});
-   if(args.method==='POST'&&item.ctx.source!=='user'&&item.ctx.permissionMode!=='auto'){
-    const approved=await requestApproval({projectId,runId:item.ctx.runId,tool:'computer_use',args:{action:'browser.engineering.run',body:args.body},signal:item.ctx.signal||signal});if(!approved)throw Error('Browser execution rejected');
-   }
-   const response=await fetchImpl(url,{method:args.method,headers:args.body?{'content-type':'application/json'}:undefined,body:args.method==='POST'?args.body:undefined,redirect:'manual',signal:AbortSignal.any([signal,...(item.ctx.signal?[item.ctx.signal]:[]),AbortSignal.timeout(30000)])});
-   const chunks=[];let size=0;for await(const chunk of response.body||[]){size+=chunk.length;if(size>8*1024*1024)throw Error('Browser response too large');chunks.push(chunk);}
-   const headers={};for(const name of ['content-type','location']){const value=response.headers.get(name);if(value)headers[name]=value;}
-   return {status:response.status,headers,contentBase64:Buffer.concat(chunks).toString('base64')};
+   return relayBrowserRequest(args,{baseUrl,allowedHosts,projectId,fetchImpl,signal,context:item.ctx,
+    approve:body=>requestApproval({projectId,runId:item.ctx.runId,tool:'computer_use',args:{action:'browser.engineering.run',body},signal:item.ctx.signal||signal})});
   }});
   sessions.set(projectId,item);await item.channel.ready;return item;
  }

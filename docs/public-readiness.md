@@ -6,6 +6,15 @@ The subsequent Linux Docker edition and interactive trial are documented in
 
 Reviewed on 27 October 2026. This report separates the sanitized source snapshot from the pre-release private repository and from full engineering-tool provisioning.
 
+## Current Linux Docker status
+
+The dated sections below are historical acceptance records, not cumulative lists
+of current limitations. Browser/desktop services and controlled stdio MCP
+networking are now available in broker mode. See the
+[current feature comparison](docker.md#feature-comparison-with-the-original-source)
+for remaining differences. Recorded local checks do not imply that an existing
+installation was upgraded or that GitHub CI has passed.
+
 ## Linux rootless follow-up, 28 October 2026
 
 Local Linux amd64 checks on the Docker adaptation branch (uncommitted):
@@ -67,6 +76,143 @@ lifetime/output limits; saved project files persist. Stdio MCP remains offline;
 network-dependent integrations need an explicitly configured HTTP MCP server.
 STF, legacy VM management, other-platform validation and native desktop packaging
 remain deferred. The updated Docker CI has not been run on GitHub.
+
+## Browser and engineering desktop follow-up, 29 October 2026
+
+The new full Linux image was built locally. The Node regression in the new image
+(with current test/installer sources mounted read-only) passed 733 tests:
+719 passed, 14 original skips, zero failures. Twelve targeted browser-policy and
+installer checks passed, including independently selected GUI groups and broker
+recreation when upgrading task images.
+
+Actual Chromium checks in an offline container exercised form login, redirects,
+multiple site cookies, binary PATCH requests, browser-owned authorization headers,
+separate project cookie jars, cross-origin credential stripping and forbidden
+redirect denial. Only synthetic in-memory sites were used; no real account,
+external site or paid model was contacted. The relay now intercepts each redirect
+hop with Chromium CDP rather than relying on first-request-only routing.
+
+Actual non-root, offline GUI containers with a read-only root filesystem, 2 GiB
+memory and 256 PID limits opened OpenSCAD, OMEdit, FreeCAD and Scilab. Main-window
+screenshots were inspected: OMEdit loaded the supplied Modelica model; FreeCAD
+opened a generated native CAD document and displayed its box through Manta's
+click/key/type driver; Scilab computed and wrote the expected result into the
+project directory. The desktop clears the solver's offscreen Qt setting so these
+are visible X11 applications. These checks do not establish arbitrary third-party
+model compatibility or repeat the full rootless-daemon/native-Agent acceptance
+above. The updated GitHub CI has not been run remotely.
+
+FreeCAD and Scilab are independently selectable groups, and OMEdit is installed
+when both desktop and Modelica are selected. Other original desktop application
+IDs have fixed custom-image launcher locations; their binaries, licenses and
+runtime acceptance are not supplied. The feature comparison in [Docker deployment](docker.md#feature-comparison-with-the-original-source)
+records the remaining network-dependent stdio MCP, host-account, host-desktop and
+VM-specific differences. Deferred STF, native shell and other-host validation
+remain deferred; this is not a claim of complete original-feature parity.
+
+## Controlled stdio MCP networking, 29 October 2026
+
+Broker stdio connectors now support user-configured exact public DNS destinations
+through a loopback HTTPS CONNECT proxy and the existing session relay. Task
+containers retain `network=none`; the application pins validated public DNS
+answers and never supplies its model keys to the connector or the tunnel.
+The configuration form supports adding/removing hosts, and non-broker deployments
+reject this policy rather than silently claiming to enforce it.
+
+The offline Node regression passed 741 tests: 727 passed, 14 original skips,
+zero failures. Targeted MCP, configuration, relay and UI checks covered
+private/mixed DNS rejection, pinned dialing, binary stream flow control,
+cancellation during DNS, malformed session envelopes and oversized callbacks
+closing their session without crashing the application.
+
+A dedicated temporary rootless Docker 29.4.1 deployment passed actual Node fetch,
+Node HTTPS and Python urllib calls to public example.com with synthetic MCP code.
+The test also exercised same-container loopback, rejection of unlisted targets,
+host-loopback attempts and plaintext external HTTP, failure of direct egress,
+project/model-credential/socket boundaries, cancellation of a non-cooperative
+worker and restoring offline behavior by clearing the host list. No real API key
+or existing project source was used or transmitted. Task inspection confirmed
+UID 1000, network `none`, read-only root, a single `/work` project volume mount,
+2 GiB memory and 256 PIDs. CPU quota was explicitly disabled because this host
+lacks CPU delegation. The dedicated test deployment was removed afterward;
+existing deployments were not upgraded.
+
+This supersedes the earlier offline-only stdio networking limitation above.
+Proxy-aware HTTPS clients are supported; arbitrary/private networking and clients
+that ignore proxies are outside this adapter. See [configuration and limits](docker.md#opt-in-rootless-task-isolation).
+The online acceptance script is now part of the rootless Docker CI job; no remote
+GitHub CI run is claimed here.
+
+## Pre-PR code review, 29 October 2026
+
+The review focused on the Docker task boundary, broker service protocol, browser
+and MCP relays, toolchain installation and the latest uncommitted changes.
+It found unguarded message/startup handlers and unbounded concurrent worker
+callbacks in the application-side service session. Those paths now close the
+session on failure, abort outstanding callbacks and enforce consistent frame
+and outgoing-queue limits. Four regressions cover message-handler exceptions,
+callback floods, oversized startup options and oversized incoming frames.
+
+The session dispatch and MCP hostname/address validation were simplified for
+reviewability, without adding dependencies or widening container privileges.
+Historical acceptance sections are now explicitly distinguished from current
+feature status. No previously working feature or acceptance script was removed.
+
+The final offline, non-root, read-only-container regression passed 745 tests:
+731 passed, 14 existing skips, zero failures. All four Python broker policy tests
+passed; syntax checks covered 23 changed/new Python files and five shell scripts.
+`git diff --check` passed. This review did not repeat live-model/rootless acceptance,
+upgrade an existing deployment or run remote GitHub CI.
+
+## Full Linux Docker acceptance, 29 October 2026
+
+The current application was exercised on Linux amd64 using fresh, dedicated test
+volumes and a temporary rootless Docker 29.4.1 daemon. Full/minimal application,
+broker and flight images were built; dependency build caches were reused. This
+is not a clean-machine, cold-cache installation or other-platform certification.
+
+| Acceptance | Result |
+| --- | --- |
+| Final full image regression | 746 tests: 732 passed, 14 skipped, 0 failed |
+| Final minimal image regression | 746 tests: 727 passed, 19 skipped, 0 failed |
+| Minimal startup smoke | Passed |
+| Broker policy / installer checks | 4 Python checks and 5 installer tests passed |
+| Full solver image with a 64-PID limit | All 6 tests passed |
+| Linux GUI containers | OpenSCAD, OMEdit, FreeCAD and Scilab opened actual project documents |
+| Chromium relay | Form login, redirects, multiple cookies, site authorization, binary PATCH and separate project cookie jars passed |
+| Rootless task isolation | Project-external access denial, Auto policy, timeout, cancellation and detached-child cleanup passed |
+| Engineering jobs | SysML and actual ngspice, OpenSCAD and OpenModelica execution with saved artifacts passed |
+| GIS / orbit | GDAL, native NASA 42 and the supplied SHA-256-verified Census boundary cross-check passed |
+| NOS3 | 324 component cases, native build and all six integration checks passed |
+| Isolated services | SciPy, explicit-scope evaluator, real MCP SDK calls, browser approvals and cancellation passed |
+| Project desktops | File persistence, project switching, noVNC HTTP/RFB and previous-tunnel cleanup passed |
+| Networked stdio MCP | Real Node/Python HTTPS, denied targets, credential/project boundaries, cancellation and policy revocation passed |
+| Native Agent lifecycle | Five concurrent sessions resumed across disposable containers while desktop sessions remained open; cancellation passed |
+| Authorized real-model workflows | Codex, Claude and API-mode clamp repairs passed independent tests; test/package files unchanged and source-only diffs verified |
+
+All ten deployed acceptance scripts completed successfully. Actual task inspection
+confirmed non-root UID 1000, network `none`, a read-only root, 2 GiB memory and
+256 PIDs for ordinary tasks. NOS3 uses its separately documented flight limits.
+This host lacks delegated CPU quota control, so `MANTA_TASK_CPUS=0` was explicit;
+CPU quota enforcement was not accepted here.
+
+Acceptance exposed a Docker Go-template field mismatch in the installer:
+`CPUCfsQuota` is the template field while `CpuCfsQuota` is the JSON key. The shell
+probe now uses the correct field, with a regression for missing CPU delegation
+and explicit opt-out. Both final application images include the fix. The test
+configuration's socket GID was detected as 999 in the rootless namespace; no host
+socket permissions were changed.
+
+The full-image skips remain three macOS sandbox tests, two legacy NOS3 paths and
+nine STF/reference-input tests. The minimal image additionally skips five checks
+requiring optional GDAL, NASA 42, SciPy or OpenModelica. Separate native NOS3 and
+Linux isolation acceptance passed; the skipped cases themselves remain skipped.
+STF, native desktop packaging, host account/desktop integration and other-host
+validation remain outside this acceptance. Remote GitHub CI has not run.
+
+Existing deployments were not upgraded. Temporary test containers, project/native
+state volumes and the dedicated rootless daemon were removed after acceptance;
+local images and redacted test logs were retained. No commit or push was performed.
 
 ## Source disclosure
 

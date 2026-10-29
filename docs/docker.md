@@ -94,7 +94,9 @@ The app, broker and task processes all run as UID 1000. Only the broker receives
 the rootless daemon socket; the installer detects its namespace GID and grants
 that supplementary group to the broker without making the socket world-writable.
 The broker resolves the locally built task image to its immutable image ID on
-startup. After rebuilding the app image, recreate the broker to select that image.
+startup. The broker installer recreates services after a build so the broker selects
+the updated task image. For manual rebuilds, recreate the broker as well. Save work
+and finish active tasks before upgrading.
 
 Command, solver and native Agent tasks have 2 GiB memory, 256 PIDs, an execution
 deadline, bounded output and a read-only root filesystem. NOS3 tasks have 8 GiB
@@ -128,13 +130,20 @@ separately from the eight native Agent turns. The broker control service has a
 512 PID limit and bounds Docker CLI parallelism; task PID limits remain unchanged.
 Sessions have a one-hour lifetime
 and bounded total output; cancellation or disconnection removes their containers.
+The application limits each service session to 32 outstanding worker callbacks,
+24 MiB JSON frames and a 32 MiB outgoing queue. Exceeding a limit closes that
+session and cancels its pending operations.
 Save GUI work before closing/restarting the deployment. Browser profiles and
 unsaved GUI state are temporary; saved project files persist.
 
 Chromium HTTP requests pass through the application's existing host and project
-allowlist, with bounded responses. This relay currently supports GET/POST and
-does not forward browser cookies or authentication headers; sites requiring
-login, other HTTP methods or arbitrary WebSockets are outside this adapter.
+allowlist, with bounded responses and validation of every redirect. GET, HEAD,
+POST, PUT, PATCH, DELETE and OPTIONS preserve browser-owned request headers,
+form/binary bodies and site cookies. Cookie jars remain separate per project;
+application/model credentials are never attached. Requests are limited to 1 MiB
+and responses to 8 MiB. Login providers and asset hosts must also be on the
+allowlist. WebSockets, downloads, popups and service workers remain disabled,
+as in the original isolated browser. Browser login state is temporary.
 Application settings/approval APIs, file URLs,
 and arbitrary direct network access remain inaccessible. Manual actions and
 remote-page actions retain approvals. Desktop enablement still requires explicit
@@ -145,12 +154,67 @@ Switching projects closes the old noVNC connection; reconnect to the selected
 project. Neither desktop nor browser can control the host's desktop.
 
 MCP configuration remains user initiated. Stdio executables must already exist in
-the task image; use `/work` or relative paths for project files. Stdio servers are
-offline and receive only explicitly configured `MANTA_MCP_*` credential mappings,
-not the application's model keys. Servers needing external network access should
-use an explicitly configured HTTP MCP endpoint. HTTP MCP uses the existing
-same-origin, no-redirect transport in the trusted application process; it does
-not execute server code there. Tool effects and approval policies are unchanged.
+the task image; use `/work` or relative paths for project files. They receive only
+explicitly configured `MANTA_MCP_*` credential mappings, not the application's
+model keys. They are offline by default in broker mode.
+
+To enable networking, open the project's **Integrations → MCP** connection, choose
+stdio and enter the required DNS names in **允许联网的域名**, one per line. Saving
+an updated list disconnects the old session. Clearing it restores offline mode.
+Only exact names are accepted (up to 32); subdomains and redirect destinations
+must be listed separately. URLs, ports, IP literals and wildcards are not accepted.
+A corresponding API configuration is:
+
+```json
+{
+  "name": "My API connector",
+  "transport": "stdio",
+  "command": "/usr/local/bin/node",
+  "args": ["/work/my-installed-mcp-server.mjs"],
+  "enabled": true,
+  "network": {"allowedHosts": ["api.example.org", "files.example.org"]},
+  "envFrom": {"API_TOKEN": "MANTA_MCP_TOOL_TOKEN"}
+}
+```
+
+The task still runs with `--network none`. Its loopback HTTPS CONNECT proxy carries
+traffic over the existing broker session to an application-owned egress gateway.
+The gateway accepts only listed hosts on TCP port 443, checks **all** DNS answers
+for private/reserved addresses, and connects to a pinned checked address. Every
+new connection is checked again. It cannot reach the host, metadata addresses,
+other projects or Docker sockets. TLS remains end-to-end between the connector
+and the remote service; the gateway does not add model credentials or inspect TLS
+contents/HTTP paths or enforce the application protocol inside the CONNECT tunnel.
+The allowlist controls connection destinations, not what an
+approved remote service does with a request.
+
+The worker supplies `HTTPS_PROXY`/`HTTP_PROXY` and their lowercase equivalents,
+plus Node's `NODE_USE_ENV_PROXY=1`. The bundled Node runtime supports proxying
+`fetch` and `https` this way; see [Node's proxy documentation](https://nodejs.org/learn/http/enterprise-network-configuration).
+Python urllib/requests and other HTTPS CONNECT-aware clients can use the same
+proxy. Clients that ignore proxy settings or replace their HTTP agent need their
+own proxy configuration. Plain HTTP, arbitrary TCP/UDP and private-network egress
+are not enabled. Localhost requests can still reach services **inside the same
+task container**, which has no route to host loopback.
+
+Each connector has at most eight tunnels, with 64 KiB acknowledged frames,
+64 MiB per direction per tunnel, a two-minute idle timeout and a five-minute
+connection lifetime. Closing/cancelling the connector closes its tunnels and
+removes the task container. Existing MCP tool approvals and effect policies still
+apply. These networking settings require broker mode; shared/source deployments
+keep their original stdio process/network behavior and reject nonempty allowlists
+instead of pretending to enforce them.
+
+HTTP MCP remains available through the existing same-origin, no-redirect
+transport in the trusted application, with an explicitly configured endpoint
+and credential. It does not execute server code there.
+
+Explicit online acceptance (creates synthetic projects; reads example.com without
+model credentials or project uploads):
+
+```sh
+docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/mcp-network-acceptance.mjs
+```
 
 The SciPy adapter accepts declarative parameters and scans, runs the fixed solver
 in a fresh offline container, and checks returned artifact hashes before recording
@@ -229,12 +293,14 @@ images, containers or volumes.
 | `openscad` | Geometry generation and offscreen dependencies |
 | `browser` | Chromium for Playwright |
 | `desktop` | Linux virtual desktop, terminal, VNC/noVNC and GUI controls |
+| `freecad` | FreeCAD GUI and CAD document viewing/editing |
+| `scilab` | Scilab numerical desktop |
 | `gis` | GDAL/PROJ Shapefile control-point checks |
 | `orbit42` | Headless NASA 42 and verified reference assets |
-| `modelica` | OpenModelica 1.27.1 and preloaded standard libraries |
+| `modelica` | OpenModelica 1.27.1 and preloaded standard libraries; OMEdit when `desktop` is also selected |
 | `nos3` | Dedicated native NOS3/cFS/42 and STF LC/SC/EPS flight container |
 
-These nine optional groups are selected by default. `minimal` omits all nine;
+These eleven optional groups are selected by default. `minimal` omits all eleven;
 custom selection installs only requested groups, reducing actual image contents.
 Numerical tools share the application image. `nos3` builds the separate flight
 image; its compilers and runtime sources are not installed on the host.
@@ -306,10 +372,56 @@ Mesa software rendering uses two worker threads. Switching does not close unsave
 Save work before restarting the desktop service to release sessions. noVNC follows
 the selected project; reload/reconnect its browser tab after switching.
 The desktop shares the managed `/projects` volume so GUI applications can open and
-save actual project files. `desktop.open_app` accepts a project-relative `.scad`
-path for OpenSCAD; terminals start in that project. This is a trusted personal
+save actual project files. `desktop.open_app` accepts project-relative `.scad`
+(OpenSCAD), `.mo` (OMEdit), `.FCStd`/STEP/IGES/STL (FreeCAD), and `.sce`/`.sci`
+(Scilab) documents; terminals start in that project. Scilab scripts execute when
+opened and use the same user-consent/action-approval boundary as terminal input. This is a trusted personal
 workspace: separate displays are not filesystem security isolation between projects.
 The desktop still has no application credentials or external network.
+
+### Additional engineering applications
+
+`sh install.sh --tools=desktop,modelica,freecad,scilab` installs the open-source
+engineering desktops. Omit individual groups to reduce the image size. OMEdit is
+installed only when both Modelica and desktop support are selected; a compiler-only
+Modelica image remains available. Package versions are recorded in
+`/opt/runner/packages.txt` and upstream package license files remain in the image.
+
+The driver also recognizes executable launchers at these fixed paths in a custom
+application/task image, matching the original macOS application IDs:
+
+| Application ID | Linux launcher |
+| --- | --- |
+| `capella` | `/opt/manta-desktop/capella/capella` |
+| `papyrus` | `/opt/manta-desktop/papyrus/papyrus` |
+| `matlab` | `/opt/manta-desktop/matlab/bin/matlab` |
+| `dymola` | `/opt/manta-desktop/dymola/bin/dymola` |
+| `amesim` | `/opt/manta-desktop/amesim/amesim` |
+
+Install the actual Linux distribution and dependencies in a derived Dockerfile.
+An executable at a listed path makes it discoverable; it does not validate startup,
+licenses or model compatibility. These applications are not bundled or tested by
+this edition. Network-license servers are inaccessible from offline broker tasks.
+Do not bake license secrets into a distributable image. The original application
+also only detected these user-installed programs; it did not provision them.
+
+### Feature comparison with the original source
+
+The comparison baseline is upstream commit `87292cf`. The Docker edition retains
+the Coordinator/thread, project, evidence, approval, SysML and engineering workflow
+services. Real solvers and native Agent checks are described below; this is not a
+claim of exhaustive mission or third-party application acceptance.
+
+| Capability | Linux Docker behavior / remaining difference |
+| --- | --- |
+| Project command sandbox | Rootless per-task container; offline, like the original macOS sandbox command tool. Dependency installation and arbitrary network access were not supported by that original tool either. |
+| Native Codex/Claude | Coding, approvals, cancellation and resumed sessions exercised; requires API provider configuration, does not import host CLI account/OAuth state. |
+| Isolated browser | Screenshot/input/navigation plus site HTTP sessions through the relay. Original browser also blocked WebSockets, downloads, service workers and popups, and started with fresh account state. |
+| Engineering desktop | Same screenshot/click/type/key/application actions on a Linux virtual display; cannot operate the host's windows. Open-source tools are selectable; other applications need their own distributions/licenses. |
+| MCP | HTTP transport retained; stdio is isolated by project and supports opt-in public HTTPS through a per-connector allowlist. Proxy-unaware clients, private networks and non-HTTPS protocols are not equivalent to unrestricted host networking. |
+| VM management | Docker task lifecycle replaces the original managed-VM execution backend; VM-specific administration is not reproduced. |
+| STF | Deferred missing reference inputs; the original public-source test skips also do not establish STF acceptance. |
+| Desktop shell and other hosts | Deferred by agreement; Windows/macOS/ARM64 not accepted here. |
 
 ## Acceptance and remaining scope
 

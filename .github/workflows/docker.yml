@@ -51,6 +51,12 @@ jobs:
           --tmpfs /tmp:rw,nosuid,nodev,exec,size=1g
           manta-app:ci-full env -u MBSE_DATA_DIR -u MBSE_PYTHON
           node --test tests/shared-container-runner.test.mjs
+      - name: Browser site sessions and engineering GUI applications
+        run: |
+          docker run --rm --network none --read-only --shm-size=256m --tmpfs /tmp:rw,exec,size=512m -e HOME=/tmp -e MBSE_CHROME_PATH=/usr/bin/chromium manta-app:ci-full node deploy/docker/browser-relay-acceptance.mjs
+          for tool in openscad omedit freecad scilab; do
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 --memory 2g --shm-size=256m --tmpfs /tmp:rw,exec,size=512m --tmpfs /desktop-data:rw,size=128m,uid=1000,gid=1000 --tmpfs /work:rw,size=128m,uid=1000,gid=1000 -e MANTA_BROKER_TASK=1 -e QT_QPA_PLATFORM=offscreen -e HOME=/tmp manta-app:ci-full python3 -B deploy/docker/desktop-tools-acceptance.py "$tool"
+          done
       - name: Start application and desktop
         run: docker compose --profile desktop up -d --wait
       - name: Exercise engineering jobs and project desktop workflows
@@ -91,7 +97,7 @@ jobs:
       COMPOSE_PROJECT_NAME: manta-ci-broker
       MANTA_TAG: ci-broker
       MANTA_ENV_FILE: .env.example
-      MANTA_TOOLS: scipy,ngspice,openscad,browser,desktop,gis
+      MANTA_TOOLS: scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab
       MANTA_MODELICA: '1'
       MANTA_ORBIT42: '1'
       MANTA_BROKER_FLIGHT: '1'
@@ -126,6 +132,8 @@ jobs:
         run: |
           docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/broker-services-acceptance.mjs
           docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/desktop-acceptance.mjs
+      - name: Exercise controlled stdio MCP networking (public example.com, no credentials)
+        run: docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/mcp-network-acceptance.mjs
       - name: Exercise native concurrency while desktop sessions remain open
         run: docker compose --env-file deploy/local/broker.env exec -T -e MANTA_NATIVE_PARALLEL=1 manta node deploy/docker/broker-native-acceptance.mjs
       - name: Opt-in real model repository acceptance

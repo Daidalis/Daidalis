@@ -3,13 +3,14 @@ import net from 'node:net';
 import path from 'node:path';
 import readline from 'node:readline';
 import {spawn} from 'node:child_process';
+import {createMcpProxy} from './mcp-proxy.mjs';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {createComputerService} from '../../server/computer.mjs';
 import {createContainerDesktop} from '../../server/container-desktop.mjs';
 import {safePath} from '../../server/sandbox.mjs';
 if(process.getuid()===0||process.env.MANTA_BROKER_TASK!=='1')throw Error('Broker task required');
 const send=m=>process.stdout.write(JSON.stringify(m)+'\n');
-let seq=0,service,transport,started=false,desktop,desktopSeq=0;const calls=new Map(),desktopCalls=new Map(),tunnels=new Map();
+let seq=0,service,transport,networkProxy,started=false,desktop,desktopSeq=0;const calls=new Map(),desktopCalls=new Map(),tunnels=new Map();
 const callback=(method,args)=>new Promise((resolve,reject)=>{const id=++seq;calls.set(id,{resolve,reject});send({type:'call',id,method,args});});
 function desktopRequest(_socket,_route,payload){
  if(!desktop){
@@ -34,6 +35,7 @@ async function start({runtime,options}){
   if(!path.isAbsolute(options.command))throw Error('Absolute installed executable required');
   const env={...options.env,HOME:'/task-home',USERPROFILE:'/task-home',APPDATA:'/task-home',LOCALAPPDATA:'/task-home',USER:'',LOGNAME:'',PATH:'/opt/codex/bin:/usr/local/bin:/usr/bin:/bin',SHELL:'/bin/sh',TMPDIR:'/tmp',TMP:'/tmp',TEMP:'/tmp',LANG:'C.UTF-8'};
   for(const key of ['NODE_OPTIONS','NODE_PATH','LD_PRELOAD','DYLD_INSERT_LIBRARIES'])delete env[key];
+  if(options.network){networkProxy=await createMcpProxy({callback,send});Object.assign(env,networkProxy.env);}
   transport=new StdioClientTransport({command:options.command,args:options.args,cwd,env,stderr:'pipe',maxBufferSize:4000000});
   transport.onmessage=message=>send({type:'mcp',message});transport.onclose=()=>process.exit(0);transport.onerror=()=>send({type:'error',message:'MCP transport failed'});
   await transport.start();transport.stderr?.resume();
@@ -46,6 +48,7 @@ lines.on('line',line=>{
  try{
   if(Buffer.byteLength(line)>24*1024*1024)throw Error('Session frame too large');const m=JSON.parse(line);
   if(!started){started=true;queue=start(m).catch(error=>{send({type:'error',message:error.message});process.exitCode=1;});return;}
+  if(networkProxy?.handle(m))return;
   if(m.type==='vnc-data'){const tunnel=tunnels.get(m.id);if(tunnel)tunnel.write(Buffer.from(m.data,'base64'));return;}
   if(m.type==='vnc-close'){tunnels.get(m.id)?.destroy();return;}
   if(m.type==='reply'){const p=calls.get(m.id);if(p){calls.delete(m.id);m.error?p.reject(Error(m.error)):p.resolve(m.result);}return;}

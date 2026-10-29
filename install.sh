@@ -14,12 +14,12 @@ for arg in "$@"; do
     --preset=minimal) preset=minimal ;;
     --tools=*) tools=${arg#--tools=}; custom=true; preset=custom ;;
     --no-start) start=false ;;
-    --help) echo 'Usage: sh install.sh [--preset=full|minimal | --tools=scipy,ngspice,openscad,browser,desktop,modelica,gis,orbit42,nos3] [--no-start]'; exit 0 ;;
+    --help) echo 'Usage: sh install.sh [--preset=full|minimal | --tools=scipy,ngspice,openscad,browser,desktop,modelica,gis,freecad,scilab,orbit42,nos3] [--no-start]'; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
 done
 if [ "$custom" = false ]; then
-  case "$preset" in full) tools=scipy,ngspice,openscad,browser,desktop,gis,modelica,orbit42,nos3 ;; minimal) tools= ;; esac
+  case "$preset" in full) tools=scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab,modelica,orbit42,nos3 ;; minimal) tools= ;; esac
 fi
 case ",$tools," in *,,*) if [ -n "$tools" ]; then echo 'Empty tool group' >&2; exit 2; fi ;; esac
 oldIFS=$IFS; IFS=,
@@ -27,7 +27,7 @@ for group in $tools; do
   case "$group" in modelica) modelica=1 ;;
     orbit42) orbit42=1 ;;
     nos3) nos3=1 ;;
-    scipy|ngspice|openscad|browser|desktop|gis) ;; *) echo "Unsupported tool: $group" >&2; exit 2 ;; esac
+    scipy|ngspice|openscad|browser|desktop|gis|freecad|scilab) ;; *) echo "Unsupported tool: $group" >&2; exit 2 ;; esac
 done
 IFS=$oldIFS
 tools=$(printf ",%s," "$tools" | sed 's/,modelica,/,/g; s/,orbit42,/,/g; s/,nos3,/,/g; s/^,//; s/,$//')

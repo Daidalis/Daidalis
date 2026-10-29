@@ -18,7 +18,7 @@ services:
     build:
       context: .
       target: application
-      args: {TOOLCHAINS: "${MANTA_TOOLS-scipy,ngspice,openscad,browser,desktop,gis}", WITH_MODELICA: "${MANTA_MODELICA:-1}", WITH_ORBIT42: "${MANTA_ORBIT42:-1}"}
+      args: {TOOLCHAINS: "${MANTA_TOOLS-scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab}", WITH_MODELICA: "${MANTA_MODELICA:-1}", WITH_ORBIT42: "${MANTA_ORBIT42:-1}"}
     user: "1000:1000"
     env_file:
       - ${MANTA_ENV_FILE:-.env.example}

@@ -106,8 +106,15 @@ An opt-in [rootless broker mode](docs/docker.md#opt-in-rootless-task-isolation) 
 native Codex/Claude, commands, ngspice/OpenSCAD/OpenModelica, GIS and orbit workflows
 in per-task containers, with optional NOS3 tasks. It requires an existing rootless
 daemon. It also supports project-isolated browsers/desktops, stdio MCP and the
-SciPy service; HTTP MCP keeps explicit endpoint/credential scoping. STF and legacy
+SciPy service. Stdio MCP can opt into public HTTPS through a per-connector domain
+allowlist while task containers remain offline; HTTP MCP keeps explicit endpoint/credential scoping. STF and legacy
 VM management remain deferred; see the guide for the precise scope.
+
+The full image also includes selectable FreeCAD and Scilab desktops, plus OMEdit
+when Modelica and desktop support are enabled. The isolated browser relays site
+cookies, form submissions and redirects without importing host account state.
+See the [feature comparison](docs/docker.md#feature-comparison-with-the-original-source)
+for remaining differences from the original version.
 
 The [Docker guide](docs/docker.md) covers tool selection, runtime `.env` settings,
 updates, backups and acceptance checks. API credentials are supplied at runtime,

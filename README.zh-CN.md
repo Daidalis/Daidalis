@@ -89,12 +89,17 @@ sh install.sh                    # 全部支持的工具组，包含 NOS3
 另有可选的 [rootless broker 模式](docs/docker.md#opt-in-rootless-task-isolation)：命令和
 原生 Codex/Claude、ngspice/OpenSCAD/OpenModelica、GIS 与轨道流程在独立任务容器中执行，
 还可选装 NOS3，需要已有的 rootless Docker。浏览器/桌面和 stdio MCP 按项目隔离，
-SciPy 数值服务已接入独立任务容器，HTTP MCP 保留显式端点与凭证范围；STF 和旧 VM 管理入口仍暂缓。
+SciPy 数值服务已接入独立任务容器。stdio MCP 可按连接器配置允许访问的公网 HTTPS 域名，
+通过受控代理联网，任务容器仍不直接联网；HTTP MCP 保留显式端点与凭证范围；STF 和旧 VM 管理入口仍暂缓。
 具体支持范围及验收步骤见部署说明。
 
 服务进程以非 root 用户运行。项目命令在应用的共享容器内执行，**不提供项目之间的系统级隔离**。
 可选的 Linux 虚拟桌面和 NOS3/STF 飞行仿真使用固定配套容器，不接网络、不挂载 Docker socket，
 也不要求宿主机改成 rootless Docker。项目和应用状态保存在 Docker 数据卷中。
+
+完整镜像包含可选的 FreeCAD、Scilab；同时选择 Modelica 与桌面工具组时安装 OMEdit。
+隔离浏览器支持站点 Cookie、表单和逐跳重定向，不导入宿主账号状态。
+与原版的差异见[功能对照](docs/docker.md#feature-comparison-with-the-original-source)。
 
 工具组选择、运行时 `.env` 配置、升级、备份和验收方式见 [Docker 安装说明](docs/docker.md)。
 API 密钥在运行时传入，不写入镜像。Windows/macOS/ARM64 验证及原生桌面外壳暂缓；

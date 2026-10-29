@@ -16,7 +16,20 @@ import time
 
 SOCKET='/desktop-control/desktop.sock'
 WIDTH,HEIGHT=1280,800
-TOOLS={'openscad':['/usr/bin/openscad'],'terminal':['/usr/bin/xterm']}
+# Fixed launchers: packaged open-source tools and optional user-supplied Linux
+# applications. Never take an executable or command line from an agent request.
+TOOLS={'openscad':['/usr/bin/openscad'],'terminal':['/usr/bin/xterm'],
+       'omedit':['/usr/bin/OMEdit'],'freecad':['/usr/bin/freecad'],
+       'scilab':['/usr/bin/scilab'],
+       'capella':['/opt/manta-desktop/capella/capella'],
+       'papyrus':['/opt/manta-desktop/papyrus/papyrus'],
+       'matlab':['/opt/manta-desktop/matlab/bin/matlab'],
+       'dymola':['/opt/manta-desktop/dymola/bin/dymola'],
+       'amesim':['/opt/manta-desktop/amesim/amesim']}
+DOCUMENTS={'openscad':{'.scad'},'omedit':{'.mo'},
+           'freecad':{'.fcstd','.step','.stp','.iges','.igs','.stl'},
+           'scilab':{'.sce','.sci'}}
+
 KEYS={'Enter':'Return','Tab':'Tab','Escape':'Escape','Backspace':'BackSpace','Delete':'Delete',
       'ArrowLeft':'Left','ArrowRight':'Right','ArrowUp':'Up','ArrowDown':'Down','Space':'space'}
 guard=threading.Lock()
@@ -38,6 +51,9 @@ def start(index=0,home=None):
     display=99+index
     active_port=6080+index
     os.environ['DISPLAY']=f':{display}'
+    # Solver workers use offscreen Qt; interactive engineering applications need X11.
+    os.environ['QT_QPA_PLATFORM']='xcb'
+    os.environ['LIBGL_ALWAYS_SOFTWARE']='1'
     # Mesa otherwise sizes its llvmpipe pool from the host CPU count.
     os.environ['LP_NUM_THREADS']='2'
     if home:
@@ -61,7 +77,7 @@ def start(index=0,home=None):
 def action(req):
     global owner,version,processes,active_port,active_workspace
     op=req.get('action');project=req.get('projectId');args=req.get('args') or {}
-    tools=[{'id':key,'name':key,'installed':Path(value[0]).is_file()} for key,value in TOOLS.items()]
+    tools=[{'id':key,'name':key,'installed':Path(value[0]).is_file() and os.access(value[0],os.X_OK)} for key,value in TOOLS.items()]
     if op=='status':
         if any(p.poll() is not None for p in processes):
             raise RuntimeError('A virtual desktop process stopped; inspect the desktop service')
@@ -110,13 +126,23 @@ def action(req):
         return {'ok':True,'contentBase64':base64.b64encode(data).decode(),'width':WIDTH,'height':HEIGHT,'pixelWidth':WIDTH,'pixelHeight':HEIGHT,'screenVersion':version,'scope':'container-desktop'}
     if op=='desktop.open_app':
         tool=args.get('toolId')
-        if tool not in TOOLS or not Path(TOOLS[tool][0]).is_file():raise ValueError('Application not installed')
+        if tool not in TOOLS or not (Path(TOOLS[tool][0]).is_file() and os.access(TOOLS[tool][0],os.X_OK)):raise ValueError('Application not installed')
         argv=list(TOOLS[tool])
         if args.get('path') is not None:
             target=(active_workspace/args['path']).resolve(strict=True)
             if not target.is_relative_to(active_workspace) or not target.is_file():raise ValueError('File must be inside the active project')
-            if tool!='openscad' or target.suffix.lower()!='.scad':raise ValueError('Only OpenSCAD source files can be opened directly')
+            if target.suffix.lower() not in DOCUMENTS.get(tool,set()):raise ValueError('Unsupported document type for this application')
+            if tool=='scilab':argv.append('-f')
             argv.append(str(target))
+        if tool=='omedit' and Path('/opt/modelica-libraries').is_dir():
+            # Use the same offline standard-library registry as the solver.
+            registry=Path(os.environ['HOME'])/'.openmodelica/libraries'
+            registry.mkdir(parents=True,exist_ok=True)
+            for entry in Path('/opt/modelica-libraries').iterdir():
+                target=registry/entry.name
+                if not target.exists():
+                    if entry.is_dir():target.symlink_to(entry,target_is_directory=True)
+                    else:target.write_bytes(entry.read_bytes())
         apps=sessions[project]['apps']
         for key,child in list(apps.items()):
             if child.poll() is not None:del apps[key]

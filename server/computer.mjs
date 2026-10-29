@@ -72,7 +72,39 @@ export async function createComputerService({root,dataDir,workspacesDir,store,re
   let baseUrl=process.env.MBSE_BASE_URL||`http://127.0.0.1:${process.env.PORT||4317}`;
   const validNavigation=(value,projectId)=>validateBrowserUrl(value,{baseUrl,allowedHosts,projectId});
   async function ensureBrowser(){if(!playwright)throw new Error('Playwright unavailable. Install optional dependencies with npm install.');if(!browser){const opts={headless:process.env.MBSE_BROWSER_VISIBLE!=='1',args:['--disable-extensions','--disable-background-networking']};if(process.env.MBSE_CHROME_PATH)opts.executablePath=process.env.MBSE_CHROME_PATH;else if(os.platform()==='darwin')opts.channel='chrome';try{browser=await playwright.chromium.launch(opts);}catch(e){throw new Error('Isolated browser could not start. Install Chrome or run npx playwright install chromium. '+e.message.slice(0,180));}}return browser;}
-  async function session(projectId){if(!projectId||!/^[a-zA-Z0-9_-]+$/.test(projectId))throw new Error('A valid projectId is required');if(!sessions.has(projectId)){const b=await ensureBrowser();const context=await b.newContext({viewport:{width:1120,height:760},acceptDownloads:false,serviceWorkers:'block'});await context.route('**/*',async route=>{try{const u=new URL(route.request().url());if(!['http:','https:'].includes(u.protocol))return route.abort();validateBrowserRequest(u.href,{baseUrl,allowedHosts,projectId,method:route.request().method(),body:route.request().postData()});if(browserFetch){const result=await browserFetch({url:u.href,method:route.request().method(),body:route.request().postData()});await route.fulfill({status:result.status,headers:result.headers,body:Buffer.from(result.contentBase64,'base64')});}else await route.continue();}catch{await route.abort();}});if(typeof context.routeWebSocket==='function')await context.routeWebSocket('**/*',ws=>ws.close());const page=await context.newPage();sessions.set(projectId,{context,page,version:0});context.on('page',p=>{if(sessions.get(projectId)?.page!==p)p.close().catch(()=>{});});await page.goto(engineeringAvailable?baseUrl+'/engineering.html?projectId='+encodeURIComponent(projectId):baseUrl+'/computer-fixture.html',{waitUntil:'domcontentloaded',timeout:15000});}return sessions.get(projectId);}
+  async function session(projectId){
+    if(!projectId||!/^[a-zA-Z0-9_-]+$/.test(projectId))throw new Error('A valid projectId is required');
+    if(!sessions.has(projectId)){
+      const b=await ensureBrowser();
+      const context=await b.newContext({viewport:{width:1120,height:760},acceptDownloads:false,serviceWorkers:'block'});
+      if(!browserFetch)await context.route('**/*',async route=>{
+        try{validateBrowserRequest(route.request().url(),{baseUrl,allowedHosts,projectId,method:route.request().method(),body:route.request().postData()});await route.continue();}catch{await route.abort();}
+      });
+      if(typeof context.routeWebSocket==='function')await context.routeWebSocket('**/*',ws=>ws.close());
+      const page=await context.newPage();
+      if(browserFetch){
+        // Playwright route interception only sees the first URL in a redirect
+        // chain. CDP Fetch pauses every hop, including redirects, so an offline
+        // browser never needs a direct network route and every target is checked.
+        const cdp=await context.newCDPSession(page);
+        cdp.on('Fetch.requestPaused',async({requestId,request})=>{
+          try{
+            const bytes=request.postDataEntries?.map(entry=>Buffer.from(entry.bytes||'','base64'));
+            const body=bytes?Buffer.concat(bytes):request.postData!==undefined?Buffer.from(request.postData):undefined;
+            validateBrowserRequest(request.url,{baseUrl,allowedHosts,projectId,method:request.method,body:body?.toString('utf8')});
+            const result=await browserFetch({url:request.url,method:request.method,bodyBase64:body?.toString('base64'),headers:request.headers});
+            const responseHeaders=Object.entries(result.headers||{}).flatMap(([name,value])=>name.toLowerCase()==='set-cookie'?value.split('\n').map(value=>({name,value})):[{name,value}]);
+            await cdp.send('Fetch.fulfillRequest',{requestId,responseCode:result.status,responseHeaders,body:result.contentBase64});
+          }catch{await cdp.send('Fetch.failRequest',{requestId,errorReason:'BlockedByClient'}).catch(()=>{});}
+        });
+        await cdp.send('Fetch.enable',{patterns:[{urlPattern:'*',requestStage:'Request'}]});
+      }
+      sessions.set(projectId,{context,page,version:0});
+      context.on('page',p=>{if(sessions.get(projectId)?.page!==p)p.close().catch(()=>{});});
+      await page.goto(engineeringAvailable?baseUrl+'/engineering.html?projectId='+encodeURIComponent(projectId):baseUrl+'/computer-fixture.html',{waitUntil:'domcontentloaded',timeout:15000});
+    }
+    return sessions.get(projectId);
+  }
   async function snapshot(s){const name=crypto.randomUUID()+'.png',file=path.join(shots,name);await s.page.screenshot({path:file,type:'png',timeout:12000});return {imageUrl:'/api/computer/screenshots/'+name,url:s.page.url(),width:1120,height:760,screenVersion:s.version,text:(await s.page.locator('body').innerText({timeout:3000}).catch(()=>'' )).slice(0,16000)};}
   async function approve(payload,ctx){if(ctx.source==='user')return true;return !!(await requestApproval({runId:ctx.runId,projectId:payload.projectId,tool:'computer_use',args:{action:payload.action,...payload.args},signal:ctx.signal}));}
   async function innerAction(payload,ctx={}){const {projectId,action,args={}}=payload;if(ctx.signal?.aborted)throw new Error('Cancelled');emit({projectId,runId:ctx.runId,type:'computer.action',message:action,data:{action,args:{...args,text:args.text?String(args.text).slice(0,120):undefined}}});

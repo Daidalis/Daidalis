@@ -55,7 +55,14 @@ native build/runtime files, with no application or project volume mounted.
 Browser/desktop and stdio MCP processes run in separate project session containers.
 Browser HTTP is mediated by the application allowlist. Stdio MCP may receive only
 explicitly configured connector credentials; it cannot inherit model credentials
-or access arbitrary network destinations. HTTP MCP keeps the existing explicit
+or access arbitrary network destinations. Stdio tasks remain networkless, with an
+opt-in per-connector HTTPS CONNECT relay to exact public DNS names on port 443.
+The trusted application pins checked DNS addresses, rejects private/reserved
+answers, and bounds active connections, buffered frames, traffic and lifetime.
+The relay does not terminate TLS or add model credentials. Proxy-aware clients
+may communicate with their own container's loopback services; that namespace
+cannot access host loopback. Cancellation/configuration changes close the relay.
+HTTP MCP keeps the existing explicit
 endpoint, same-origin and no-redirect checks in the application. The fixed SciPy
 solver runs in a disposable container with validated output hashes. The evaluator
 uses bounded data reads and fixed checks; it never executes candidate programs.

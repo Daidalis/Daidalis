@@ -17,7 +17,8 @@ class NativeHandler(socketserver.StreamRequestHandler):
             if not isinstance(options,dict):raise ValueError('Invalid session options')
             if service:
                 if request['runtime'] not in ('computer','mcp'):raise ValueError('Invalid service runtime')
-                if set(options)-({'projectId','baseUrl','allowedHosts'} if request['runtime']=='computer' else {'command','args','cwd','env'}):raise ValueError('Invalid service options')
+                if set(options)-({'projectId','baseUrl','allowedHosts'} if request['runtime']=='computer' else {'command','args','cwd','env','network'}):raise ValueError('Invalid service options')
+                if request['runtime']=='mcp' and type(options.get('network',False)) is not bool:raise ValueError('Invalid MCP network setting')
             else:
                 if request['runtime'] not in ('codex-app-server','claude-agent-sdk'):raise ValueError('Invalid native runtime')
                 allowed={'model','sessionId','input','history','instructions','tools','permissionMode','maxTurns','apiKey','baseUrl'}
