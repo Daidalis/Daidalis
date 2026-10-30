@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {normalizeMcpNetwork} from '../shared/mcp-network.mjs';
 import {safePath} from './sandbox.mjs';
 
 const EFFECTS = new Set(['read', 'write', 'run']);
@@ -50,12 +51,14 @@ function normalizeConfig(input, existing) {
     Object.defineProperty(config.toolPolicies,name,{value:effect,enumerable:true,configurable:true,writable:true});
   }
   if(config.transport==='http') {
+    if(input.network!==undefined)fail('Network allowlists apply only to stdio connectors');
     config.url=httpURL(input.url);
     if(input.accessTokenEnv) {
       config.accessTokenEnv=text(input.accessTokenEnv,'token environment reference',200);
       if(!PRIVATE_ENV.test(config.accessTokenEnv))fail('Credential references must use a dedicated MANTA_MCP_* environment variable');
     }
   } else {
+    if(input.network!==undefined)config.network=normalizeMcpNetwork(input.network);
     config.command=text(input.command,'MCP executable');
     if(!path.isAbsolute(config.command))fail('MCP executable must be an absolute path; Manta does not install servers');
     if(!Array.isArray(input.args||[])||(input.args||[]).length>100)fail('MCP args must be a bounded array');
@@ -124,7 +127,7 @@ function publicConfig(config,status={}) {
 /** Project-scoped MCP connections. Configuration methods are for trusted UI routes,
  * never agent tools. Processes are explicit user-configured executables, not an OS
  * sandbox; remote isolated workers are preferred for engineering dependencies. */
-export function createConnectorService({store,env=process.env,fetchImpl=globalThis.fetch}={}) {
+export function createConnectorService({store,env=process.env,fetchImpl=globalThis.fetch,stdioTransportFactory=null}={}) {
   if(!store?.dataDir||typeof store.workspace!=='function')fail('Connector service requires a project store');
   const sessions=new Map(),connectionControllers=new Map(),runtimeKeys=new Map(),statuses=new Map();
   const configRoot=path.join(store.dataDir,'project-connectors');
@@ -187,6 +190,7 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
   async function connect(projectId,connectorId,{signal}={}) {
     checkSignal(signal);
     const config=find(projectId,connectorId),key=keyFor(projectId,connectorId);
+    if(config.network?.allowedHosts?.length&&!stdioTransportFactory)fail('Controlled stdio networking requires broker mode');
     if(config.enabled!==true)fail('MCP connector is disabled; enable it in project settings first');
     if(sessions.has(key)){const cached=await awaitSignal(sessions.get(key),signal);checkSignal(signal);return cached;}
     const connectionController=new AbortController();connectionControllers.set(key,connectionController);
@@ -206,7 +210,8 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
           const isolated={HOME:home,USERPROFILE:home,HOMEDRIVE:'',HOMEPATH:'',APPDATA:path.join(home,'AppData','Roaming'),LOCALAPPDATA:path.join(home,'AppData','Local'),LOGNAME:'',USER:'',USERNAME:'',PATH:`${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`,SHELL:'/bin/sh',TERM:'dumb',TMPDIR:tmp,TMP:tmp,TEMP:tmp,LANG:'en_US.UTF-8',...config.env,...childEnv};
           // The SDK merges its default safe environment; override every default
           // identity/home field so no user-global MCP or tool configuration is read.
-          transport=new StdioClientTransport({command:config.command,args:config.args,cwd,env:isolated,stderr:'pipe',maxBufferSize:MAX_WIRE_BYTES});
+          const parameters={command:config.command,args:config.args,cwd,env:isolated,stderr:'pipe',maxBufferSize:MAX_WIRE_BYTES};
+          transport=stdioTransportFactory?await stdioTransportFactory(parameters,{workspace,network:config.network}):new StdioClientTransport(parameters);
           transport.stderr?.on('data',chunk=>{if(session.stderr.length<8000)session.stderr+=redactString(chunk.toString(),secrets).slice(0,8000-session.stderr.length);});
         } else transport=new StreamableHTTPClientTransport(new URL(httpURL(config.url)),{requestInit:{redirect:'error'},fetch:lockedFetch(config.url,token),redirectPolicy:'same-origin',reconnectionOptions:{maxRetries:0}});
         client.onclose=()=>{session.closed=true;if(sessions.get(key)===pending){sessions.delete(key);connectionControllers.delete(key);}statuses.set(key,{status:'disconnected'});};
@@ -245,6 +250,7 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
     list(projectId){return configs(projectId).map(config=>metadata(projectId,config));},
     async save(projectId,input,options={}) {
       requireUser(options);project(projectId);const rows=configs(projectId),old=input?.id?rows.find(c=>c.id===input.id):undefined,config=normalizeConfig(input,old);
+      if(config.network?.allowedHosts?.length&&!stdioTransportFactory)fail('Controlled stdio networking requires broker mode');
       if(!old&&rows.length>=30)fail('Maximum project MCP connector count reached');
       if(config.transport==='stdio')safePath(project(projectId),config.cwd);
       if(options.runtimeKey!==undefined&&options.runtimeKey!==null){if(config.transport!=='http')fail('Runtime access tokens are supported for HTTP connectors; use envFrom for stdio');if(typeof options.runtimeKey!=='string'||options.runtimeKey.length>16000||!options.runtimeKey.trim()||/[\r\n]/.test(options.runtimeKey))fail('Invalid MCP runtime key');}
@@ -281,7 +287,11 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
         const result=await session.client.callTool({name:toolName,arguments:args},undefined,{signal:options.signal,timeout:session.config.timeoutMs});
         const safe=bounded(result,session.secrets);
         return {connectorId,toolName,effect:info.effect,untrusted:true,result:safe.value,truncated:safe.truncated};
-      } catch(error){throw new Error(redactString(`MCP tool failed: ${error.message||error}`,session.secrets).slice(0,2000));}
+      } catch(error){
+        // A cancelled/timed-out isolated process must not keep mutating the project.
+        if(stdioTransportFactory&&session.config.transport==='stdio')await disconnect(projectId,connectorId);
+        throw new Error(redactString(`MCP tool failed: ${error.message||error}`,session.secrets).slice(0,2000));
+      }
     },
     async closeProject(projectId){project(projectId);for(const config of configs(projectId))await disconnect(projectId,config.id);},
     async close(){for(const key of [...sessions.keys()]){const split=key.indexOf(':');await disconnect(key.slice(0,split),key.slice(split+1));}runtimeKeys.clear();}

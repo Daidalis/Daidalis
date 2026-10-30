@@ -1,6 +1,27 @@
 # Install and run Manta
 
-## Basic application
+## Linux Docker deployment
+
+For narrower per-task isolation, see the separate [rootless broker deployment](docker.md#opt-in-rootless-task-isolation). It requires an existing rootless daemon and supports API-mode and native Codex/Claude Agents, commands, three solvers, GIS/orbit and optional NOS3 tasks. Project-isolated browser/desktop and stdio MCP, HTTP MCP, the SciPy service and the fixed evaluator are also supported. STF and legacy VM management remain disabled in that mode.
+
+For the tested Linux amd64 path, use an existing Docker Engine and Compose 2.20+:
+
+```sh
+sh install.sh
+# Smaller alternatives:
+# sh install.sh --preset=minimal
+# sh install.sh --tools=ngspice,modelica
+```
+
+The installer builds the app and selected fixed services. Node, Python, Git and
+native Agent runtimes live inside the image. Leave the new-project folder field
+empty for a persistent managed project. Configure a compatible model connection;
+credentials are not shipped. See [Docker deployment](docker.md) for full setup,
+SSH forwarding, tool groups, storage, isolation limits and verification scope.
+No prebuilt image is published. Other host platforms and native desktop packaging
+are not validated by this Linux edition.
+
+## Basic application from source
 
 Install Node.js 22.13.0 or newer with npm using your preferred Node installer. The SysML worker uses the stable Node permission interface, so earlier Node 22 releases do not meet this minimum. No Codex desktop app, NAS folder, globally installed Python package, VM, or private development directory is needed to start the web application.
 
@@ -22,8 +43,8 @@ The browser launcher, desktop launcher, and `npm start` use the same default `da
 
 ## Choose an Agent
 
-- **Codex:** install the Codex CLI separately, make its native executable available on `PATH`, or set `MBSE_CODEX_PATH`. An explicit override is authoritative: an invalid path produces a configuration error. Supported macOS app bundles are fallback locations; there is no dependency on one developer's desktop installation. Test authentication or a custom Responses endpoint in Manta Settings.
-- **Claude Code:** the pinned Claude Agent SDK is a project dependency installed by `npm ci`. Configure the API key, model and endpoint in Settings. Manta does not borrow an unrelated claude.ai login or another application's keys.
+- **Codex:** for a source installation, install the Codex CLI separately, make its native executable available on `PATH`, or set `MBSE_CODEX_PATH`. An explicit override is authoritative: an invalid path produces a configuration error. Supported macOS app bundles are fallback locations; there is no dependency on one developer's desktop installation. Test authentication or a custom Responses endpoint in Manta Settings.
+- **Claude Code:** the Docker image includes the SDK; for a source installation, the pinned Claude Agent SDK is a project dependency installed by `npm ci`. Configure the API key, model and endpoint in Settings. Manta does not borrow an unrelated claude.ai login or another application's keys.
 - Custom provider compatibility is determined by an actual connection/Agent test, not by accepting a configuration form. A successful catalog request is not proof that a model can execute tools.
 
 ## Platform scope
@@ -31,10 +52,11 @@ The browser launcher, desktop launcher, and `npm start` use the same default `da
 | Platform | Application | Additional limits |
 | --- | --- | --- |
 | macOS | Node browser application; native desktop shell with Apple command-line build tools | Managed VM requires Apple Silicon |
-| Linux | Node browser application | A separately provisioned remote engineering runner is needed for the current VM-specific tool adapters |
+| Linux amd64 | Docker browser application, selected native tools and container virtual desktop verified locally | Shared-container execution is not per-project isolation; complete mission acceptance remains open |
+| Other Linux architectures | Source application and tool compatibility require separate verification | The packaged NOS3 SDK is amd64-only |
 | Windows | Browser-service entry point is designed for Node; Windows smoke is configured in CI but has not been verified by this local audit | POSIX shell helpers, macOS desktop and managed VM are not native Windows features. For Codex use a native `.exe` or run the complete stack in WSL; `.cmd`/`.bat` shims are not executed through a shell |
 
-The local audit host is macOS ARM64. CI defines additional OS/Node checks; those remote jobs have not been executed as part of this local audit, and a workflow definition is not proof of success. Use the public-readiness report for the tests actually run; do not infer Windows or Linux support from configuration alone.
+The original source audit used macOS ARM64. Subsequent Linux amd64 Docker validation is recorded in [Docker deployment](docker.md). Neither local review establishes that remote CI or Windows/macOS Docker workflows have passed.
 
 ## Optional capabilities
 
@@ -44,7 +66,7 @@ The pinned semantic WASM package is included with upstream notices. No separatel
 
 ### Browser and native desktop
 
-Playwright is optional. Install its browser into this checkout rather than a global browser cache when needed:
+The Docker `browser` group includes Chromium and CJK fonts; `desktop` provides a separate Linux virtual desktop. It does not control the host desktop. For a source installation, Playwright is optional. Install its browser into this checkout rather than a global browser cache when needed:
 
 ```sh
 PLAYWRIGHT_BROWSERS_PATH="$PWD/.local/playwright" npx playwright install chromium
@@ -55,9 +77,9 @@ On macOS, Manta normally uses an existing Chrome channel. Set `MBSE_CHROME_PATH`
 
 ### Numerical and professional execution
 
-`npm ci` installs the application, not OpenModelica, ngspice, OpenSCAD, NOS3, GDAL or a VM disk. Their adapters require an explicitly configured runner. `npm run doctor` reports missing optional configuration without claiming that tools are ready.
+`npm ci` installs the application, not OpenModelica, ngspice, OpenSCAD, NOS3, GDAL or a VM disk. Source installations require an explicitly configured runner. The Docker installer provisions the selected supported tool groups and connects their container backends. `npm run doctor` reports missing optional configuration without claiming that tools are ready.
 
-The managed Apple Silicon VM source is in `vm/`. Set `MANTA_NOS3_VM_ROOT` only to a dedicated VM directory with its reviewed `host/`, `worker/` and required frozen input bundle. Historical setup documentation describes an already staged environment: **a fresh clone does not include the frozen `handoff/` archives, NASA binary packages, 42 assets, or generated source integrity manifests pinned by `vm/worker/native-inputs.json`.** There is currently no complete verified public installer that recreates that exact bundle. Do not use another user's VM state or disable hash checks to bypass it. Full native simulation is unavailable until the bundle is supplied and verified. Public source-fetch helpers accept explicit paths; fetching upstream sources alone does not recreate the pinned bundle.
+The managed Apple Silicon VM source is in `vm/`. Set `MANTA_NOS3_VM_ROOT` only to a dedicated VM directory with its reviewed `host/`, `worker/` and required frozen input bundle. Historical setup documentation describes an already staged environment: **a fresh clone does not include the frozen `handoff/` archives, NASA binary packages, 42 assets, or generated source integrity manifests pinned by `vm/worker/native-inputs.json`.** There is currently no complete verified public installer that recreates that exact bundle. Do not use another user's VM state or disable hash checks to bypass it. That historical VM workflow is unavailable until its bundle is supplied and verified. The Docker NOS3/cFS/42 path instead rebuilds selected workflows from checksum-pinned public inputs; it does not restore missing historical STF reference assets. Public source-fetch helpers accept explicit paths; fetching upstream sources alone does not recreate the pinned bundle.
 
 Remote NOS3 workers can be configured over authenticated HTTPS; see [the worker contract](nos3-runner.md). Solver/runner setup and licensing must be verified independently for each integration. Existing closed-loop evidence does not provision another machine.
 

@@ -81,6 +81,7 @@ export function createSdkRuntime({providers,dataDir,loadAgents=()=>import('@open
           event('sdk.model.started','Official Runner requested a model response');
           const response=await providers.complete(options.providerId,{messages:itemsToMessages(request.input,request.systemInstructions||''),tools:request.tools.map(t=>({name:t.name,description:t.description,parameters:t.parameters})),signal:request.signal||signal,workspace:options.workspace,onEvent:options.onEvent,...(options.model?{model:options.model}:{}),...(options.baseUrl?{baseUrl:options.baseUrl}:{}),...(options.apiKey?{apiKey:options.apiKey}:{})});
           if(signal.aborted)throw Error('Cancelled');
+          event('sdk.model.completed','Model response received');
           const output=[];if(response.content)output.push({id:'msg_'+randomUUID(),type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:response.content}]});
           output.push(...(response.toolCalls||[]).map(c=>({type:'function_call',callId:c.id||'call_'+randomUUID(),name:c.name,arguments:JSON.stringify(c.args||{}),status:'completed'})));
           if(response.responseItems?.length){if(!output.length)output.push({type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:''}]});output[0].providerData={syspilotResponseItems:copy(response.responseItems)};}

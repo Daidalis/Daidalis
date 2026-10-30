@@ -65,11 +65,11 @@ The source includes the following adapters and viewers. Availability is project-
 | Integration | Work supported in Manta | Scope |
 | --- | --- | --- |
 | **SysML v2 / KerML** | Source editing, semantic checks, queries, structural diagrams, outline and diagnostics | Pinned Open-MBEE kernel; no dynamic SysML behavior execution |
-| **OpenModelica** | Model/parameter editing, native isolated jobs, numerical signals and CSV exports | Configured runner required |
+| **OpenModelica** | Model/parameter editing, native jobs, numerical signals and CSV exports | Configured runner required |
 | **ngspice** | Native circuit transient jobs and result curves | Configured runner required |
 | **OpenSCAD** | Geometry generation and interactive STL inspection | Configured runner required |
 | **NOS3 / cFS / NASA 42** | Selected native software-integration recipes, telemetry and checks | Selected workflows; not unrestricted full-mission validation |
-| **GDAL / PROJ / NASA 42 orbit** | Geographic jobs, coordinate work, native orbit outputs and map previews | Isolated development preview; deployment varies |
+| **GDAL / PROJ / NASA 42 orbit** | Geographic jobs, coordinate work, native orbit outputs and map previews | Selected Linux Docker workflows tested; see deployment scope |
 | **External MCP** | Project-scoped stdio and Streamable HTTP connections | A gateway; each professional integration still needs its own setup and validation |
 | **Documents & evidence** | Markdown, source, CSV/JSON plots and tables, bounded GeoJSON preview | Protected job evidence remains read-only |
 
@@ -77,26 +77,73 @@ Capella, Cameo, MATLAB/Simulink, FEM, RF, PCB, and hardware platforms should not
 
 ## Get started
 
-Requires **Node.js 22.13+** and npm. The product website is published independently through GitHub Pages.
+### Linux Docker deployment
+
+The tested Docker platform is **Linux amd64**, using an existing Docker Engine
+and **Docker Compose 2.20+**. Node, Git, Python, Codex CLI and the Claude Agent SDK
+are installed inside the image; no host engineering packages are required.
 
 ```sh
 git clone https://github.com/MingxiYe/Manta.git
 cd Manta
+sh install.sh                    # all supported tool groups, including NOS3
+# Or: sh install.sh --preset=minimal
+# Or: sh install.sh --tools=scipy,ngspice,modelica
+```
+
+Open **[localhost:4317](http://127.0.0.1:4317)**. Configure and test a model
+connection in **Settings → Models & API**, create a project with its folder field
+empty to get a managed project, and describe the work you want done. For a remote
+server, use the SSH forwarding instructions in [Docker deployment](docs/docker.md).
+
+All service processes run as a non-root user. The app runs project commands in
+its shared container; it is **not a per-project security sandbox**. The optional
+virtual desktop and NOS3/STF flight service use fixed companion containers without
+network access or a Docker socket. This does not require a rootless host daemon.
+Projects and application state persist in Docker volumes.
+
+An opt-in [rootless broker mode](docs/docker.md#opt-in-rootless-task-isolation) isolates
+native Codex/Claude, commands, ngspice/OpenSCAD/OpenModelica, GIS and orbit workflows
+in per-task containers, with optional NOS3 tasks. It requires an existing rootless
+daemon. It also supports project-isolated browsers/desktops, stdio MCP and the
+SciPy service. Stdio MCP can opt into public HTTPS through a per-connector domain
+allowlist while task containers remain offline; HTTP MCP keeps explicit endpoint/credential scoping. STF and legacy
+VM management remain deferred; see the guide for the precise scope.
+
+The full image also includes selectable FreeCAD and Scilab desktops, plus OMEdit
+when Modelica and desktop support are enabled. The isolated browser relays site
+cookies, form submissions and redirects without importing host account state.
+See the [feature comparison](docs/docker.md#feature-comparison-with-the-original-source)
+for remaining differences from the original version.
+
+The [Docker guide](docs/docker.md) covers tool selection, runtime `.env` settings,
+updates, backups and acceptance checks. API credentials are supplied at runtime,
+not built into images. Windows/macOS/ARM64 validation and a packaged native desktop
+shell are deferred. Complete STF mission acceptance and reliable unattended work
+with every model gateway are not claimed.
+
+### Run the application from source
+
+This alternative requires **Node.js 22.13+** and npm on the host:
+
+```sh
 npm ci
 npm run doctor
 npm start
 ```
 
-Open **[localhost:4317](http://127.0.0.1:4317)**. Then:
+Unlike the Docker image, `npm ci` does not install Codex CLI, browsers or engineering
+solvers; configure those separately. The existing macOS desktop launcher and
+Apple Silicon VM workflow remain available, with their original prerequisites.
+The exact historical frozen VM bundle is not reproduced by the Docker installer.
+See [installation and platform scope](docs/installation.md), [repository scope](REPOSITORY_SCOPE.md)
+and [native runtimes](docs/agent-runtime.md).
 
-1. In **Settings → Models & API**, configure and test Codex or Claude Code.
-2. Create a project and select a separate engineering folder.
-3. Describe the goal, constraints, and the existing materials you want Manta to use.
-4. Follow the Coordinator, enter a thread when needed, and open artifacts from the chat.
-
-No VM or Python package is needed to start the application. Codex requires a separately installed CLI; Claude uses the project-local Agent SDK. For macOS desktop, `npm run desktop` additionally requires Apple command-line build tools. The managed Linux VM workflow targets Apple Silicon macOS; a complete public installer for the exact frozen professional-tool bundle is not yet available. `npm ci` does not provision those solvers. See [installation and platform scope](docs/installation.md), [repository scope](REPOSITORY_SCOPE.md), and [native runtimes](docs/agent-runtime.md).
-
-To customize startup, copy `.env.example` to this checkout’s `.env`. Manta loads it as data; existing process environment variables take precedence. Launch methods share the default `data/` directory, and `MBSE_DATA_DIR` can select another location. Keep `.env` and runtime data out of Git. Keys entered in the UI remain in process memory and must be re-entered after a service restart. Choose Manual or Auto permissions for your work; those modes retain the runtime and application approval boundaries. The service binds to loopback and has no multi-user authentication; run it locally rather than exposing it as a public backend.
+Copy `.env.example` to `.env` for local configuration; keep credentials and runtime
+data out of Git. UI-entered keys remain in memory and must be re-entered after a
+restart. Manual and Auto retain application and native-runtime approval rules.
+The service is loopback-only and has no multi-user authentication. The static
+product website is published independently through GitHub Pages.
 
 ### Start with an engineering request
 
