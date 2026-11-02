@@ -1,0 +1,40 @@
+services:
+  manta:
+    environment:
+      MANTA_FLIGHT_SOCKET: /flight-control/flight.sock
+    volumes:
+      - flight-control:/flight-control:ro
+  flight:
+    image: manta-flight:local
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    pids_limit: 256
+    cpus: 4
+    mem_limit: 8g
+    memswap_limit: 8g
+    sysctls:
+      fs.mqueue.msg_max: 128
+    ulimits:
+      msgqueue: {soft: 8192000, hard: 8192000}
+    extra_hosts:
+      - nos-engine-server:127.0.0.1
+      - truth42sim:127.0.0.1
+      - fortytwo:127.0.0.1
+    volumes:
+      - flight-runtime:/srv/manta
+      - flight-control:/flight-control
+    tmpfs: ["/tmp:rw,nosuid,nodev,exec,size=1g,mode=1777"]
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('/flight-control/flight.sock'); s.close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: "no"
+volumes:
+  flight-control:
+  flight-runtime:
+    name: "${COMPOSE_PROJECT_NAME:-manta}-flight-${MANTA_FLIGHT_RUNTIME_TAG:-v1}"

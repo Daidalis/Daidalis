@@ -61,7 +61,8 @@ async function withToolAbort(operation,signal){
 }
 
 /** Native app-server transport. Codex owns the agent loop, history, tools and streaming. */
-export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl=spawn,requestTimeoutMs=30000,readIsolation=null,remoteWorkspace=null}={}){
+export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl=spawn,requestTimeoutMs=30000,readIsolation=null,remoteWorkspace=null,externalSandbox=false}={}){
+  if(externalSandbox&&(process.platform!=='linux'||process.getuid?.()===0||process.env.MANTA_BROKER_TASK!=='1'||!fs.existsSync('/.dockerenv')))throw Error('External Codex sandbox requires the broker task container');
   const handles=new Set();
   function startTurn(options={}){
     if(!codexPath)throw new Error(CODEX_MISSING_MESSAGE);
@@ -180,7 +181,16 @@ export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl
     }
     function incoming(message){
       if(message.method&&Object.hasOwn(message,'id')){handleServerRequest(message).catch(error=>{rpcError(message.id,error.message);finish(error);});return;}
-      if(Object.hasOwn(message,'id')){const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);clearTimeout(waiter.timer);if(message.error)waiter.reject(nativeRpcFailure(waiter.method,message.error));else waiter.resolve(message.result);return;}
+      if(Object.hasOwn(message,'id')){const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);clearTimeout(waiter.timer);if(message.error)waiter.reject(nativeRpcFailure(waiter.method,message.error));else {
+        // A response and final notifications can arrive in one stdout chunk.
+        // Bind the acknowledged turn before parsing the next protocol line.
+        if(waiter.method==='turn/start'&&typeof message.result?.turn?.id==='string'){
+          const acknowledged=message.result.turn.id;
+          if(turnId&&turnId!==acknowledged){const error=new Error('Codex turn/start response differs from active turn');waiter.reject(error);finish(error);return;}
+          turnId=acknowledged;resolveReady({sessionId,turnId});
+        }
+        waiter.resolve(message.result);
+      }return;}
       if(message.method)notification(message.method,message.params||{});
     }
     function cancel(){
@@ -208,7 +218,7 @@ export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl
         if(sessionId){const resumed=await request('thread/resume',{...threadParams,threadId:sessionId,excludeTurns:true});setSession(resumed.thread?.id||sessionId,{model:resumed.model});}
         else{const started=await request('thread/start',{...threadParams,ephemeral:false,serviceName:'syspilot',dynamicTools:tools.length?[{type:'namespace',name:NAMESPACE,description:'Manta project coordination, engineering and computer tools',tools:tools.map(t=>({type:'function',name:t.name,description:t.description||'',inputSchema:t.parameters||{type:'object',properties:{}}}))}]:[]});setSession(started.thread?.id,{model:started.model});if(!sessionId)throw new Error('Codex thread/start returned no session identifier');const history=oldHistory(options.history);if(history.length)await request('thread/inject_items',{threadId:sessionId,items:history});}
         if(cancelled)throw abortError();
-        const sandboxPolicy=permissionMode==='auto'?{type:'workspaceWrite',writableRoots:[nativeWorkspace],networkAccess:false,excludeSlashTmp:true,excludeTmpdirEnvVar:true}:{type:'readOnly',networkAccess:false};
+        const sandboxPolicy=externalSandbox&&permissionMode==='auto'?{type:'externalSandbox',networkAccess:'restricted'}:permissionMode==='auto'?{type:'workspaceWrite',writableRoots:[nativeWorkspace],networkAccess:false,excludeSlashTmp:true,excludeTmpdirEnvVar:true}:{type:'readOnly',networkAccess:false};
         // A remote guest can need extra time to initialize a native turn under VM contention.
         // Keep this bounded and leave local app-server request deadlines unchanged.
         const turnStartTimeoutMs=remoteWorkspace?Math.max(requestTimeoutMs,90000):requestTimeoutMs;

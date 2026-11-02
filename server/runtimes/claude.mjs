@@ -112,6 +112,9 @@ function sdkEnvironment(options){
   if(options.baseUrl){const url=new URL(options.baseUrl);if(!['https:','http:'].includes(url.protocol)||url.username||url.password||remote&&(url.search||url.hash))throw new Error('Claude Agent Base URL 必须是无内嵌凭证的 HTTP(S) 地址；隔离环境不接受查询参数或片段');env.ANTHROPIC_BASE_URL=url.href.replace(/\/v1\/?$/,'').replace(/\/$/,'');}
   env.CLAUDE_AGENT_SDK_CLIENT_APP='syspilot/0.5';
   env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1';
+  // Gateways serving non-Claude models may not implement deferred tool references.
+  // Keep permission hooks unchanged, but send tool schemas up front locally.
+  if(!remote&&options.baseUrl&&new URL(options.baseUrl).hostname!=='api.anthropic.com')env.ENABLE_TOOL_SEARCH='false';
   return env;
 }
 async function withAbort(operation,signal){

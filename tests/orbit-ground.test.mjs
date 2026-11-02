@@ -17,6 +17,7 @@ async function fixture(){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-orbit-ground-')),ws=path.join(root,'workspace'),dataDir=path.join(root,'data');
   await fs.mkdir(ws);const orbitRoot=`engineering/orbit/${ORBIT_ID}`;await fs.mkdir(path.join(ws,orbitRoot),{recursive:true});
   const rawBytes={ 'PosW.42':Buffer.from('0 6778137 0 0\n'), 'time.42':Buffer.from('0\n'), 'PosN.42':Buffer.from('0 6778137 0 0\n')};
+  for(const [name,bytes] of Object.entries(rawBytes))await fs.writeFile(path.join(ws,orbitRoot,name),bytes);
   const receipt={schema:'manta-orbit42-receipt-v1',jobId:ORBIT_ID,inputHash:MODEL,epochUtc:'2024-08-04T00:00:00Z',leapSecondsAssumed:37,rawOutputs:Object.entries(rawBytes).map(([name,bytes])=>({path:name,sha256:sha(bytes)}))};
   const receiptBytes=Buffer.from(JSON.stringify(receipt));await fs.writeFile(path.join(ws,orbitRoot,'receipt.json'),receiptBytes);
   const artifacts=[{path:`${orbitRoot}/receipt.json`,sha256:sha(receiptBytes)},...Object.entries(rawBytes).map(([name,bytes])=>({path:`${orbitRoot}/${name}`,sha256:sha(bytes)}))];
@@ -100,4 +101,21 @@ test('direct artifact HTTP route rechecks orbit-ground job hashes before returni
   assert.equal((await (await fetch(url)).json()).content,content);
   await fs.appendFile(target,'tampered\n');
   const blocked=await fetch(url);assert.equal(blocked.status,409);
+});
+
+
+test('container transport snapshots exact native evidence and rejects changed orbit bytes',async()=>{
+ const f=await fixture();f.runner.requiresNativeFiles=true;
+ try{
+  const args={projectId:PROJECT_ONE,orbit42JobId:ORBIT_ID,censusPath:f.zipPath,censusSha256:f.zipHash,maxSamples:2};
+  const job=await f.service.submit(args),done=await f.service.wait({projectId:PROJECT_ONE,jobId:job.id});
+  assert.equal(done.status,'completed');
+  assert.deepEqual(Object.keys(f.getRequest().nativeFiles).sort(),['PosN.42','PosW.42','receipt.json','time.42']);
+  assert.equal(sha(Buffer.from(f.getRequest().nativeFiles['receipt.json'],'base64')),done.result.orbit.receiptSha256);
+  await fs.appendFile(path.join(f.ws,`engineering/orbit/${ORBIT_ID}/PosW.42`),'tamper');
+  await assert.rejects(f.service.submit(args),/Native orbit evidence changed/);
+  assert.equal((await f.service.result({projectId:PROJECT_ONE,jobId:job.id})).integrity.verified,true);
+  await fs.appendFile(path.join(f.ws,job.relative,'native-PosW.42'),'tamper');
+  assert.equal((await f.service.result({projectId:PROJECT_ONE,jobId:job.id})).integrity.verified,false);
+ }finally{await f.service.close();await fs.rm(f.root,{recursive:true,force:true});}
 });

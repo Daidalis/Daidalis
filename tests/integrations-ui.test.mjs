@@ -37,3 +37,12 @@ test('successful component checks keep unverified requirements visible beside th
   assert.match(visible,/尚未验证的需求/);assert.match(visible,/R-SENSOR-SEPARATION · 未验证/);assert.match(visible,/Telemetry parsing was not executed\./);assert.match(visible,/R-INTEGRATION · 受阻/);assert.match(visible,/No configured remote Worker\./);assert.match(visible,/未执行完整 NOS3\/cFS\/42 集成仿真/);
   const escaped=renderJobResult({id:'job',status:'blocked',scope:'integration'},{ready:true,reason:'Worker unavailable',pendingRequirements:[{id:'<img src=x>',reason:'<script>bad()</script>'}]});assert.doesNotMatch(escaped,/<img|<script>/);assert.match(escaped,/&lt;img/);assert.match(escaped,/Worker unavailable/);
 });
+
+test('stdio form retains explicit network hosts and permits reverting to offline',()=>{
+ const existing={network:{allowedHosts:['api.example.com']}};
+ assert.match(renderConnectorForm({...existing,transport:'stdio'}),/api.example.com/);
+ const values={name:'Network MCP',transport:'stdio',command:'/usr/bin/node',args:'[]',networkHosts:'api.example.com\nfiles.example.com'};
+ assert.deepEqual(parseConnectorForm(values).config.network,{allowedHosts:['api.example.com','files.example.com']});
+ assert.deepEqual(parseConnectorForm({...values,networkHosts:''},{existing}).config.network,{allowedHosts:[]});
+ assert.throws(()=>parseConnectorForm({...values,networkHosts:'*.example.com'}),/exact public/);
+});

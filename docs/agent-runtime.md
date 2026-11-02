@@ -14,6 +14,18 @@ OpenAI Chat/Responses 使用官方 `openai` SDK，Anthropic API 使用官方 `@a
 
 原生 Codex 复用正常 CLI 登录，应用不读取或提取 OAuth 令牌；自定义模型端点走 app-server 支持的 Responses 配置。Claude Agent 模式必须显式配置 API key，使用服务数据目录内的独立配置，不借用 claude.ai 登录或用户已有 Claude 设置。模型设置页可编辑名称、模型、base URL、环境变量名及密钥。API key 只存服务进程内存或来自服务端环境变量，不返回公开 bootstrap/list 配置；重启后需要重新填写内存密钥或继续使用环境变量。
 
+## Linux Docker 中的执行方式
+
+以下描述默认共享模式。可选 broker 模式支持 API-mode、原生 Codex/Claude、项目文件/SysML、隔离命令及三种求解器、GIS/轨道和可选 NOS3。原生会话保存在项目专属卷，真实模型密钥保留在应用侧。Codex Auto 使用外层 rootless 任务容器隔离；Manual 保留原生审批。浏览器/桌面与 stdio MCP 按项目容器隔离，SciPy 通过独立任务执行；HTTP MCP 保留显式端点约束。评测只读取有界数据并执行固定检查。STF 与旧 VM 管理入口仍禁用，不会静默回退。详见 [broker 部署与范围](docker.md#opt-in-rootless-task-isolation)。
+
+Docker 镜像包含 Codex CLI 和 Claude Agent SDK，不依赖宿主机登录或工具安装；
+需要在 Manta 中显式配置并测试模型连接。项目命令在应用共享容器内运行，不提供项目间的系统级隔离。
+Codex 的嵌套沙箱在部分宿主机上无法创建命名空间，可能转为请求单次操作审批；Auto 不等于取消原生审批。
+Claude 自定义网关会关闭延迟工具搜索以兼容不支持该机制的端点，但权限 hooks 保留。
+
+API 兼容模式的过程记录区分等待模型和收到回复；超时、限流不等同于求解器或工程判据失败。
+已有文件和执行记录保留，可以检查连接后在原线程继续。当前已验证的路径与限制见 [Docker 部署](docker.md)。
+
 ## Codex 模型选择
 
 聊天输入框把 Agent 连接和具体模型分开选择。本机 Codex 连接通过独立 app-server 查询进程完成 `initialize` / `initialized`，读取 `config/read` 中的有效默认模型，并分页调用 `model/list`（`includeHidden: false`）。查询不会创建原生线程、开始推理轮或写入全局配置；模型 ID 和显示名称来自原生返回值，不在界面中固定一组型号。默认值优先采用有效配置，再采用目录的 `isDefault`。接口和分页字段依据 [OpenAI Docs 的 app-server 模型目录说明](https://learn.chatgpt.com/docs/app-server#models)。

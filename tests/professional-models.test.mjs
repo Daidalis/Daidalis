@@ -171,3 +171,11 @@ test('native working models under engineering/models are indexed without treatin
  assert.ok(!indexed.some(m=>m.path.includes('/professional/')));
  assert.ok(indexed.some(m=>m.path==='models/Thermal.mo'));
 });
+
+test('new model rejects a string null with actionable diagnostics and accepts JSON null',async t=>{
+ const f=await fixture(t),args={projectId:f.projectId,path:'models/New.mo',content:'model New Real x=1; end New;'};
+ await assert.rejects(f.service.saveModel({...args,expectedHash:'null'}),/JSON null/);
+ await assert.rejects(fs.access(path.join(f.workspace,args.path)));
+ const saved=await f.service.saveModel({...args,expectedHash:null});assert.equal(saved.saved,true);
+ await assert.rejects(f.service.saveModel({...args,expectedHash:null}),/revision conflict/);
+});

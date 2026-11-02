@@ -38,11 +38,11 @@ export async function inspectSource(workspace,{revision,signal}={}) {
 }
 export function sourceFingerprint(baseline){return sha256(JSON.stringify({revision:baseline.revision,submodules:baseline.submodules.map(({path,revision})=>({path,revision})),sourceFiles:baseline.sourceFiles.map(({path,sha256})=>({path,sha256}))}));}
 export async function readCommitted(root,component,file,signal){const text=await git(safePath(root,component.path),['show',`${component.revision}:${file}`],signal);return Buffer.from(text);}
-export async function executeComponent({workspace,dir,baseline,signal,compilerPath='/usr/bin/clang',onLog=()=>{}}) {
+export async function executeComponent({workspace,dir,baseline,signal,compilerPath='/usr/bin/clang',onLog=()=>{},readSource=readCommitted}) {
   if(!baseline.localComponentReady)return {status:'blocked',reason:'Local component runner only executes the reviewed NOS3 utility source hashes. Missing or changed sources require a configured isolated worker.'};
   if(!fss.existsSync(compilerPath))return {status:'blocked',reason:'Existing C compiler unavailable. No compiler will be installed automatically.'};
   const snapshot=path.join(dir,'source');await fs.mkdir(snapshot,{recursive:true});const component=baseline.submodules.find(x=>x.path==='components/generic_adcs');
-  for(const file of Object.keys(COMPONENT_FILES)){const content=await readCommitted(workspace,component,file,signal);if(sha256(content)!==COMPONENT_FILES[file])throw Error('NOS3 source changed during snapshot');await fs.writeFile(path.join(snapshot,path.basename(file)),content);}
+  for(const file of Object.keys(COMPONENT_FILES)){const content=await readSource(workspace,component,file,signal);if(sha256(content)!==COMPONENT_FILES[file])throw Error('NOS3 source changed during snapshot');await fs.writeFile(path.join(snapshot,path.basename(file)),content);}
   const harnessBytes=await fs.readFile(harness);await fs.writeFile(path.join(snapshot,'quaternion-harness.c'),harnessBytes);
   const executable=path.join(dir,'quaternion-component');const env={PATH:'/usr/bin:/bin',HOME:dir,TMPDIR:dir,LANG:'C',LC_ALL:'C',CLANG_MODULE_CACHE_PATH:path.join(dir,'clang-cache')};
   const version=await spawnBounded(compilerPath,['--version'],{cwd:dir,env,signal,timeoutMs:5000,maxBytes:4000});

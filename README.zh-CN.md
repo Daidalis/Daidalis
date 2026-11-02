@@ -56,11 +56,11 @@ Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以�
 | 接入 | Manta 中可做的工作 | 当前范围 |
 | --- | --- | --- |
 | **SysML v2 / KerML** | 源码编辑、语义检查、查询、结构图、大纲与诊断 | 固定 Open-MBEE 内核；不执行 SysML 动态行为 |
-| **OpenModelica** | 模型与参数编辑、隔离原生作业、曲线及 CSV 导出 | 需要配置执行环境 |
+| **OpenModelica** | 模型与参数编辑、原生作业、曲线及 CSV 导出 | 需要配置执行环境 |
 | **ngspice** | 原生电路瞬态分析与结果曲线 | 需要配置执行环境 |
 | **OpenSCAD** | 几何生成、STL 旋转与缩放检查 | 需要配置执行环境 |
 | **NOS3 / cFS / NASA 42** | 选定软件集成配方、遥测与检查 | 不代表任意完整任务均已验证 |
-| **GDAL / PROJ / NASA 42 轨道** | 地理作业、坐标处理、原生轨道输出和地图预览 | 隔离开发预览，部署状态有所区别 |
+| **GDAL / PROJ / NASA 42 轨道** | 地理作业、坐标处理、原生轨道输出和地图预览 | 选定 Linux Docker 流程已验证，详见部署范围 |
 | **外部 MCP** | 项目级 stdio 与 Streamable HTTP 连接 | 各专业工具仍需单独配置和验收 |
 | **文档与证据** | Markdown、源码、CSV/JSON 表格与曲线、有界 GeoJSON 预览 | 已登记的作业证据只读 |
 
@@ -68,26 +68,61 @@ Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 和硬件平台尚不能视�
 
 ## 开始使用
 
-需要 **Node.js 22.13+** 与 npm。产品网站通过 GitHub Pages 独立发布。
+### Linux Docker 部署
+
+当前实际验证的平台是 **Linux amd64**，需要已有的 Docker Engine 和
+**Docker Compose 2.20+**。Node、Git、Python、Codex CLI 和 Claude Agent SDK
+都安装在镜像里，不需要在宿主机安装工程工具链。
 
 ```sh
 git clone https://github.com/MingxiYe/Manta.git
 cd Manta
+sh install.sh                    # 全部支持的工具组，包含 NOS3
+# 或：sh install.sh --preset=minimal
+# 或：sh install.sh --tools=scipy,ngspice,modelica
+```
+
+打开 **[localhost:4317](http://127.0.0.1:4317)**，在「设置 → 模型与 API」中配置并测试连接。
+新建项目时，文件夹留空即可自动创建托管工程目录，然后描述任务。
+远程服务器使用 SSH 端口转发，具体命令见 [Docker 安装说明](docs/docker.md)。
+
+另有可选的 [rootless broker 模式](docs/docker.md#opt-in-rootless-task-isolation)：命令和
+原生 Codex/Claude、ngspice/OpenSCAD/OpenModelica、GIS 与轨道流程在独立任务容器中执行，
+还可选装 NOS3，需要已有的 rootless Docker。浏览器/桌面和 stdio MCP 按项目隔离，
+SciPy 数值服务已接入独立任务容器。stdio MCP 可按连接器配置允许访问的公网 HTTPS 域名，
+通过受控代理联网，任务容器仍不直接联网；HTTP MCP 保留显式端点与凭证范围；STF 和旧 VM 管理入口仍暂缓。
+具体支持范围及验收步骤见部署说明。
+
+服务进程以非 root 用户运行。项目命令在应用的共享容器内执行，**不提供项目之间的系统级隔离**。
+可选的 Linux 虚拟桌面和 NOS3/STF 飞行仿真使用固定配套容器，不接网络、不挂载 Docker socket，
+也不要求宿主机改成 rootless Docker。项目和应用状态保存在 Docker 数据卷中。
+
+完整镜像包含可选的 FreeCAD、Scilab；同时选择 Modelica 与桌面工具组时安装 OMEdit。
+隔离浏览器支持站点 Cookie、表单和逐跳重定向，不导入宿主账号状态。
+与原版的差异见[功能对照](docs/docker.md#feature-comparison-with-the-original-source)。
+
+工具组选择、运行时 `.env` 配置、升级、备份和验收方式见 [Docker 安装说明](docs/docker.md)。
+API 密钥在运行时传入，不写入镜像。Windows/macOS/ARM64 验证及原生桌面外壳暂缓；
+当前不宣称完整 STF 任务已验收，也不保证任意模型网关都能稳定完成无人值守任务。
+
+### 从源码运行应用
+
+这是另一种安装方式，需要宿主机具备 **Node.js 22.13+** 和 npm：
+
+```sh
 npm ci
 npm run doctor
 npm start
 ```
 
-打开 **[localhost:4317](http://127.0.0.1:4317)**：
+与 Docker 镜像不同，`npm ci` 不安装 Codex CLI、浏览器或工程求解器，需要单独配置。
+原有 macOS 桌面启动器和 Apple Silicon VM 流程保留各自的依赖要求；Docker 安装器不等于
+复原历史 VM 冻结包。详见 [安装与平台范围](docs/installation.md)、
+[仓库范围](REPOSITORY_SCOPE.md)和 [Agent 运行时](docs/agent-runtime.md)。
 
-1. 在「设置 → 模型与 API」中配置并测试 Codex 或 Claude Code。
-2. 创建项目，选择一个独立的工程文件夹。
-3. 描述目标、约束，以及希望 Manta 使用的已有材料。
-4. 跟随 Coordinator 推进工作，按需进入 thread 或打开聊天中的产物。
-
-启动应用不需要 VM 或 Python 数值包。Codex 需另行安装 CLI；Claude 使用项目依赖中的 Agent SDK。macOS 桌面模式使用 `npm run desktop`，还需要 Apple 命令行构建工具。托管 Linux VM 流程面向 Apple Silicon macOS，完整专业工具冻结包尚无经过验证的公开重建安装器；`npm ci` 不会安装这些求解器。请阅读[安装与平台范围](docs/installation.md)、[仓库范围](REPOSITORY_SCOPE.md)和[Agent 运行时](docs/agent-runtime.md)。
-
-需要自定义启动时，将 `.env.example` 复制到当前源码目录的 `.env`；Manta 将其作为数据加载，已有进程环境变量优先。各启动方式共用默认的 `data/`，可用 `MBSE_DATA_DIR` 指定其他目录；不要将 `.env` 或运行数据提交到 Git。界面中输入的密钥只保留在进程内存，服务重启后需要重新填写。Manual 与 Auto 都保留运行时及应用的权限边界。服务只监听本机回环，尚无多用户认证，不应将这个后端暴露成公网服务。
+本地配置可从 `.env.example` 复制到 `.env`；不要提交密钥或运行数据。
+界面输入的密钥仅保存在进程内存中，重启后需重新输入。Manual 和 Auto 均保留应用及原生运行时的审批规则。
+服务仅监听本机回环地址，尚无多用户认证；产品静态网站通过 GitHub Pages 独立发布。
 
 ### 从一句工程需求开始
 

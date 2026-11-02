@@ -1,0 +1,17 @@
+.git
+.env
+.env.*
+node_modules
+data
+.local
+work
+outputs
+build
+deploy/local
+**/__pycache__
+**/*.log
+**/*.pid
+vm/state
+vm/assets
+vm/handoff
+website/.openai

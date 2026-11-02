@@ -15,6 +15,7 @@ const TOOL_LABELS = {
   read_thread:'读取任务结果', steer_thread:'发送任务补充', wait_threads:'等待子任务结果', wait_for_tasks:'等待子任务结果', get_task_assignments:'查看任务分工', review_task_results:'记录任务结果复核', computer_use:'操作工程工作面',
 };
 const PROGRESS_LABELS = {
+  'sdk.model.started':'等待模型服务回复', 'sdk.model.completed':'模型服务已回复',
   'run.queued':'等待执行', 'run.started':'开始执行', 'run.finished':'执行结束',
   'run.cancelled':'已请求停止', 'agent.started':'开始任务', 'agent.thinking':'处理中',
   'agent.completed':'任务完成', 'agent.failed':'任务未完成',

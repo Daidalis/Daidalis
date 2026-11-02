@@ -199,7 +199,7 @@ def main():
     chains={name:chain_executed(report) for name,report in case_reports.items()}
     result={'schema':'manta-nos3-verification-v1','scope':'integration','fullNos3Simulation':any(chains.values()),
             'fullMissionAllDevices':False,'passed':complete,'status':'verified' if complete else 'failed',
-            'description':'Native Linux ARM64 NOS3 selected star-tracker / cFS / 42 live simulation campaign',
+            'description':'Native Linux '+os.uname().machine+' NOS3 selected star-tracker / cFS / 42 live simulation campaign',
             'checks':checks,'error':failure,'elapsedSeconds':round(time.monotonic()-began,3),
             'metrics':{'fixedAdcsRotationErrorDeg':max_error(fixed,'sensor_to_body_rotation_applied_once_in_correct_order'),
                 'fixedGncRotationErrorDeg':max_error(fixed,'gnc_output_matches_sensor_derived_body_attitude'),

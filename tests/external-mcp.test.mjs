@@ -166,3 +166,15 @@ test('missing dedicated credentials fail before a server is started and configur
   assert.equal(h.service.list(h.project.id)[0].status,'disabled');
   await assert.rejects(h.service.call(h.project.id,'fixture','echo',{}),/disabled/);
 });
+
+test('controlled stdio networking is user configured and cannot silently run without a broker',async t=>{
+ const f=await fixture(t);
+ const config={name:'Egress',transport:'stdio',command:process.execPath,enabled:true,network:{allowedHosts:['api.example.com']}};
+ await assert.rejects(f.service.save(f.project.id,config),/explicitly by the user/);
+ await assert.rejects(f.service.save(f.project.id,config,{userInitiated:true}),/requires broker mode/);
+ const isolated=await fixture(t,{stdioTransportFactory:()=>{throw Error('not started');}});
+ const saved=await isolated.service.save(isolated.project.id,config,{userInitiated:true});
+ assert.deepEqual(saved.network,{allowedHosts:['api.example.com']});
+ await assert.rejects(isolated.service.save(isolated.project.id,{...config,network:{allowedHosts:['127.0.0.1']}},{userInitiated:true}),/exact public/);
+ const updated=await isolated.service.save(isolated.project.id,{...config,id:saved.id,network:{allowedHosts:[]}},{userInitiated:true});assert.deepEqual(updated.network,{allowedHosts:[]});
+});

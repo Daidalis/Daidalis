@@ -245,3 +245,14 @@ test('Existing Codex sessions migrate their matching legacy signature and surviv
 });
 
 test('execution budget expiry is interrupted with the application reason, preserving the native session',async t=>{const gate=deferred(),h=await fixture(t,async({options})=>{await waitForGate(gate.promise,options.signal);return {content:'unreachable'};},{runTimeoutMs:30});const {run}=h.engine.start({threadId:h.thread.id,providerId:'codex-local',content:'Long native task',permissionMode:'auto'});await eventually(()=>!h.engine.active.has(run.id));assert.equal(run.status,'interrupted');assert.equal(run.stopReason,'execution-time-limit');assert.match(run.error,/执行时限/);assert.ok(h.store.get('threads',h.thread.id).runtimeSessions['codex-local'].sessionId);assert.ok(h.store.data.messages.some(m=>m.runId===run.id&&m.content.includes('运行已中断')));});
+
+test('turn-budget exhaustion preserves a resumable session and reports interruption',async t=>{
+ let first=true;
+ const h=await fixture(t,async()=>{if(first){first=false;throw Error('Max turns (12) exceeded');}return {content:'Continued successfully'};});
+ const started=h.engine.start({threadId:h.thread.id,providerId:'api-profile',content:'Execute',permissionMode:'auto'});
+ await eventually(()=>!h.engine.active.has(started.run.id));
+ assert.equal(started.run.status,'interrupted');assert.equal(started.run.stopReason,'turn-limit');assert.match(started.run.error,/可在此线程继续/);
+ const session=h.calls[0].sessionId;
+ await completed(h,{providerId:'api-profile',content:'Continue'});
+ assert.equal(h.calls.at(-1).options.sessionId,session);
+});

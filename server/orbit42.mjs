@@ -50,10 +50,12 @@ const cancelled=()=>invalid('Orbit job wait cancelled; the job may continue','CA
 /** Native 42 jobs use the managed Linux VM, not a host Python/42 installation.
  * The project workspace holds immutable source snapshots and result evidence. */
 export async function createOrbit42Service({
-  dataDir,store,vmRoot,execute=executeLocalVm,stageBundle=stageManagedWorkerBundle,
+  dataDir,store,vmRoot,containerRunner,execute=executeLocalVm,stageBundle=stageManagedWorkerBundle,
   ensureVm,emit=()=>{},maxJobMs=180000
 }={}){
-  if(!dataDir||!store?.workspace||!vmRoot||!path.isAbsolute(vmRoot))throw Error('Orbit 42 service requires project store, dataDir and fixed absolute managed VM root');
+  if(!dataDir||!store?.workspace||(!containerRunner&&(!vmRoot||!path.isAbsolute(vmRoot))))throw Error('Orbit 42 service requires project store, dataDir and fixed absolute managed VM root');
+  const containerProfile=containerRunner?(await containerRunner.status()).tool:null;
+  const expectedBinary=containerRunner?containerProfile?.binarySha256:BINARY_SHA256;
   const disk=path.join(dataDir,'orbit42');
   await fs.mkdir(disk,{recursive:true,mode:0o700});
   const jobs=new Map(),queue=[],tasks=new Set(),controllers=new Map(),modelLocks=new Map(),events=new EventEmitter();
@@ -111,6 +113,7 @@ export async function createOrbit42Service({
   }
   async function readiness(projectId){
     workspace(projectId);
+    if(containerRunner)return containerRunner.status();
     try{
       const file=path.join(vmRoot,'host','vm-status.sh');
       const state=await execute('/bin/sh',[file],{cwd:vmRoot,timeoutMs:15000,maxOutputBytes:20000,maxTotalBytes:30000});
@@ -144,7 +147,7 @@ export async function createOrbit42Service({
       if(native.schema!=='manta-orbit42-native-response-v1'||typeof native.success!=='boolean'||!Number.isInteger(native.exitCode)||!Array.isArray(native.files))throw Error('Invalid native 42 response');
       if(native.success){
         const receipt=native.receipt;
-        if(native.exitCode!==0||receipt?.schema!=='manta-orbit42-receipt-v1'||receipt.jobId!==job.id||receipt.inputHash!==job.inputHash||receipt.sourceFile?.path!==job.model.path||receipt.sourceFile?.sha256!==job.inputHash||receipt.tool?.id!=='nasa-42'||receipt.tool?.repository!=='nasa-itc/42'||receipt.tool?.revision!=='dev_20260403'||receipt.tool?.binarySha256!=='a56f32e7a0ce8ec7e26749a5fb7aee673f24a190f444fc85083b3c63bd2b6c31'||receipt.adapterSha256!==WORKER_SHA256||native.tool?.binarySha256!==receipt.tool.binarySha256||receipt.assets?.fileCount!==220||receipt.assets?.treeSha256!=='d7d68ea74816d4c0bd78120adf02a982832727d34806c210b7b693f0028a8c48'||receipt.assets?.sourceIntegritySha256!=='fadfb8bd140f81a0488f4668ccb4e19f785bf12349fe42dcf872856ebf1c485d'||receipt.assets?.assetManifestSha256!=='de831c50047b3376e1fb5400bf062fc197b5edd536266a91172080ad3af19a61'||!validTemplateReceipt(receipt.templateFiles)||!Number.isInteger(native.metrics?.samples)||native.metrics.samples<2||native.metrics.samples>2001||!Array.isArray(native.metrics?.checks)||native.metrics.checks.some(check=>check.passed!==true))throw Error('Native 42 receipt or sanity checks do not match the pinned request');
+        if(native.exitCode!==0||receipt?.schema!=='manta-orbit42-receipt-v1'||receipt.jobId!==job.id||receipt.inputHash!==job.inputHash||receipt.sourceFile?.path!==job.model.path||receipt.sourceFile?.sha256!==job.inputHash||receipt.tool?.id!=='nasa-42'||receipt.tool?.repository!=='nasa-itc/42'||receipt.tool?.revision!=='dev_20260403'||receipt.tool?.binarySha256!==expectedBinary||receipt.adapterSha256!==WORKER_SHA256||native.tool?.binarySha256!==receipt.tool.binarySha256||receipt.assets?.fileCount!==220||receipt.assets?.treeSha256!=='d7d68ea74816d4c0bd78120adf02a982832727d34806c210b7b693f0028a8c48'||(containerRunner?(receipt.assets?.archiveSha256!=='80a90432fc83772e3002c0320e4d54d7d2a6db230a2eeedbf9747a87f553ae4c'||receipt.containerAdapterSha256!==containerProfile?.containerAdapterSha256):(receipt.assets?.sourceIntegritySha256!=='fadfb8bd140f81a0488f4668ccb4e19f785bf12349fe42dcf872856ebf1c485d'||receipt.assets?.assetManifestSha256!=='de831c50047b3376e1fb5400bf062fc197b5edd536266a91172080ad3af19a61'))||!validTemplateReceipt(receipt.templateFiles)||!Number.isInteger(native.metrics?.samples)||native.metrics.samples<2||native.metrics.samples>2001||!Array.isArray(native.metrics?.checks)||native.metrics.checks.some(check=>check.passed!==true))throw Error('Native 42 receipt or sanity checks do not match the pinned request');
       }
       if(native.files.length>16)throw Error('Native 42 returned too many artifacts');
       if(!native.success&&native.files.length)throw Error('Failed native 42 run cannot publish output artifacts');
@@ -204,6 +207,7 @@ export async function createOrbit42Service({
     if(store.add)for(const entry of job.artifacts)store.add('artifacts',{id:'artifact_'+crypto.randomUUID(),projectId:job.projectId,threadId:job.threadId,runId:job.runId,name:job.id+' · '+entry.name,path:entry.path,type:entry.mimeType,createdAt:now()});
   }
   async function cancelGuest(jobId){
+    if(containerRunner)return;
     if(!ID.test(jobId))return;
     await vm('python3 '+GUEST_ADAPTER+' --cancel '+jobId,{timeoutMs:15000,maxOutputBytes:1000,maxTotalBytes:2000}).catch(()=>{});
   }
@@ -230,6 +234,12 @@ export async function createOrbit42Service({
         ready=await readiness(job.projectId);
       }
       if(!ready.ready)throw Error(ready.reason||'Pinned native 42 is unavailable in the managed Linux VM');
+      if(containerRunner){
+        const sourceFile=await readSource(job);
+        const native=await containerRunner.run({jobId:job.id,inputHash:job.inputHash,sourceFile},{signal:controller.signal});
+        if(controller.signal.aborted)throw Error('Orbit 42 execution cancelled or timed out');
+        await finish(job,{native});return;
+      }
       await stageBundle(vmRoot,{signal:controller.signal});
       // VirtioFS/NAS reads can be inconsistent while the handoff is staged.
       // Copy reviewed bytes into private guest storage, then verify their exact
@@ -311,6 +321,7 @@ export async function createOrbit42Service({
       await artifact(job,'input.json',JSON.stringify({schema:'manta-orbit42-input-v1',jobId,model:job.model,inputHash,submittedAt:job.createdAt},null,2)+'\n','application/json');
       jobs.set(job.id,job);await persist(job);queue.push(job);queueMicrotask(pump);return publicJob(job);
     },
+    async list({projectId}={}){workspace(projectId);return [...jobs.values()].filter(job=>job.projectId===projectId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(publicJob);},
     async status(args){return publicJob(scoped(args));},
     async result(args){
       const job=scoped(args);

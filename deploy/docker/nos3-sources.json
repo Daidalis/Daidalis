@@ -1,0 +1,193 @@
+[
+  {
+    "repo": "nasa/nos3",
+    "revision": "5a3bdee6be9a2c67fdf994ae6db56d5c60395302",
+    "url": "https://codeload.github.com/nasa/nos3/tar.gz/5a3bdee6be9a2c67fdf994ae6db56d5c60395302",
+    "archiveSha256": "b03d2e657367a8e03448e6b98511507bf959d934c75cb498c86e0e74f8780a96",
+    "archiveBytes": 60486180
+  },
+  {
+    "path": "components/generic_adcs",
+    "repo": "nasa-itc/generic_adcs",
+    "revision": "09a604fc10c8c79981ffeb2ee1792c7719674a10",
+    "url": "https://codeload.github.com/nasa-itc/generic_adcs/tar.gz/09a604fc10c8c79981ffeb2ee1792c7719674a10",
+    "archiveSha256": "e7b032eac8a0031a0066111428a199413a97e122288fa4f2b27eb01763ec0544",
+    "archiveBytes": 59321
+  },
+  {
+    "path": "components/generic_css",
+    "repo": "nasa-itc/generic_css",
+    "revision": "8690e1671b8a008324e51f6be6984f5141fa46bc",
+    "url": "https://codeload.github.com/nasa-itc/generic_css/tar.gz/8690e1671b8a008324e51f6be6984f5141fa46bc",
+    "archiveSha256": "1b56cf5b1df6d41a33554961eab2d2af404cb29f0879a080a63ac25cfb6fdedf",
+    "archiveBytes": 38808
+  },
+  {
+    "path": "components/generic_fss",
+    "repo": "nasa-itc/generic_fss",
+    "revision": "ceb89220d60fe187d69934baf5612d1373493fc1",
+    "url": "https://codeload.github.com/nasa-itc/generic_fss/tar.gz/ceb89220d60fe187d69934baf5612d1373493fc1",
+    "archiveSha256": "d6725b55bdba959d2eeabb4fa77d22c25f9298b25131bc261f836862dfecbc06",
+    "archiveBytes": 34425
+  },
+  {
+    "path": "components/generic_imu",
+    "repo": "nasa-itc/generic_imu",
+    "revision": "67a86ad93eaf762aa3087aa62a512e7ba1a2dbcb",
+    "url": "https://codeload.github.com/nasa-itc/generic_imu/tar.gz/67a86ad93eaf762aa3087aa62a512e7ba1a2dbcb",
+    "archiveSha256": "3a40b0de32f5ea8c822ca7a64862ba48d2bfbeb14aec2829b9488b3e8c0c5bdb",
+    "archiveBytes": 42484
+  },
+  {
+    "path": "components/generic_mag",
+    "repo": "nasa-itc/generic_magnetometer",
+    "revision": "7d6833f23a133bb76dc08dcb20c4d5e0e1a8dd68",
+    "url": "https://codeload.github.com/nasa-itc/generic_magnetometer/tar.gz/7d6833f23a133bb76dc08dcb20c4d5e0e1a8dd68",
+    "archiveSha256": "0de86cc9ed5e1d0dcdde211f50824d1c95b420ee1e80ca70f818bcce75b77551",
+    "archiveBytes": 36487
+  },
+  {
+    "path": "components/generic_reaction_wheel",
+    "repo": "nasa-itc/generic_reaction_wheel",
+    "revision": "9a669563371809c4d131e1a468a7cc4405f8c605",
+    "url": "https://codeload.github.com/nasa-itc/generic_reaction_wheel/tar.gz/9a669563371809c4d131e1a468a7cc4405f8c605",
+    "archiveSha256": "fefa706445dd32468c4f2466470fc89c19b0e1261127506e6768174eaefd20d0",
+    "archiveBytes": 28435
+  },
+  {
+    "path": "components/generic_star_tracker",
+    "repo": "nasa-itc/generic_star_tracker",
+    "revision": "3e4fa235b43fb4479995009ff63a1a3c15d08023",
+    "url": "https://codeload.github.com/nasa-itc/generic_star_tracker/tar.gz/3e4fa235b43fb4479995009ff63a1a3c15d08023",
+    "archiveSha256": "5bb8da8a3d487df60de7baaebea8b2b2e7f8e628d0e112cf4b0a5251d173f223",
+    "archiveBytes": 45248
+  },
+  {
+    "path": "components/generic_torquer",
+    "repo": "nasa-itc/generic_torquer",
+    "revision": "6e0392e54b10ed7bc69e43fdaff64e8f514cd4ff",
+    "url": "https://codeload.github.com/nasa-itc/generic_torquer/tar.gz/6e0392e54b10ed7bc69e43fdaff64e8f514cd4ff",
+    "archiveSha256": "8083b8203c73237eeb887988c13bba7e863a05671e4dc7b6279c7d6e403f8156",
+    "archiveBytes": 40679
+  },
+  {
+    "path": "components/novatel_oem615",
+    "repo": "nasa-itc/novatel_oem615",
+    "revision": "8fca4b5e0db6dc00cd4745be334e7b895fc45b66",
+    "url": "https://codeload.github.com/nasa-itc/novatel_oem615/tar.gz/8fca4b5e0db6dc00cd4745be334e7b895fc45b66",
+    "archiveSha256": "bfcde41707a7736135c9c889eb656ff9b82b1d8e9abc6e0f6a1b1c1c4a072242",
+    "archiveBytes": 49442
+  },
+  {
+    "path": "fsw/apps/ci_lab",
+    "repo": "nasa-itc/ci_lab",
+    "revision": "5dd2cf50a827c4837c867a0bdc58b5295caf61c1",
+    "url": "https://codeload.github.com/nasa-itc/ci_lab/tar.gz/5dd2cf50a827c4837c867a0bdc58b5295caf61c1",
+    "archiveSha256": "2ede64e0c7e97d3e3b8e1afe4a935447fbb46cc491eea8634b8933c1c39a79ac",
+    "archiveBytes": 14199
+  },
+  {
+    "path": "fsw/apps/hwlib",
+    "repo": "nasa-itc/hwlib",
+    "revision": "d65f77dea94467b7cb71053eb2f58f7a0cde3b02",
+    "url": "https://codeload.github.com/nasa-itc/hwlib/tar.gz/d65f77dea94467b7cb71053eb2f58f7a0cde3b02",
+    "archiveSha256": "fcd4c1e7e887d2f1aec016be024ed4d397c2b33457f21a3a05f697247cc1c553",
+    "archiveBytes": 32428
+  },
+  {
+    "path": "fsw/apps/io_lib",
+    "repo": "nasa-itc/CFS_IO_LIB",
+    "revision": "b98953eea7b187cebf8028eb62824f306693c135",
+    "url": "https://codeload.github.com/nasa-itc/CFS_IO_LIB/tar.gz/b98953eea7b187cebf8028eb62824f306693c135",
+    "archiveSha256": "e4124cecce73e81336bbd3956c69e4de4b0acdd462db7cf3e902fecdd4d33218",
+    "archiveBytes": 2341707
+  },
+  {
+    "path": "fsw/apps/sch",
+    "repo": "nasa-itc/SCH",
+    "revision": "8e8073e4c76fe41beb82e38e54cfcda7bc661156",
+    "url": "https://codeload.github.com/nasa-itc/SCH/tar.gz/8e8073e4c76fe41beb82e38e54cfcda7bc661156",
+    "archiveSha256": "bc1be95ad60cce5849f6a94b3d6ec265e61cbe9afb9101940ba330e4d1665188",
+    "archiveBytes": 3715005
+  },
+  {
+    "path": "fsw/apps/to_lab",
+    "repo": "nasa-itc/to_lab",
+    "revision": "6ae88fd1c2bb931d233c0051c88b787447bd5bb6",
+    "url": "https://codeload.github.com/nasa-itc/to_lab/tar.gz/6ae88fd1c2bb931d233c0051c88b787447bd5bb6",
+    "archiveSha256": "71e5b5a7bb32312cbfa954652617439061d4ede4d75f4c4a035550f21963accb",
+    "archiveBytes": 17179
+  },
+  {
+    "path": "fsw/cfe",
+    "repo": "nasa-itc/cFE",
+    "revision": "87e273743f3d07ed9216462b461e9f398ff96c87",
+    "url": "https://codeload.github.com/nasa-itc/cFE/tar.gz/87e273743f3d07ed9216462b461e9f398ff96c87",
+    "archiveSha256": "3955ed5bae8974bca06275b189af6feb946139a4fe58c2b9905983f97302247c",
+    "archiveBytes": 2106836
+  },
+  {
+    "path": "fsw/osal",
+    "repo": "nasa-itc/osal",
+    "revision": "08a79bb6ac02b9ced8aa555853ecdd96e5ebc1a7",
+    "url": "https://codeload.github.com/nasa-itc/osal/tar.gz/08a79bb6ac02b9ced8aa555853ecdd96e5ebc1a7",
+    "archiveSha256": "945962e8b373df976e88cfe4d44a33d52b887e35726578ce06d403ad5cac0768",
+    "archiveBytes": 562993
+  },
+  {
+    "path": "fsw/psp",
+    "repo": "nasa-itc/PSP",
+    "revision": "d0a5d6fa4093d473a929fde42a0983e489d89d4a",
+    "url": "https://codeload.github.com/nasa-itc/PSP/tar.gz/d0a5d6fa4093d473a929fde42a0983e489d89d4a",
+    "archiveSha256": "d06c4e56ff85363db345a5c37eda76dc3f1f760b85a7bb055d3a7b5318e8fed2",
+    "archiveBytes": 810253
+  },
+  {
+    "path": "fsw/tools/elf2cfetbl",
+    "repo": "nasa-itc/elf2cfetbl",
+    "revision": "358201af7ab296631c7118a5b0b91055d3d4ce10",
+    "url": "https://codeload.github.com/nasa-itc/elf2cfetbl/tar.gz/358201af7ab296631c7118a5b0b91055d3d4ce10",
+    "archiveSha256": "b627a6af36b1e7b8bd02f3f3d17ab5ee0f89bef9594bd49ab7429fdf4de5ea74",
+    "archiveBytes": 36271
+  },
+  {
+    "path": "sims/nos_time_driver",
+    "repo": "nasa-itc/nos_time_driver",
+    "revision": "0c097273431cf8a4882559518b704d8c8621b74f",
+    "url": "https://codeload.github.com/nasa-itc/nos_time_driver/tar.gz/0c097273431cf8a4882559518b704d8c8621b74f",
+    "archiveSha256": "31b3c634f9aee73b46abc5c9365a7e05eb708c4a39700ca96b59a259f36b8bcb",
+    "archiveBytes": 4662
+  },
+  {
+    "path": "sims/sim_common",
+    "repo": "nasa-itc/sim_common",
+    "revision": "0dbcb2ead4e5625a2a163c0fabe04157dd7e375e",
+    "url": "https://codeload.github.com/nasa-itc/sim_common/tar.gz/0dbcb2ead4e5625a2a163c0fabe04157dd7e375e",
+    "archiveSha256": "bb9f2ae0c4f27de44743c984eed15c945de9f6c7aeefc3346d9f23d87eb79e7d",
+    "archiveBytes": 25951
+  },
+  {
+    "path": "sims/sim_terminal",
+    "repo": "nasa-itc/sim_terminal",
+    "revision": "d6603c66bd6c25c59c239a197ef915c257845df3",
+    "url": "https://codeload.github.com/nasa-itc/sim_terminal/tar.gz/d6603c66bd6c25c59c239a197ef915c257845df3",
+    "archiveSha256": "86be7c46427db5137109bb8b30404f7d4224260ee0b237fc6108e82140dcf2fe",
+    "archiveBytes": 10000
+  },
+  {
+    "path": "sims/truth_42_sim",
+    "repo": "nasa-itc/truth_42_sim",
+    "revision": "2f05258a4040e195322d8aacc51a01cb3d687a15",
+    "url": "https://codeload.github.com/nasa-itc/truth_42_sim/tar.gz/2f05258a4040e195322d8aacc51a01cb3d687a15",
+    "archiveSha256": "5d8aed3783b58e6e9b7be16c98ca347c78f3da39b03eede232244004abd753c5",
+    "archiveBytes": 7104
+  },
+  {
+    "path": "42",
+    "repo": "nasa-itc/42",
+    "revision": "dev_20260403",
+    "url": "https://codeload.github.com/nasa-itc/42/tar.gz/dev_20260403",
+    "archiveSha256": "80a90432fc83772e3002c0320e4d54d7d2a6db230a2eeedbf9747a87f553ae4c",
+    "archiveBytes": 333929741
+  }
+]

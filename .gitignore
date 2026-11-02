@@ -40,3 +40,4 @@ website/.openai/hosting.json
 
 # Maintainer-only planning and conversation references
 /project-notes/
+/deploy/local/

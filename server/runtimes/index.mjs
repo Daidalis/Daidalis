@@ -20,6 +20,7 @@ export function createRuntimeManager({providers,dataDir,codexPath,codexReadIsola
   return {
     startTurn(profile,options) {
       const name=runtimeName(profile);
+      if(process.env.MANTA_NATIVE_AGENTS==='disabled'&&name!=='openai-agents-sdk')throw new Error('Native Codex/Claude tools are not enabled in this container deployment. Use an API-mode Agent; broker mode does not yet isolate native Agent processes.');
       if(name==='claude-agent-sdk'&&requireClaudeRemoteWorkspace&&!claudeRemoteWorkspace)throw new Error('Claude 在此隔离项目中需要 Linux guest 传输；尚未配置时不能从宿主机启动。');
       const handle=instance(name).startTurn({...profile,...options,providerId:profile.id});
       if(!handle?.completion||typeof handle.completion.then!=='function')throw new Error('Agent runtime did not return a completion promise');

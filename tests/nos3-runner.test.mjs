@@ -58,3 +58,13 @@ test('managed local VM routes full jobs through its private connection without e
   const result=await client.result({projectId:'p',jobId:job.id});assert.equal(result.status,'failed');assert.equal(result.checks[0].passed,false);assert.equal(result.fullNos3Simulation,true);
   assert.equal(prepares,2);assert.ok(!JSON.stringify([job,result,await client.inspect({projectId:'p'})]).includes(token));
 });
+
+
+test('NOS3 persisted evidence tampering invalidates results and output reads',async t=>{
+ const f=await fixture(t),job=await f.service.submit({projectId:'p',scope:'build'});
+ await f.service.wait({projectId:'p',jobId:job.id});
+ assert.equal((await f.service.result({projectId:'p',jobId:job.id})).integrity.verified,true);
+ await fs.appendFile(path.join(f.source,job.relative,'result.json'),' ');
+ assert.equal((await f.service.result({projectId:'p',jobId:job.id})).integrity.verified,false);
+ await assert.rejects(f.service.readOutput({projectId:'p',jobId:job.id,file:'result.json'}),/evidence changed/);
+});

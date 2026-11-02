@@ -1,3 +1,8 @@
+import {createFlightContainerRunner,withFlightTools} from './flight-container-runner.mjs';
+import {createOrbitGroundContainerRunner} from './orbit-ground-container-runner.mjs';
+import {createOrbit42Routes} from './orbit42-routes.mjs';
+import {createOrbit42ContainerRunner} from './orbit42-container-runner.mjs';
+import {createGeospatialContainerRunner} from './geospatial-container-runner.mjs';
 import './environment.mjs';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -12,6 +17,8 @@ import {createCodexModelCatalog} from './codex-models.mjs';
 import {createSettingsService} from './settings.mjs';
 import {checkGraph,sanitizeGraph,NODE_TYPES,LINK_TYPES} from './model.mjs';
 import {safePath,commandSandboxAvailable} from './sandbox.mjs';
+import {createBrokerComputer} from './broker-computer.mjs';
+import {createBrokerStdioTransport} from './broker-connectors.mjs';
 import {createConnectorService} from './connectors.mjs';
 import {createNos3Service} from './nos3.mjs';
 import {createLocalLinuxVmService} from './local-linux-vm.mjs';
@@ -33,6 +40,11 @@ import {createOrbitGroundRunner} from './orbit-ground-runner.mjs';
 import {createOrbitGroundService} from './orbit-ground.mjs';
 import {createOrbitGroundRoutes} from './orbit-ground-routes.mjs';
 import {createStfCaseService} from './stf-case.mjs';
+import {createSharedContainerRunner} from './shared-container-runner.mjs';
+import {createBrokerRunner} from './broker-runner.mjs';
+import {createModelGateway} from './model-gateway.mjs';
+import {createBrokerNativeRuntime} from './broker-native.mjs';
+import {createBrokerProcess,createBrokerFlightRpc,createBrokerNumericalRunner} from './broker-adapters.mjs';
 
 const defaultRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const ORBIT_GROUND_WORKER_SHA256='c7edd7901307227f2e2bda4a928c7db84925d2f8de4d7ef66665d99fa3e5ec08';
@@ -48,11 +60,22 @@ function publicTask(task){
 }
 async function optionalService(file,exportName,options){try{const module=await import(pathToFileURL(file));return await module[exportName](options);}catch(e){if(e.code==='ERR_MODULE_NOT_FOUND'&&e.message.includes(file))return null;throw e;}}
 export async function createStudioServer(options={}) {
+  const brokerMode=process.env.MANTA_EXECUTION_MODE==='broker';
+  if(brokerMode){
+    // Until these execution paths have their own broker transport, fail closed.
+    // Keep the existing shared deployment unchanged; broker mode is explicit.
+    options={...options,
+      localVm:false,stfCase:false};
+    if(process.env.MANTA_NOS3_VM_ROOT||options.vmRoot||process.env.MANTA_FLIGHT_SOCKET)throw Error('Broker mode cannot use shared VM/flight executors');
+  }
+  const brokerProcess=brokerMode?createBrokerProcess():null;
+  const flightRunner=brokerMode&&process.env.MANTA_BROKER_FLIGHT==='1'?createFlightContainerRunner({rpc:createBrokerFlightRpc()}):process.env.MANTA_FLIGHT_SOCKET?createFlightContainerRunner():null;
+  const containerRunner=options.containerRunner||(brokerMode?createBrokerRunner():process.env.MANTA_EXECUTION_MODE==='shared-container'?createSharedContainerRunner():null);
   const root=path.resolve(options.root||defaultRoot),dataDir=path.resolve(root,options.dataDir||process.env.MBSE_DATA_DIR||'data'),workspacesDir=path.resolve(root,options.workspacesDir||path.join(dataDir,'workspaces'));
   const settings=options.settings||await createSettingsService({dataDir});
   const getDefaultPermissionMode=()=>settings.get().defaultPermissionMode;
   const store=options.store||createStore({dataDir,workspacesDir,root,seed:options.seed!==false,addDefaultCodexProvider:options.addDefaultCodexProvider!==false,getDefaultPermissionMode});
-  const providers=options.providers||createProviderManager({store,fetchImpl:options.fetchImpl,codexPath:options.codexPath,codexRequiresApiKey:Boolean(options.engineOptions?.codexReadIsolation||options.engineOptions?.codexRemoteWorkspace)});
+  const providers=options.providers||createProviderManager({store,fetchImpl:options.fetchImpl,codexPath:options.codexPath,codexRequiresApiKey:brokerMode||Boolean(options.engineOptions?.codexReadIsolation||options.engineOptions?.codexRemoteWorkspace)});
   const codexModelCatalog=options.codexModelCatalog||createCodexModelCatalog({codexPath:options.codexPath});
   const subscribers=new Set();let engine;
   function emit(input){const event={id:id('event'),projectId:input.projectId||null,runId:input.runId||null,type:input.type||'update',message:providers.redact(input.message||''),data:redactPublicValue(input.data||{},providers.redact),createdAt:now()};store.data.events.push(event);if(store.data.events.length>4000)store.data.events.splice(0,store.data.events.length-4000);store.save();for(const client of subscribers)if(!client.projectId||event.projectId===client.projectId){client.res.write(`id: ${event.id}\nevent: update\ndata: ${JSON.stringify(event)}\n\n`);}return event;}
@@ -61,26 +84,27 @@ export async function createStudioServer(options={}) {
   const engineeringState=options.engineeringState===false?null:options.engineeringState||createEngineeringStateService(serviceOptions);
   const engineeringStateRoute=createEngineeringStateRoutes({service:engineeringState,jsonBody,send});
   const engineeringPlan=options.engineeringPlan===false?null:options.engineeringPlan||createEngineeringPlanService({store,emit});
-  const computer=options.computer===false?null:options.computer||await optionalService(path.join(root,'server/computer.mjs'),'createComputerService',serviceOptions);
+  const computer=options.computer===false?null:options.computer||(brokerMode?await createBrokerComputer(serviceOptions):await optionalService(path.join(root,'server/computer.mjs'),'createComputerService',serviceOptions));
   const evaluator=options.evaluator===false?null:options.evaluator||await optionalService(path.join(root,'server/evaluator.mjs'),'createEvaluator',serviceOptions);
-  const engineering=options.engineering===false?null:options.engineering||await optionalService(path.join(root,'server/engineering.mjs'),'createEngineeringService',serviceOptions);
-  const connectors=options.connectors===false?null:options.connectors||await createConnectorService({store,env:options.connectorEnv||process.env});
+  const engineering=options.engineering===false?null:options.engineering||await optionalService(path.join(root,'server/engineering.mjs'),'createEngineeringService',{...serviceOptions,...(brokerMode?{numericalRunner:createBrokerNumericalRunner()}: {})});
+  const connectors=options.connectors===false?null:options.connectors||await createConnectorService({store,env:options.connectorEnv||process.env,...(brokerMode?{stdioTransportFactory:createBrokerStdioTransport}:{})});
   let vmRoot=options.vmRoot||process.env.MANTA_NOS3_VM_ROOT;
-  if(!vmRoot){try{vmRoot=JSON.parse(await fsp.readFile(path.join(dataDir,'nos3/local-vm.json'),'utf8')).vmRoot;}catch(error){if(error.code!=='ENOENT')throw error;}}
+  if(!vmRoot&&!brokerMode){try{vmRoot=JSON.parse(await fsp.readFile(path.join(dataDir,'nos3/local-vm.json'),'utf8')).vmRoot;}catch(error){if(error.code!=='ENOENT')throw error;}}
   const localVm=options.localVm===false?null:options.localVm||(vmRoot?createLocalLinuxVmService({vmRoot,store,emit}):null);
-  const nos3=options.nos3===false?null:options.nos3||await createNos3Service({...serviceOptions,fetchImpl:options.workerFetchImpl,localVm});
+  const nos3=(options.nos3===false||brokerMode&&!flightRunner)?null:options.nos3||await createNos3Service({...serviceOptions,fetchImpl:options.workerFetchImpl,localVm,containerRunner:flightRunner,allowLocalComponent:!brokerMode,requireContainer:brokerMode});
   const modelBackend=options.modelBackend===false?null:options.modelBackend||await createModelBackendService(serviceOptions);
-  const professionalRunner=options.professionalRunner===false?null:options.professionalRunner||(vmRoot?(options.professionalMode==='generic-only'?createProfessionalRunnerService({vmRoot,store,dataDir,emit}):createProfessionalDispatcher({vmRoot,store,dataDir,emit})):null);
+  const professionalRunner=options.professionalRunner===false?null:options.professionalRunner||(containerRunner&&flightRunner?withFlightTools(containerRunner,flightRunner):containerRunner)||(vmRoot?(options.professionalMode==='generic-only'?createProfessionalRunnerService({vmRoot,store,dataDir,emit}):createProfessionalDispatcher({vmRoot,store,dataDir,emit})):null);
   const professionalModels=options.professionalModels===false?null:options.professionalModels||await createProfessionalModelsService({...serviceOptions,runner:professionalRunner,sysmlBackend:modelBackend});
   const geospatialEnabled=options.geospatial===true||(options.geospatial!==false&&options.professionalMode!=='generic-only');
-  const geospatialRunner=!geospatialEnabled||options.geospatialRunner===false?null:options.geospatialRunner||(vmRoot?createGeospatialRunner({vmRoot}):null);
+  const geospatialRunner=!geospatialEnabled||options.geospatialRunner===false?null:options.geospatialRunner||(brokerMode?createGeospatialContainerRunner({execute:brokerProcess}):process.env.MANTA_EXECUTION_MODE==='shared-container'?createGeospatialContainerRunner():vmRoot?createGeospatialRunner({vmRoot}):null);
   const geospatialJobs=!geospatialEnabled||options.geospatialJobs===false?null:options.geospatialJobs||(geospatialRunner?await createGeospatialJobsService({...serviceOptions,runner:geospatialRunner}):null);
   const geospatialRoute=createGeospatialRoutes({geospatialJobs,jsonBody,send});
   const orbit42Enabled=options.orbit42===true||(options.orbit42!==false&&options.professionalMode!=='generic-only');
-  const orbit42Jobs=!orbit42Enabled||options.orbit42Jobs===false?null:options.orbit42Jobs||(vmRoot?await createOrbit42Service({dataDir,store,vmRoot,emit,ensureVm:localVm?({projectId,signal})=>localVm.prepare({projectId},{signal}):undefined}):null);
-  const orbitGroundEnabled=options.orbitGround===true;
-  const orbitGroundRunner=!orbitGroundEnabled||options.orbitGroundRunner===false?null:options.orbitGroundRunner||(vmRoot?createOrbitGroundRunner({vmRoot,workerSha256:options.orbitGroundWorkerSha256||ORBIT_GROUND_WORKER_SHA256}):null);
+  const orbit42Jobs=!orbit42Enabled||options.orbit42Jobs===false?null:options.orbit42Jobs||((brokerMode||process.env.MANTA_EXECUTION_MODE==='shared-container')?await createOrbit42Service({dataDir,store,emit,containerRunner:createOrbit42ContainerRunner(brokerMode?{execute:brokerProcess}:{})}):vmRoot?await createOrbit42Service({dataDir,store,vmRoot,emit,ensureVm:localVm?({projectId,signal})=>localVm.prepare({projectId},{signal}):undefined}):null);
+  const orbitGroundEnabled=options.orbitGround===true||(options.orbitGround!==false&&(brokerMode||process.env.MANTA_EXECUTION_MODE==='shared-container'));
+  const orbitGroundRunner=!orbitGroundEnabled||options.orbitGroundRunner===false?null:options.orbitGroundRunner||(brokerMode?createOrbitGroundContainerRunner({execute:brokerProcess}):process.env.MANTA_EXECUTION_MODE==='shared-container'?createOrbitGroundContainerRunner():vmRoot?createOrbitGroundRunner({vmRoot,workerSha256:options.orbitGroundWorkerSha256||ORBIT_GROUND_WORKER_SHA256}):null);
   const orbitGroundJobs=!orbitGroundEnabled||options.orbitGroundJobs===false?null:options.orbitGroundJobs||(orbit42Jobs&&geospatialJobs&&orbitGroundRunner?await createOrbitGroundService({dataDir,store,orbit42Jobs,geospatialJobs,runner:orbitGroundRunner,emit,allowedCensusHashes:options.orbitGroundAllowedCensusHashes??null}):null);
+  const orbit42Route=createOrbit42Routes({orbit42Jobs,jsonBody,send});
   const orbitGroundRoute=createOrbitGroundRoutes({orbitGroundJobs,jsonBody,send});
   // Optional reference assets must be explicitly configured; never probe a sibling private workspace.
   const stfAssetsRoot=options.stfAssetsRoot||process.env.MANTA_STF_ASSETS_ROOT;
@@ -89,7 +113,9 @@ export async function createStudioServer(options={}) {
   const integrationRoute=createIntegrationRoutes({connectors,nos3,modelBackend,engineering,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,computer,jsonBody,send,emit});
   const workspaceViewer=createWorkspaceViewer({store,modelBackend,nos3,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,emit});
   const workspaceRoute=createWorkspaceViewerRoutes({viewer:workspaceViewer,send,jsonBody});
-  engine=createEngine({store,providers,emit,computer,engineering,engineeringState,engineeringPlan,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,connectors,nos3,modelBackend,commandExecutor:options.commandExecutor,webFetcher:options.webFetcher,assetFetcher:options.assetFetcher,getDefaultPermissionMode,codexPath:options.codexPath,...options.engineOptions});
+  const modelGateway=brokerMode?await createModelGateway({socketPath:process.env.MANTA_MODEL_SOCKET||'/model-control/model.sock'}):null;
+  const brokerAdapters=brokerMode?Object.fromEntries(['codex-app-server','claude-agent-sdk'].map(runtime=>[runtime,createBrokerNativeRuntime({runtime,gateway:modelGateway})])):undefined;
+  engine=createEngine({runtimeAdapters:brokerAdapters,hideUnavailableTools:brokerMode,store,providers,emit,computer,engineering,engineeringState,engineeringPlan,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,connectors,nos3,modelBackend,commandExecutor:options.commandExecutor||(containerRunner?args=>containerRunner.command(args):undefined),webFetcher:options.webFetcher,assetFetcher:options.assetFetcher,getDefaultPermissionMode,codexPath:options.codexPath,...options.engineOptions});
   let server;
   async function readDataset(){try{const parsed=JSON.parse(await fsp.readFile(path.join(root,'datasets/real-issues.v1.json'),'utf8'));return {tasks:Array.isArray(parsed)?parsed:parsed.tasks||parsed.issues||[],summary:parsed.summary||{},meta:parsed.meta||{}};}catch(e){if(e.code==='ENOENT')return{tasks:[],summary:{count:0,status:'dataset-not-installed'},meta:{}};throw e;}}
   function requireRow(collection,key){const row=store.get(collection,key);if(!row)throw new HttpError(404,`${collection.slice(0,-1)} not found`);return row;}
@@ -124,7 +150,7 @@ export async function createStudioServer(options={}) {
     const url=new URL(req.url,`http://${req.headers.host}`),parts=url.pathname.split('/').filter(Boolean).map(p=>decodeURIComponent(p));
     if(parts[0]!=='api') {
       if(req.method!=='GET'&&req.method!=='HEAD')throw new HttpError(405,'Method not allowed');
-      const sharedName={'/shared/run-presentation.mjs':'run-presentation.mjs','/shared/task-tree.mjs':'task-tree.mjs'}[url.pathname],sharedModule=Boolean(sharedName);if(url.pathname.startsWith('/shared/')&&!sharedModule)throw new HttpError(404,'Shared module not found');const relative=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname).replace(/^\//,'');const file=sharedModule?safePath(path.join(root,'shared'),sharedName):safePath(path.join(root,'public'),relative);let stat;
+      const sharedName={'/shared/run-presentation.mjs':'run-presentation.mjs','/shared/task-tree.mjs':'task-tree.mjs','/shared/mcp-network.mjs':'mcp-network.mjs'}[url.pathname],sharedModule=Boolean(sharedName);if(url.pathname.startsWith('/shared/')&&!sharedModule)throw new HttpError(404,'Shared module not found');const relative=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname).replace(/^\//,'');const file=sharedModule?safePath(path.join(root,'shared'),sharedName):safePath(path.join(root,'public'),relative);let stat;
       try{stat=await fsp.stat(file);}catch{throw new HttpError(404,'File not found');}if(!stat.isFile())throw new HttpError(404,'File not found');
       res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','content-length':stat.size,'content-security-policy':`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors ${relative==='engineering.html'?"'self'":"'none'"}`});if(req.method==='HEAD')res.end();else fs.createReadStream(file).pipe(res);return;
     }
@@ -137,7 +163,7 @@ export async function createStudioServer(options={}) {
       throw new HttpError(405,'Method not allowed');
     }
     if(method==='GET'&&parts[1]==='bootstrap') {
-      const dataset=await readDataset();return send(res,200,{settings:settings.get(),projects:store.data.projects,threads:redactPublicValue(store.data.threads.map(engine.overview),providers.redact),providers:providers.list(),runs:redactPublicValue(store.data.runs.slice(-100),providers.redact),agents:redactPublicValue(store.data.agents.slice(-200),providers.redact),artifacts:store.data.artifacts,approvals:store.data.approvals.filter(a=>a.status==='pending').map(a=>redactPublicValue(a,providers.redact)),capabilities:{tools:engine.runtime.definitions.map(t=>t.name),nodeTypes:NODE_TYPES,linkTypes:LINK_TYPES,computer:computer?.status()||{browser:{available:false,status:'module-unavailable'},desktop:{available:false,status:'module-unavailable'}},commandSandbox:commandSandboxAvailable(),knowledgeSearch:'keyword-text-search (not embeddings)',evaluation:evaluator?'explicit-scope-evaluator':'unavailable',agentRuntimes:['codex-app-server','claude-agent-sdk','openai-agents-sdk'],modelSDKs:['openai','@anthropic-ai/sdk'],visionProviders:['openai-compatible','openai-responses','anthropic','ollama','codex-app-server','claude-agent'],externalMcp:connectors?'project-scoped-mcp-sdk':'unavailable',modelBackend:modelBackend?'pinned-sysml-wasm':'unavailable',nos3:nos3?'component-and-managed-linux-or-remote-worker':'unavailable',engineering:engineering?'actual-numerical-models':'unavailable',threadCoordination:'durable-coordinator-and-asynchronous-workers',permissionModes:{default:getDefaultPermissionMode(),manual:'Project mutation tools require explicit approval',auto:'Project changes, engineering and OS-sandboxed commands run automatically; native desktop/remote computer still require approval',native:'Codex uses workspace-write plus on-request in Auto. Claude uses native SDK auto classification when available, with unresolved approvals forwarded; its classifier/hooks are not an OS sandbox.',scope:'Run mode is fixed; only explicit user requests can change a later run'},limits:{defaultResources:DEFAULT_RESOURCES,maxToolTurns:options.engineOptions?.maxTurns||12}},datasetSummary:{...dataset.summary,count:dataset.tasks.length}});
+      const dataset=await readDataset();return send(res,200,{settings:settings.get(),projects:store.data.projects,threads:redactPublicValue(store.data.threads.map(engine.overview),providers.redact),providers:providers.list(),runs:redactPublicValue(store.data.runs.slice(-100),providers.redact),agents:redactPublicValue(store.data.agents.slice(-200),providers.redact),artifacts:store.data.artifacts,approvals:store.data.approvals.filter(a=>a.status==='pending').map(a=>redactPublicValue(a,providers.redact)),capabilities:{managedProjects:Boolean(process.env.MANTA_PROJECTS_ROOT),tools:engine.runtime.definitions.map(t=>t.name),nodeTypes:NODE_TYPES,linkTypes:LINK_TYPES,computer:computer?.status()||{browser:{available:false,status:'module-unavailable'},desktop:{available:false,status:'module-unavailable'}},commandExecution:containerRunner?await containerRunner.status():null,commandSandbox:containerRunner?Boolean((await containerRunner.status()).ready&&(await containerRunner.status()).isolated):commandSandboxAvailable(),knowledgeSearch:'keyword-text-search (not embeddings)',evaluation:evaluator?'explicit-scope-evaluator':'unavailable',agentRuntimes:process.env.MANTA_NATIVE_AGENTS==='disabled'?['openai-agents-sdk']:['codex-app-server','claude-agent-sdk','openai-agents-sdk'],modelSDKs:['openai','@anthropic-ai/sdk'],visionProviders:['openai-compatible','openai-responses','anthropic','ollama','codex-app-server','claude-agent'],externalMcp:connectors?'project-scoped-mcp-sdk':'unavailable',modelBackend:modelBackend?'pinned-sysml-wasm':'unavailable',nos3:nos3?'component-and-managed-linux-or-remote-worker':'unavailable',engineering:engineering?'actual-numerical-models':'unavailable',threadCoordination:'durable-coordinator-and-asynchronous-workers',permissionModes:{default:getDefaultPermissionMode(),manual:'Project mutation tools require explicit approval',auto:'Project changes, engineering and configured commands run automatically; execution isolation is reported by commandExecution; native desktop/remote computer still require approval',native:'Codex uses workspace-write plus on-request in Auto. Claude uses native SDK auto classification when available, with unresolved approvals forwarded; its classifier/hooks are not an OS sandbox.',scope:'Run mode is fixed; only explicit user requests can change a later run'},limits:{defaultResources:DEFAULT_RESOURCES,maxToolTurns:options.engineOptions?.maxTurns||12}},datasetSummary:{...dataset.summary,count:dataset.tasks.length}});
     }
     if(method==='GET'&&parts[1]==='events') {
       const projectId=url.searchParams.get('projectId');if(projectId)requireRow('projects',projectId);
@@ -145,7 +171,13 @@ export async function createStudioServer(options={}) {
       const since=req.headers['last-event-id'];if(since){const at=store.data.events.findIndex(x=>x.id===since);if(at>=0)for(const e of store.data.events.slice(at+1))if(!projectId||e.projectId===projectId)res.write(`id: ${e.id}\nevent: update\ndata: ${JSON.stringify(redactPublicValue(e,providers.redact))}\n\n`);}
       const client={res,projectId};subscribers.add(client);const heartbeat=setInterval(()=>res.write(': heartbeat\n\n'),15000);heartbeat.unref();req.on('close',()=>{subscribers.delete(client);clearInterval(heartbeat);});return;
     }
-    if(parts[1]==='projects'&&parts.length===2&&method==='POST'){const body=await jsonBody(req);const p=store.createProject({folderPath:textField(body.folderPath,'folderPath',{required:true,max:4096}),name:textField(body.name,'name',{required:true,max:120}),description:textField(body.description,'description',{max:10000}),instructions:textField(body.instructions,'instructions',{max:50000}),resources:resourceFields(body.resources)});emit({projectId:p.id,type:'project.created',message:p.name,data:p});return send(res,201,p);}
+    if(parts[1]==='projects'&&parts.length===2&&method==='POST'){const body=await jsonBody(req);
+      textField(body.name,'name',{required:true,max:120});
+      if(!body.folderPath&&process.env.MANTA_PROJECTS_ROOT){
+        const managedRoot=await fsp.realpath(process.env.MANTA_PROJECTS_ROOT);
+        body.folderPath=await fsp.mkdtemp(path.join(managedRoot,'project-'));
+      }
+      const p=store.createProject({folderPath:textField(body.folderPath,'folderPath',{required:true,max:4096}),name:textField(body.name,'name',{required:true,max:120}),description:textField(body.description,'description',{max:10000}),instructions:textField(body.instructions,'instructions',{max:50000}),resources:resourceFields(body.resources)});emit({projectId:p.id,type:'project.created',message:p.name,data:p});return send(res,201,p);}
     if(parts[1]==='projects'&&parts[2]) {
       const p=requireRow('projects',parts[2]);
       if(parts[3]==='engineering-plan'&&parts.length===4){
@@ -155,6 +187,7 @@ export async function createStudioServer(options={}) {
         throw new HttpError(405,'不支持此工程计划操作');
       }
       if(await professionalRoute({req,res,parts,project:p}))return;
+      if(await orbit42Route({req,res,parts,project:p}))return;
       if(await geospatialRoute({req,res,parts,project:p}))return;
       if(await orbitGroundRoute({req,res,parts,project:p}))return;
       if(await engineeringStateRoute({req,res,parts,project:p}))return;
@@ -192,7 +225,7 @@ export async function createStudioServer(options={}) {
       if(method==='PATCH'&&parts[2]&&parts.length===3){requireRow('providers',parts[2]);if(store.data.runs.some(r=>r.providerId===parts[2]&&['running','queued','waiting_approval'].includes(r.status)))throw new HttpError(409,'连接正在运行中，请完成或停止后再修改。');const value=providers.update(parts[2],await jsonBody(req));emit({type:'provider.updated',message:value.name});return send(res,200,value);}
       if(method==='POST'&&parts.length===2){const p=providers.create(await jsonBody(req));emit({type:'provider.created',message:p.name});return send(res,201,p);}
       if(method==='DELETE'&&parts[2]){const p=requireRow('providers',parts[2]);if(p.id==='demo')throw new HttpError(400,'The offline demo provider is required');if(store.data.runs.some(r=>r.providerId===p.id&&['running','queued','waiting_approval'].includes(r.status)))throw new HttpError(409,'Provider is used by an active run');providers.remove(p.id);return send(res,200,{ok:true});}
-      if(method==='POST'&&parts[3]==='test'){await jsonBody(req);requireRow('providers',parts[2]);const testRoot=options.engineOptions?.codexRemoteWorkspace?.hostRoot||dataDir;const temporary=await fsp.mkdtemp(path.join(testRoot,'test-'));let result;try{result=await engine.testProvider(parts[2],{workspace:temporary});}catch(error){result={ok:false,message:providers.redact(error.message)};}finally{await fsp.rm(temporary,{recursive:true,force:true});}return send(res,200,result);}
+      if(method==='POST'&&parts[3]==='test'){await jsonBody(req);requireRow('providers',parts[2]);const testRoot=brokerMode?process.env.MANTA_PROJECTS_ROOT:options.engineOptions?.codexRemoteWorkspace?.hostRoot||dataDir;const temporary=await fsp.mkdtemp(path.join(testRoot,brokerMode?'project-':'test-'));let result;try{result=await engine.testProvider(parts[2],{workspace:temporary});}catch(error){result={ok:false,message:providers.redact(error.message)};}finally{await fsp.rm(temporary,{recursive:true,force:true});}return send(res,200,result);}
     }
     if(parts[1]==='benchmarks') {
       const dataset=await readDataset();
@@ -238,7 +271,7 @@ export async function createStudioServer(options={}) {
     }
     if(parts[1]==='computer') {
       if(!computer)throw new HttpError(503,'Computer module unavailable');
-      if(method==='GET'&&parts[2]==='status')return send(res,200,await computer.status());
+      if(method==='GET'&&parts[2]==='status'){await computer.refresh?.();return send(res,200,await computer.status());}
       if(method==='POST'&&parts[2]==='action'){const b=await jsonBody(req);requireRow('projects',b.projectId);if(typeof b.action!=='string')throw new HttpError(400,'action is required');const result=await computer.action({projectId:b.projectId,action:b.action,args:b.args||{}},{source:'user'});return send(res,200,result);}
       if(method==='GET'&&parts[2]==='screenshots'&&parts[3]){const shot=await computer.readScreenshot(parts[3]);res.writeHead(200,{'content-type':shot.contentType,'cache-control':'no-store'});return res.end(shot.buffer);}
     }
@@ -246,7 +279,7 @@ export async function createStudioServer(options={}) {
   }
   server=http.createServer((req,res)=>route(req,res).catch(e=>{if(res.headersSent){res.destroy();return;}const message=providers.redact(e.message||'Internal server error');send(res,e.status||e.statusCode||(e.code==='ENOENT'?404:400),{error:message});}));
   server.requestTimeout=30000;server.headersTimeout=10000;
-  return {server,store,settings,providers,engine,computer,evaluator,engineering,engineeringState,engineeringPlan,professionalModels,professionalRunner,geospatialJobs,geospatialRunner,orbit42Jobs,orbitGroundJobs,orbitGroundRunner,stfCase,connectors,nos3,modelBackend,localVm,emit,async listen({port=Number(process.env.PORT)||4317,host='127.0.0.1'}={}){if(!['127.0.0.1','::1'].includes(host))throw new Error('MBSE Studio must bind to a loopback address');await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,resolve);});computer?.setBaseUrl?.(`http://${host==='::1'?'[::1]':host}:${server.address().port}`);return server.address();},async close(){for(const c of subscribers)c.res.end();subscribers.clear();await engine.close();await geospatialJobs?.close?.();await geospatialRunner?.close?.();await orbit42Jobs?.close?.();await orbitGroundJobs?.close?.();await orbitGroundRunner?.close?.();await professionalModels?.close?.();await professionalRunner?.close?.();await nos3?.close?.();await localVm?.close?.();await connectors?.close?.();await modelBackend?.close?.();await computer?.close?.();if(server.listening)await new Promise(resolve=>server.close(resolve));}};
+  return {server,store,settings,providers,engine,computer,evaluator,engineering,engineeringState,engineeringPlan,professionalModels,professionalRunner,geospatialJobs,geospatialRunner,orbit42Jobs,orbitGroundJobs,orbitGroundRunner,stfCase,connectors,nos3,modelBackend,localVm,emit,async listen({port=Number(process.env.PORT)||4317,host='127.0.0.1'}={}){if(!['127.0.0.1','::1'].includes(host))throw new Error('MBSE Studio must bind to a loopback address');await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,host,resolve);});computer?.setBaseUrl?.(`http://${host==='::1'?'[::1]':host}:${server.address().port}`);return server.address();},async close(){for(const c of subscribers)c.res.end();subscribers.clear();await engine.close();await modelGateway?.close();await geospatialJobs?.close?.();await geospatialRunner?.close?.();await orbit42Jobs?.close?.();await orbitGroundJobs?.close?.();await orbitGroundRunner?.close?.();await professionalModels?.close?.();await professionalRunner?.close?.();await nos3?.close?.();await localVm?.close?.();await connectors?.close?.();await modelBackend?.close?.();await computer?.close?.();if(server.listening)await new Promise(resolve=>server.close(resolve));}};
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const app=await createStudioServer();const address=await app.listen();process.stdout.write(`MBSE Studio is running at http://127.0.0.1:${address.port}\n`);
