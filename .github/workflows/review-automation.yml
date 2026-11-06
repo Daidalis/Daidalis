@@ -17,8 +17,8 @@ permissions:
 jobs:
   review:
     name: AI review and summary
-    # Isolated self-hosted ARM64 runner on the lab server.
-    runs-on: [self-hosted, Linux, ARM64]
+    # Dedicated x64 runner for AI review.
+    runs-on: [self-hosted, Linux, X64, daidalis-ai-review]
     timeout-minutes: 30
     concurrency:
       # Active reviews share one group; skipped events cannot cancel them.
@@ -107,6 +107,7 @@ jobs:
           # (an HTML page is served instead of the script), so use the
           # claude binary preinstalled on the self-hosted runner.
           path_to_claude_code_executable: /usr/local/bin/claude
+          path_to_bun_executable: /usr/local/bin/bun
           allowed_bots: 'github-actions[bot]'
           classify_inline_comments: 'false'
           show_full_output: 'false'
