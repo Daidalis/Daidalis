@@ -54,6 +54,19 @@ and the result of the most recent actual search. Opening the catalog never
 installs software or sends a search. Errors, rate limits and cancellation are
 reported explicitly; the adapter does not retry a search in a loop or turn
 failures into an empty successful result.
+Empty replies or replies whose URLs are all unusable are reported as “no usable
+public links”; they do not mark search as ready.
+
+After installing the project environment, its real CLI/Exa protocol regression
+can be run without public search traffic:
+
+```bash
+MANTA_TEST_AGENT_REACH_BIN="$PWD/.local/agent-reach/bin/agent-reach" node --test tests/web-search-http.test.mjs
+```
+
+This check uses the installed CLI and a local HTTP transport fixture to exercise
+result parsing and cooldown. A separate live query is needed to check public
+service availability.
 
 Pinned source: `c70ae6da5d39bc90e09ad2ae0575ccc89f31e284` (MIT).
 Archive SHA-256: `291d7de701e7596055cad979064986000101613d4de4ea128cc653ad14164e81`.

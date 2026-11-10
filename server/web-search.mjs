@@ -13,7 +13,7 @@ const text=(value,limit)=>typeof value==='string'?value.slice(0,limit):'';
 function resultUrl(value){
   if(typeof value!=='string'||value.length>4096)return null;
   try{
-    const url=new URL(value),host=url.hostname.replace(/^\[|\]$/g,'');
+    const url=new URL(value),host=url.hostname.replace(/^\[|\]$/g,'').replace(/\.+$/,'');
     if(!['http:','https:'].includes(url.protocol)||url.username||url.password||host==='localhost'||host==='metadata.google.internal'||/\.(?:localhost|local|internal)$/.test(host)||net.isIP(host)&&isPrivateAddress(host))return null;
     return url.href;
   }catch{return null;}
@@ -74,6 +74,7 @@ export function createWebSearchService({root=process.cwd(),dataDir,command=proce
       }
       if(signal?.aborted)throw Error('Cancelled');
       if(Date.now()>=deadline)throw failure('WEB_SEARCH_TIMEOUT','网页搜索达到执行时限。');
+      if(!results.length)throw failure('WEB_SEARCH_NO_PUBLIC_RESULTS','搜索回执未包含可用的公开网页链接，尚未获取资料；可调整关键词后重试。');
       lastSearchAt=new Date().toISOString();lastErrorCode=null;
       return {provider:'agent-reach',backend:text(output.backend,80),query,results,omittedResults,truncated,retrievedAt:lastSearchAt,durationMs:Date.now()-started,untrusted:true};
     }catch(error){

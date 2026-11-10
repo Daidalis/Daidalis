@@ -39,6 +39,14 @@ test('search bounds text and counts omitted private, credential-bearing and non-
   const result=await h.service.search({query:'model',limit:10});assert.equal(result.results.length,1);assert.equal(result.omittedResults,9);assert.equal(result.results[0].title.length,300);assert.equal(result.results[0].snippet.length,2500);assert.equal(result.results[0].publishedAt,'2026-11-10');assert.equal(result.truncated,true);
 });
 
+test('empty or unusable public source lists never count as a successful search',async t=>{
+  for(const items of [[],[{url:'file:///etc/passwd'},{url:'https://127.0.0.1/private'}],[{url:'http://localhost./private'},{url:'https://host.local./private'},{url:'https://metadata.google.internal./'}]]){
+    const h=await fixture(t,{answer:output(items)});
+    await assert.rejects(h.service.search({query:'Model 3'}),error=>error.code==='WEB_SEARCH_NO_PUBLIC_RESULTS');
+    assert.equal(h.service.catalog().ready,false);assert.equal(h.service.catalog().status,'blocked');
+  }
+});
+
 test('rate limits and upstream errors are explicit, update status, and never trigger a retry loop',async t=>{
   for(const code of ['RATE_LIMITED','TIMEOUT','NEED_SETUP','UPSTREAM_BROKEN']){
     const h=await fixture(t,{answer:{schema_version:1,ok:false,error:{code,message:'private upstream diagnostic'},items:[]}});
