@@ -27,6 +27,8 @@ npm dependencies are obtained by npm ci and are not bundled into this Git source
 
 The current direct packages declare Apache-2.0 (openai, @anthropic-ai/sdk, playwright), MIT (@openai/agents, @modelcontextprotocol/sdk, zod), or their own README terms (@anthropic-ai/claude-agent-sdk: SEE LICENSE IN README.md). Claude Agent SDK's README refers to Anthropic's commercial terms. Native Codex, Claude Code, model services and external solvers remain subject to their own terms; the Manta license does not relicense or supply them.
 
+Agent Reach 1.6.1 is installed separately by scripts/install-agent-reach.py and included in the Docker application image. Its pinned source is https://github.com/Panniantong/agent-reach/tree/c70ae6da5d39bc90e09ad2ae0575ccc89f31e284 (MIT, Copyright (c) 2025 Agent Eyes). Retain the installed package's agent_reach-1.6.1.dist-info/licenses/LICENSE and the package-local notices of its Python dependencies when distributing the runtime. The installer records the source revision and archive SHA-256 in daidalis-source.json inside its virtual environment; no Agent Reach source archive is bundled in this Git distribution.
+
 ## Website, examples and recorded numerical evidence
 
 The static website contains Manta-authored presentation code/narrative, a curated model recipe and numerical outputs recorded by Manta from a selected integration run. It does not contain an upstream NOS3/cFS/42 program distribution or a verbatim private chat transcript. Keep the evidence origin, recorded date, scope and limitations in website/dist/assets/evidence/README.md. Public task-source references in datasets/ remain under their source terms; Manta's original curation does not transfer rights in the cited source material.
