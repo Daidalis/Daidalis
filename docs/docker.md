@@ -64,6 +64,10 @@ multi-user authenticated service. Ports 8080 and 8081 are reserved internally.
 
 ## API request and execution budgets
 
+The application image also includes the pinned Agent Reach public keyword
+search runtime. The API Agent can discover URLs with `web_search` and read them
+with `web_fetch`; see [public web search](web-search.md) for setup and limits.
+
 In **设置 → 模型与 API → 编辑**, API connections expose a per-request timeout
 (default 300 seconds, range 1–1800) and retry count (default 2, range 0–5).
 The client retries only the outstanding model request on timeouts, connection

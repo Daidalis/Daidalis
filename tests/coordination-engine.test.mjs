@@ -10,7 +10,7 @@ const RUNTIMES=['codex-app-server','claude-agent-sdk','openai-agents-sdk'];
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 async function eventually(check,label='condition',timeout=3000){const end=Date.now()+timeout;while(Date.now()<end){if(check())return;await new Promise(r=>setTimeout(r,5));}assert.fail('Timed out: '+label);}
 function gate(promise,signal){let abort;return new Promise((resolve,reject)=>{abort=()=>reject(Object.assign(new Error('Native fixture interrupted'),{name:'AbortError'}));if(signal.aborted)return abort();signal.addEventListener('abort',abort,{once:true});promise.then(resolve,reject);}).finally(()=>signal.removeEventListener('abort',abort));}
-async function fixture(t,handler,{resources={},runTimeoutMs=4000,autoResumeDebounceMs=5,webFetcher}={}){
+async function fixture(t,handler,{resources={},runTimeoutMs=4000,autoResumeDebounceMs=5,webFetcher,webSearch}={}){
   const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-coordination-engine-'))),dataDir=path.join(root,'data'),store=createStore({dataDir,seed:false}),calls=[],events=[];let sequence=0;
   store.add('providers',{id:'api-profile',name:'Custom API fixture',type:'openai-responses',baseUrl:'https://example.test/v1',model:'fixture'});
   const providers={getConfig:key=>structuredClone(store.get('providers',key)),list:()=>store.data.providers.map(p=>({...p,configured:true})),redact:value=>String(value),complete(){throw new Error('No inner Agent loop may replace native adapters');}};
@@ -19,7 +19,7 @@ async function fixture(t,handler,{resources={},runTimeoutMs=4000,autoResumeDebou
     const completion=Promise.resolve().then(async()=>{options.onSession(sessionId);const result=await handler(call);return {sessionId,content:'Fixture finding',...result};});
     return {completion,async steer(text){call.steerings.push(text);return {accepted:true,delivery:'native-fixture'};},cancel(){call.cancelled=true;}};
   }}]));
-  const engine=createEngine({store,providers,runtimeAdapters:adapters,autoResumeDebounceMs,runTimeoutMs,webFetcher,emit:event=>{const recorded={id:id('event'),createdAt:now(),...structuredClone(event)};events.push(recorded);store.data.events.push(recorded);store.save();}});
+  const engine=createEngine({store,providers,runtimeAdapters:adapters,autoResumeDebounceMs,runTimeoutMs,webFetcher,webSearch,emit:event=>{const recorded={id:id('event'),createdAt:now(),...structuredClone(event)};events.push(recorded);store.data.events.push(recorded);store.save();}});
   const project=store.createProject({name:'Evidence handoff integration',resources:{maxAutoResumes:2,...resources}}),thread=store.get('threads',project.coordinatorThreadId);
   const h={root,dataDir,store,engine,project,thread,calls,events};
   t.after(async()=>{await engine.close();await fs.rm(root,{recursive:true,force:true});});return h;
@@ -116,6 +116,9 @@ test('Coordinator source fetches wait for an owning thread and its handoff is a 
     }
     assignment=await options.executeTool('start_thread',{name:'Public sources',task:'Investigate primary public sources',taskKey:'source-investigation',workKind:'public_sources'});
     assert.equal(assignment.thread.taskContract.workKind,'public_sources');
+    const blockedSearch=await options.executeTool('web_search',{query:'duplicate source investigation'});
+    assert.match(blockedSearch.error,/assigned to Public sources/);
+    assert.equal(fetchedUrls.includes('search:duplicate source investigation'),false);
     const blocked=await options.executeTool('web_fetch',{url:'https://example.org/duplicate'});
     assert.match(blocked.error,/assigned to Public sources/);
     assert.equal(fetchedUrls.includes('https://example.org/duplicate'),false,'Coordinator must not issue a network request while the worker owns source research');
@@ -124,7 +127,7 @@ test('Coordinator source fetches wait for an owning thread and its handoff is a 
     const independent=await options.executeTool('web_fetch',{url:'https://example.org/review'});
     assert.equal(independent.text,'Bounded source fixture');
     return {content:'Source task handed off; independent review may proceed.'};
-  },{resources:{maxAutoResumes:0},webFetcher:async url=>{fetchedUrls.push(url);return {text:'Bounded source fixture'};}});
+  },{resources:{maxAutoResumes:0},webFetcher:async url=>{fetchedUrls.push(url);return {text:'Bounded source fixture'};},webSearch:{search:async({query})=>{fetchedUrls.push('search:'+query);return {results:[]};}}});
   const {run}=start(h);await eventually(()=>run.executionPhase==='waiting_tasks'||!h.engine.active.has(run.id));
   assert.equal(run.executionPhase,'waiting_tasks',run.error||'Coordinator ended before waiting for public sources');
   workerGate.resolve();await finished(h,run);

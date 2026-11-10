@@ -152,3 +152,14 @@ test('presentation uses only known actions, statuses and workflow stages',()=>{
   const result=buildEngineeringRegistry(base);assert.equal(result.schema,'manta-engineering-capabilities-v1');assert.equal(result.projectId,base.projectId);assert.ok(!Number.isNaN(Date.parse(result.observedAt)));
   for(const entry of result.entries){assert.ok(actions.has(entry.action));assert.ok(statuses.has(entry.status));assert.ok(entry.stages.every(stage=>stages.has(stage)));assert.equal(typeof entry.integrated,'boolean');assert.equal(typeof entry.ready,'boolean');}
 });
+
+test('web search readiness follows observed searches; catalog reads never send a query',async()=>{
+ let reads=0;
+ const webSearch={catalog(){reads++;return {installed:true,ready:false,status:'configured'};},search(){assert.fail('catalog must not search');}};
+ const catalog=await collectEngineeringCatalog({projectId:base.projectId,webSearch});
+ assert.equal(reads,1);assert.equal(item(catalog.registry,'web-search').ready,false);assert.equal(item(catalog.registry,'web-search').status,'configured');
+ const limited=item(buildEngineeringRegistry({...base,webSearch:{installed:true,ready:false,status:'blocked',lastErrorCode:'WEB_SEARCH_RATE_LIMITED'}}),'web-search');
+ assert.equal(limited.ready,false);assert.equal(limited.status,'blocked');assert.match(limited.reason,/限流/);
+ const ready=item(buildEngineeringRegistry({...base,webSearch:{installed:true,ready:true,status:'ready'}}),'web-search');
+ assert.equal(ready.ready,true);assert.deepEqual(ready.operations,['web_search','web_fetch']);
+});
