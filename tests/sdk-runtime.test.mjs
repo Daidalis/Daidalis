@@ -81,3 +81,29 @@ test('official SDK steering releases pending wait and delivers the queued next u
  assert.equal(toolSignal.aborted,true);assert.equal(executions,1);assert.equal(calls,3);assert.ok(requests[1].messages.some(m=>m.role==='tool'&&m.content.includes('interrupted')));assert.ok(requests[2].messages.some(m=>m.role==='user'&&m.content.includes('Change dependency')));
  release({lateSuccess:true});await new Promise(r=>setImmediate(r));assert.equal(calls,3);
 });
+
+test('turn-budget continuation resumes recorded results without replaying tools or duplicating user input',async t=>{
+ const dir=await temp(t),events=[],executions=[],requests=[];let calls=0;
+ const runtime=createSdkRuntime({dataDir:dir,providers:{complete:async(_id,request)=>{requests.push(request);calls++;return calls<=2?{content:'',toolCalls:[{id:'unique_'+calls,name:'read_spec',args:{path:'spec'+calls+'.md'}}],usage:{inputTokens:10,outputTokens:2}}:{content:'Complete after continuation',toolCalls:[],usage:{inputTokens:20,outputTokens:3}};}}});
+ const result=await runtime.startTurn({providerId:'p',workspace:dir,input:'Original task',maxTurns:2,maxContinuations:1,tools:[tool],executeTool:async(_name,args)=>{executions.push(args.path);return {path:args.path,verified:true};},onEvent:e=>events.push(e)}).completion;
+ assert.equal(result.content,'Complete after continuation');assert.deepEqual(executions,['spec1.md','spec2.md']);assert.equal(calls,3);
+ assert.equal(requests[2].messages.filter(m=>m.content==='Original task').length,1);assert.equal(requests[2].messages.filter(m=>m.role==='tool').length,2);
+ assert.equal(events.filter(e=>e.type==='sdk.turn.continued').length,1);assert.equal(result.usage.length,3);
+});
+
+test('continuation allowance is bounded and exhausted history can be manually resumed',async t=>{
+ const dir=await temp(t);let calls=0,executions=0,sessionId;
+ const runtime=createSdkRuntime({dataDir:dir,providers:{complete:async()=>({content:'',toolCalls:[{id:'bounded_'+(++calls),name:'read_spec',args:{path:'x'}}]})}});
+ await assert.rejects(runtime.startTurn({providerId:'p',workspace:dir,input:'Bounded task',maxTurns:2,maxContinuations:1,tools:[tool],executeTool:async()=>({execution:++executions}),onSession:id=>sessionId=id}).completion,/Max turns/);
+ assert.equal(calls,4);assert.equal(executions,4);
+ const saved=JSON.parse(await fs.readFile(path.join(dir,'sdk-sessions',sessionId+'.json'),'utf8'));assert.equal(saved.items.filter(i=>i.type==='function_call_result').length,4);
+ const resumed=createSdkRuntime({dataDir:dir,providers:{complete:async(_id,request)=>{assert.equal(request.messages.filter(m=>m.role==='tool').length,4);return {content:'Resumed'};}}});
+ assert.equal((await resumed.startTurn({providerId:'p',workspace:dir,sessionId,input:'Continue',tools:[tool],executeTool:async()=>assert.fail('completed tools replayed')}).completion).content,'Resumed');
+});
+
+test('user cancellation at the continuation boundary cannot restart the model',async t=>{
+ const dir=await temp(t),controller=new AbortController();let calls=0;
+ const runtime=createSdkRuntime({dataDir:dir,providers:{complete:async()=>({content:'',toolCalls:[{id:'cancel_'+(++calls),name:'read_spec',args:{path:'x'}}]})}});
+ await assert.rejects(runtime.startTurn({providerId:'p',workspace:dir,input:'Cancel at budget',signal:controller.signal,maxTurns:1,maxContinuations:1,tools:[tool],executeTool:async()=>({ok:true}),onEvent:e=>{if(e.type==='sdk.turn.continued')controller.abort();}}).completion,/Cancelled|abort/i);
+ assert.equal(calls,1);
+});
