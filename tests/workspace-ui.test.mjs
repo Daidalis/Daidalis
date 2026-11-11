@@ -9,7 +9,7 @@ test('workspace links accept project files and normalize report-relative navigat
  for(const path of ['/workspace/NOS3-other/secrets.txt','../other-project/file','models/../../outside','https://example.com','file:///private/secret','models\\a.sysml','x\0y'])assert.throws(()=>projectRelativePath(path,'/workspace/NOS3'));
 });
 
-import {createWorkspaceUI} from '../public/workspace-ui.mjs';
+import {workspaceFileTitle,createWorkspaceUI} from '../public/workspace-ui.mjs';
 
 test('recorded result files and registered artifacts resolve into their project simulation, with a raw escape',async()=>{
  const requests=[],project={id:'p1',folderPath:'/work/nos3'},jobId='nos3_owned';
@@ -34,7 +34,13 @@ test('late resolution cannot open a job after the active project changed',async(
  assert.equal(calls.filter(route=>route.includes('/simulations/')).length,0);assert.ok(calls.some(route=>route.includes('/p2/workspace/file')));
 });
 
-import {workspaceFileTitle} from '../public/workspace-ui.mjs';
+test('SysML FMI simulation rows open the pinned professional result instead of the NOS3 viewer',async()=>{
+ const opened=[],project={id:'p1',folderPath:'/work/p1'},jobId='professional_'+'a'.repeat(32);
+ const ui=createWorkspaceUI({getProject:()=>project,onProfessionalJob:async id=>opened.push(id),api:async()=>({})});
+ await ui.openSimulationJob(jobId,'professional');
+ assert.deepEqual(opened,[jobId]);
+});
+
 test('known artifact labels use exact project/path metadata while unregistered filenames remain unchanged',()=>{
  const artifact={projectId:'p1',path:'artifacts/artifact_id-report',name:'工程交付报告'};assert.equal(workspaceFileTitle(artifact.path,[artifact],'p1'),'工程交付报告');assert.equal(workspaceFileTitle(artifact.path,[artifact],'p2'),'artifact_id-report');assert.equal(workspaceFileTitle('docs/README.md',[],'p1'),'README.md');
 });

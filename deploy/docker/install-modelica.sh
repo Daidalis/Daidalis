@@ -2,9 +2,10 @@
 set -eu
 if [ "${WITH_MODELICA:-0}" = 0 ]; then exit 0; fi
 if [ "${WITH_MODELICA:-0}" != 1 ]; then echo 'WITH_MODELICA must be 0 or 1' >&2; exit 2; fi
-apt-get update
+apt-get -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
 rm -f /etc/apt/apt.conf.d/docker-clean
 printf 'APT::Keep-Downloaded-Packages "true";\nBinary::apt::APT::Keep-Downloaded-Packages "true";\n' > /etc/apt/apt.conf.d/keep-cache
+python3 /opt/fetch-packages.py gnupg aria2
 apt-get install -y --no-install-recommends gnupg aria2
 python3 - <<'PY'
 import urllib.request

@@ -8,14 +8,20 @@ const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
 const clone=value=>JSON.parse(JSON.stringify(value));
 const now=()=>new Date().toISOString();
 const TERMINAL=new Set(['completed','failed','cancelled','interrupted']);
-const MAX_SOURCE=2_000_000,MAX_SOURCES=32,MAX_TOTAL=8_000_000,MAX_OUTPUT=24_000_000;
-const SUBMIT_FIELDS=new Set(['projectId','path','expectedHash','sourcePaths','operation','modelName','parameters','simulation','signals','checks','timeoutMs']);
+const MAX_SOURCE=2_000_000,MAX_SOURCES=32,MAX_TOTAL=8_000_000,MAX_OUTPUT=24_000_000,MAX_FMU=8_000_000;
+const SUBMIT_FIELDS=new Set(['projectId','path','expectedHash','sourcePaths','operation','modelName','parameters','simulation','signals','checks','timeoutMs','fmu']);
 const ID=/^professional_[a-f0-9]{32}$/;
 const languageOf=relative=>relative.endsWith('.stf.json')?'nos3-stf':relative.endsWith('.mo')?'modelica':relative.endsWith('.cir')?'spice':relative.endsWith('.scad')?'openscad':relative.endsWith('.sysml')?'sysml':'c-source';
-const toolFor=language=>({modelica:'openmodelica',spice:'ngspice',openscad:'openscad','nos3-stf':'nos3-stf',sysml:'sysml-wasm'}[language]);
+const toolFor=(language,operation)=>({modelica:'openmodelica',spice:'ngspice',openscad:'openscad','nos3-stf':'nos3-stf',sysml:operation==='simulate'?'sysml-fmi':'sysml-wasm'}[language]);
+const SYML_FMI='sysml-fmi';
 function fail(message,code='INVALID_INPUT'){const error=new Error(message);error.code=code;error.statusCode=code==='REVISION_CONFLICT'?409:400;return error;}
 function modelPath(value){
   if(typeof value!=='string'||!value||value.includes('\\')||value.split('/').some(s=>s==='..'||s==='.'||s.startsWith('.'))||! /(?:\.(?:mo|sysml|cir|scad|c|h)|\.stf\.json)$/i.test(value))throw fail('Use a project-relative native model or source path without hidden or traversal segments');
+  return value;
+}
+/** The pinned FMU a SysML FMI job simulates; it is a dependency, not the model. */
+function fmuPath(value){
+  if(typeof value!=='string'||!value||value.includes('\\')||value.split('/').some(s=>!s||s==='..'||s==='.'||s.startsWith('.'))||!/\.fmu$/i.test(value))throw fail('fmu.path must be a project-relative .fmu path without hidden or traversal segments');
   return value;
 }
 function sourceContent(content){if(typeof content!=='string'||!content.trim()||content.includes('\0')||Buffer.byteLength(content)>MAX_SOURCE)throw fail('Model source must contain 1–2000000 UTF-8 bytes');}
@@ -29,6 +35,21 @@ function normalizeSimulation(input={}){
   if(simulation.stopTime-simulation.startTime>31536000)throw fail('Simulation duration must not exceed 365 days');
   if(!Number.isInteger(simulation.numberOfIntervals)||simulation.numberOfIntervals<2||simulation.numberOfIntervals>20000)throw fail('numberOfIntervals must be between 2 and 20000');
   if(!Number.isFinite(simulation.tolerance)||simulation.tolerance<1e-12||simulation.tolerance>0.1)throw fail('tolerance must be between 1e-12 and 0.1');
+  return simulation;
+}
+/** An FMI experiment window. The model's ``fmi:*`` defaults fill whatever is omitted. */
+function normalizeFmiSimulation(input={}){
+  if(!input||typeof input!=='object'||Array.isArray(input))throw fail('simulation must be an object');
+  for(const field of Object.keys(input))if(!['startTime','stopTime','stepSize','tolerance'].includes(field))throw fail(`Unknown FMI simulation setting: ${field}`);
+  const simulation={};
+  for(const field of ['startTime','stopTime','stepSize','tolerance']){
+    if(input[field]===undefined||input[field]===null)continue;
+    if(!Number.isFinite(input[field])||Math.abs(input[field])>1e10)throw fail(`FMI ${field} must be a finite number within ±1e10`);
+    simulation[field]=input[field];
+  }
+  if(simulation.stepSize!==undefined&&simulation.stepSize<=0)throw fail('FMI stepSize must be positive');
+  if(simulation.tolerance!==undefined&&(simulation.tolerance<1e-12||simulation.tolerance>0.1))throw fail('FMI tolerance must be between 1e-12 and 0.1');
+  if(simulation.startTime!==undefined&&simulation.stopTime!==undefined&&simulation.stopTime<=simulation.startTime)throw fail('FMI stopTime must be greater than startTime');
   return simulation;
 }
 function normalizeSignals(input,language,checks){
@@ -102,8 +123,36 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
     const job=JSON.parse(await fs.readFile(path.join(disk,name),'utf8'));if(!ID.test(job.id)||job.id+'.json'!==name)throw Error('Invalid persisted professional job');
     if(!TERMINAL.has(job.status)){job.status='interrupted';job.reason='Manta restarted before an execution receipt was committed; restart explicitly to rerun pinned inputs';job.finishedAt=now();await atomicJson(path.join(disk,name),job);}jobs.set(job.id,job);
   }
-  async function readModel(args={}){const ws=workspace(args.projectId),relative=modelPath(args.path),target=safePath(ws,relative),stat=await fs.stat(target);if(!stat.isFile()||stat.size>MAX_SOURCE)throw fail('Model must be a regular file under 2 MB');const content=await fs.readFile(target,'utf8');sourceContent(content);const hash=sha(content);if(args.expectedHash&&hash!==args.expectedHash)throw fail('Model revision conflict: reload the current model','REVISION_CONFLICT');return {path:relative,language:languageOf(relative.toLowerCase()),content,sha256:hash,bytes:Buffer.byteLength(content)};}
+  async function readModel(args={}){
+    const ws=workspace(args.projectId);
+    if(typeof args.path==='string'&&/\.fmu$/i.test(args.path)){
+      const relative=fmuPath(args.path),target=safePath(ws,relative),stat=await fs.stat(target);
+      if(!stat.isFile())throw fail('fmu.path must name a regular file');
+      if(stat.size>MAX_FMU)throw fail('FMU must be under 8 MB');
+      const bytes=await fs.readFile(target),hash=sha(bytes);
+      if(args.expectedHash&&hash!==args.expectedHash)throw fail('FMU revision conflict: reload its current hash','REVISION_CONFLICT');
+      return {path:relative,language:'fmi',content:'',sha256:hash,bytes:bytes.length,binary:true,validationStatus:'not-applicable'};
+    }
+    const relative=modelPath(args.path),target=safePath(ws,relative),stat=await fs.stat(target);
+    if(!stat.isFile()||stat.size>MAX_SOURCE)throw fail('Model must be a regular file under 2 MB');
+    const content=await fs.readFile(target,'utf8');sourceContent(content);const hash=sha(content);
+    if(args.expectedHash&&hash!==args.expectedHash)throw fail('Model revision conflict: reload the current model','REVISION_CONFLICT');
+    return {path:relative,language:languageOf(relative.toLowerCase()),content,sha256:hash,bytes:Buffer.byteLength(content)};
+  }
   async function snapshotSources(args){const main=await readModel(args);let paths=args.sourcePaths??[];if(!Array.isArray(paths)||paths.length>=MAX_SOURCES)throw fail('sourcePaths must contain at most 31 model dependencies');paths=[...new Set([main.path,...paths])];const sourceFiles=[];let total=0;for(const relative of paths){const source=relative===main.path?main:await readModel({projectId:args.projectId,path:relative});if(source.language!==main.language&&!(main.language==='nos3-stf'&&source.language==='c-source'))throw fail('Sources in one job must use the same model language, except explicit NOS3 C table dependencies');total+=source.bytes;if(total>MAX_TOTAL)throw fail('Combined model sources exceed 8 MB');sourceFiles.push(source);}return {main,sourceFiles};}
+  async function snapshotFmu(args={}){
+    const request=args.fmu;
+    if(!request||typeof request!=='object'||Array.isArray(request))throw fail('fmu must be an object with path and expectedHash');
+    const relative=fmuPath(request.path);
+    if(typeof request.expectedHash!=='string'||!/^[a-f0-9]{64}$/.test(request.expectedHash))throw fail('fmu.expectedHash of the current FMU is required; read it from the file before submitting');
+    const target=safePath(workspace(args.projectId),relative),stat=await fs.stat(target);
+    if(!stat.isFile())throw fail('fmu.path must name a regular file');
+    if(stat.size>MAX_FMU)throw fail('FMU must be under 8 MB');
+    const content=await fs.readFile(target);
+    const hash=sha(content);
+    if(hash!==request.expectedHash)throw fail('FMU revision conflict: the file changed since its hash was read','REVISION_CONFLICT');
+    return {path:relative,sha256:hash,content};
+  }
   function jobDirectory(job,{write=false}={}){return safePath(workspace(job.projectId),job.relative,{write});}
   async function artifact(job,file,bytes,mimeType){filename(file);const dir=jobDirectory(job),target=safePath(dir,file,{write:true});await fs.mkdir(path.dirname(target),{recursive:true,mode:0o700});await fs.writeFile(target,bytes,{mode:0o600});const entry={name:path.basename(file),path:job.relative+'/'+file,sha256:sha(bytes),bytes:Buffer.byteLength(bytes),mimeType:mimeType||'text/plain'};job.artifactHashes[file]=entry;return entry;}
   async function finish(job,result){
@@ -123,20 +172,32 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
     try{
       if(job.cancelRequested)return;job.status='running';job.startedAt=now();await persist(job);
       const sourceFiles=[];for(const item of job.sourceFiles){const content=await fs.readFile(safePath(jobDirectory(job),item.snapshot),'utf8');if(sha(content)!==item.sha256)throw Error('Pinned source snapshot integrity mismatch: '+item.path);sourceFiles.push({path:item.path,content,sha256:item.sha256});}
+      // A SysML FMI job pins an FMU alongside its model; re-read it as bytes so
+      // the runner executes exactly the archive whose hash entered inputHash.
+      let fmuFiles=[];
+      if(job.fmu){
+        const bytes=await fs.readFile(safePath(jobDirectory(job),job.fmu.snapshot));
+        if(bytes.length>MAX_FMU||sha(bytes)!==job.fmu.sha256)throw Error('Pinned FMU snapshot integrity mismatch: '+job.fmu.path);
+        fmuFiles=[{path:job.fmu.path,contentBase64:bytes.toString('base64'),sha256:job.fmu.sha256}];
+      }
       let output;
       const onLog=line=>{logs+=(String(line).slice(0,4000)+'\n');if(logs.length>500000)logs=logs.slice(-500000);emit({projectId:job.projectId,runId:job.runId,type:'professional.log',message:String(line).slice(0,4000),data:{jobId:job.id}});};
-      if(job.model.language==='sysml'){
+      if(job.toolId===SYML_FMI){
+        if(!runner?.run)throw Error('Isolated SysML FMI runner is not configured');
+        output=await runner.run({jobId:job.id,operation:job.operation,toolId:SYML_FMI,mainFile:job.model.path,inputHash:job.inputHash,modelName:job.modelName,sourceFiles,fmuFiles,parameters:job.parameters,simulation:job.simulation,signals:[]},{signal:controller.signal,onLog});
+      }else if(job.model.language==='sysml'){
         if(!sysmlBackend?.validate)throw Error('SysML semantic backend unavailable');
         const checked=await sysmlBackend.validate({projectId:job.projectId,path:job.relative+'/'+job.sourceFiles[0].snapshot,expectedHash:job.model.sha256},{signal:controller.signal,threadId:job.threadId,runId:job.runId});
         output={exitCode:checked.valid?0:1,success:checked.valid===true,tool:{id:'sysml-wasm',name:'SysML semantic backend',...checked.backend},diagnostics:JSON.stringify(checked.findings||[]),receipt:{inputHash:job.inputHash,sourceHashes:job.sourceFiles.map(({path,sha256})=>({path,sha256}))},files:[{path:'sysml-validation.json',contentBase64:Buffer.from(JSON.stringify(checked,null,2)).toString('base64')}]};
       }else{
         if(!runner?.run)throw Error('Isolated OpenModelica runner is not configured');
-        output=await runner.run({jobId:job.id,operation:job.operation,toolId:toolFor(job.model.language),mainFile:job.model.path,inputHash:job.inputHash,modelName:job.modelName,sourceFiles,parameters:job.parameters,simulation:job.simulation,signals:job.signals||[]},{signal:controller.signal,onLog});
+        output=await runner.run({jobId:job.id,operation:job.operation,toolId:toolFor(job.model.language,job.operation),mainFile:job.model.path,inputHash:job.inputHash,modelName:job.modelName,sourceFiles,parameters:job.parameters,simulation:job.simulation,signals:job.signals||[]},{signal:controller.signal,onLog});
       }
       aborted(controller.signal);if(job.cancelRequested)throw fail('Cancelled','CANCELLED');
       if(!output||!Number.isInteger(output.exitCode)||typeof output.success!=='boolean'||typeof output.tool?.version!=='string'||!output.receipt||output.receipt.inputHash!==job.inputHash)throw Error('Runner returned an incomplete or mismatched execution receipt');
       const recordedHashes=output.receipt.sourceHashes||output.receipt.sourceFiles;
       if(!Array.isArray(recordedHashes)||sourceFiles.some(item=>!recordedHashes.some(record=>(record.path||record.name)===item.path&&record.sha256===item.sha256)))throw Error('Runner receipt does not bind the exact submitted model sources');
+      if(job.fmu&&(output.receipt.fmu?.path!==job.fmu.path||output.receipt.fmu?.sha256!==job.fmu.sha256))throw Error('Runner receipt does not bind the exact submitted FMU');
       const files=output.files??[];if(!Array.isArray(files)||files.length>64)throw Error('Runner returned too many artifacts');let total=0,fullTable=null,tableFile=null;const seen=new Set();
       for(const file of files){const relative=filename(file.path||file.name);if(seen.has(relative))throw Error('Duplicate runner artifact path');seen.add(relative);if(typeof file.contentBase64!=='string')throw Error('Runner artifact lacks original bytes');const bytes=Buffer.from(file.contentBase64,'base64');total+=bytes.length;if(total>MAX_OUTPUT)throw Error('Runner output exceeds 24 MB');if(file.sha256&&sha(bytes)!==file.sha256)throw Error('Runner artifact integrity mismatch: '+relative);await artifact(job,'outputs/'+relative,bytes,file.mimeType||(relative.endsWith('.csv')?'text/csv':relative.endsWith('.json')?'application/json':'text/plain'));if(relative.endsWith('.csv')&&(!tableFile||relative.endsWith('_res.csv'))){fullTable=parseProfessionalCsv(bytes.toString('utf8'));tableFile=job.relative+'/outputs/'+relative;}}
       const geometry=output.outputKind==='geometry'&&output.geometry&&files.some(file=>/\.stl$/i.test(file.path||file.name))?output.geometry:null;
@@ -153,15 +214,16 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
   async function enqueue(input,ctx={},restartedFrom){
     aborted(ctx.signal);if(closed)throw Error('Professional models service is closed');
     const jobId='professional_'+crypto.randomUUID().replaceAll('-',''),relative='engineering/professional/'+jobId;
-    const config={model:{path:input.main.path,sha256:input.main.sha256,language:input.main.language},sourceFiles:input.sourceFiles.map(({path,sha256})=>({path,sha256})),modelName:input.modelName||null,operation:input.operation,parameters:input.parameters,simulation:input.simulation,signals:input.signals||[],checks:input.checks};
-    const job={id:jobId,jobId,projectId:input.projectId,threadId:ctx.threadId||null,runId:ctx.runId||null,status:'queued',createdAt:now(),relative,...config,inputHash:sha(JSON.stringify(config)),sourceFiles:input.sourceFiles.map((source,index)=>({path:source.path,sha256:source.sha256,snapshot:`sources/${index}-${path.basename(source.path)}`})),timeoutMs:input.timeoutMs,...(restartedFrom?{restartedFrom}:{}),artifactHashes:{}};
+    const config={model:{path:input.main.path,sha256:input.main.sha256,language:input.main.language},sourceFiles:input.sourceFiles.map(({path,sha256})=>({path,sha256})),modelName:input.modelName||null,operation:input.operation,parameters:input.parameters,simulation:input.simulation,signals:input.signals||[],checks:input.checks,...(input.fmu?{fmu:{path:input.fmu.path,sha256:input.fmu.sha256}}:{})};
+    const job={id:jobId,jobId,projectId:input.projectId,threadId:ctx.threadId||null,runId:ctx.runId||null,status:'queued',createdAt:now(),relative,...config,inputHash:sha(JSON.stringify(config)),toolId:toolFor(input.main.language,input.operation),sourceFiles:input.sourceFiles.map((source,index)=>({path:source.path,sha256:source.sha256,snapshot:`sources/${index}-${path.basename(source.path)}`})),timeoutMs:input.timeoutMs,...(restartedFrom?{restartedFrom}:{}),artifactHashes:{}};
     await fs.mkdir(safePath(workspace(job.projectId),relative,{write:true}),{recursive:true,mode:0o700});
     for(let i=0;i<input.sourceFiles.length;i++)await artifact(job,job.sourceFiles[i].snapshot,input.sourceFiles[i].content,'text/plain');
+    if(input.fmu){job.fmu={...job.fmu,snapshot:`sources/${input.sourceFiles.length}-${path.basename(input.fmu.path)}`};await artifact(job,job.fmu.snapshot,input.fmu.content,'application/octet-stream');}
     await artifact(job,'input.json',JSON.stringify({schema:'manta-professional-input-v1',...config,inputHash:job.inputHash},null,2),'application/json');
     jobs.set(job.id,job);await persist(job);queue.push(job);queueMicrotask(pump);return publicJob(job);
   }
   const service={
-    async catalog({projectId}={}){if(projectId)workspace(projectId);const state=runner?.status?await runner.status():{state:'unavailable',ready:false};return {environment:state,tools:[...Object.entries({openmodelica:['OpenModelica','modelica'],ngspice:['ngspice','spice'],openscad:['OpenSCAD','openscad'],'nos3-stf':['NOS3 STF low-power','nos3-stf']}).map(([id,[name,language]])=>({id,name,language,operations:['read','save','check','simulate'],environment:state.tools?.[id]||(id==='openmodelica'?state:{state:'unavailable',ready:false}),isolation:state.tools?.[id]?.isolation||state.isolation?.kind||'managed-linux-vm'})),{id:'sysml-wasm',name:'SysML v2 semantic kernel',language:'sysml',operations:['read','save','check'],environment:sysmlBackend?.catalog?await sysmlBackend.catalog({projectId}):{available:false},isolation:'no-WASI WebAssembly'}],operations:['listModels','readModel','saveModel','prepare','submit','list','status','result','cancel','restart'],scope:'Native source files and exact-revision numerical execution; project completion is not inferred'};},
+    async catalog({projectId}={}){if(projectId)workspace(projectId);const state=runner?.status?await runner.status():{state:'unavailable',ready:false};return {environment:state,tools:[...Object.entries({openmodelica:['OpenModelica','modelica'],ngspice:['ngspice','spice'],openscad:['OpenSCAD','openscad'],'nos3-stf':['NOS3 STF low-power','nos3-stf']}).map(([id,[name,language]])=>({id,name,language,operations:['read','save','check','simulate'],environment:state.tools?.[id]||(id==='openmodelica'?state:{state:'unavailable',ready:false}),isolation:state.tools?.[id]?.isolation||state.isolation?.kind||'managed-linux-vm'})),{id:'sysml-wasm',name:'SysML v2 semantic kernel',language:'sysml',operations:['read','save','check'],environment:sysmlBackend?.catalog?await sysmlBackend.catalog({projectId}):{available:false},isolation:'no-WASI WebAssembly'},{id:SYML_FMI,name:'SysML v2 · FMI 连续仿真',language:'sysml',operations:['read','save','simulate'],environment:state.tools?.[SYML_FMI]||{state:'unavailable',ready:false},isolation:state.tools?.[SYML_FMI]?.isolation||state.isolation?.kind||'shared-container'}],operations:['listModels','readModel','saveModel','prepare','submit','list','status','result','cancel','restart'],scope:'Native source files and exact-revision numerical execution; project completion is not inferred'};},
     async prepare({projectId}={},ctx={}){workspace(projectId);if(!runner?.prepare)throw Error('Isolated professional runner unavailable');return runner.prepare({signal:ctx.signal,onLog:line=>emit({projectId,runId:ctx.runId,type:'professional.environment.log',message:String(line).slice(0,4000)})});},
     async environmentStatus({projectId}={}){if(projectId)workspace(projectId);return runner?.status?runner.status():{state:'unavailable',ready:false};},
     async listModels({projectId,path:relative='.'}={}){const ws=workspace(projectId),start=safePath(ws,relative),models=[];let scanned=0,truncated=false;async function walk(dir,depth){if(depth>12||scanned>=10000||models.length>=500){truncated=true;return;}for(const entry of await fs.readdir(dir,{withFileTypes:true})){if(++scanned>10000||models.length>=500){truncated=true;return;}if(entry.isSymbolicLink()||entry.name.startsWith('.')||['node_modules','build','data','vendor','.git'].includes(entry.name))continue;const full=path.join(dir,entry.name);if(entry.isDirectory()&&entry.name==='engineering'){const nested=path.join(full,'models');try{const stat=await fs.lstat(nested);if(stat.isDirectory()&&!stat.isSymbolicLink())await walk(nested,depth+1);}catch(error){if(error.code!=='ENOENT')throw error;}continue;}if(entry.isDirectory())await walk(full,depth+1);else if(entry.isFile()&&/(?:\.(?:mo|sysml|cir|scad)|\.stf\.json)$/i.test(entry.name)){const stat=await fs.stat(full);models.push({path:path.relative(ws,full),language:languageOf(entry.name.toLowerCase()),bytes:stat.size,modifiedAt:stat.mtime.toISOString()});}}}if(!(await fs.stat(start)).isDirectory())throw fail('Model listing path must be a directory');await walk(start,0);return {models:models.sort((a,b)=>a.path.localeCompare(b.path)),truncated};},
@@ -174,14 +236,47 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
       const temporary=target+'.'+crypto.randomUUID()+'.tmp';await fs.writeFile(temporary,args.content,{mode:0o600,flag:'wx'});try{safePath(ws,relative,{write:true});let current=null;try{current=await fs.readFile(target,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}if(current!==previous)throw fail('Model changed while saving','REVISION_CONFLICT');aborted(ctx.signal);await fs.rename(temporary,target);}finally{await fs.rm(temporary,{force:true});}
       const model=await readModel({projectId:args.projectId,path:relative});emit({projectId:args.projectId,runId:ctx.runId,type:'professional.model.saved',message:'Native model source saved',data:{path:relative,sha256:model.sha256}});return {...model,saved:true,previousSha256:previous===null?null:sha(previous),validationStatus:'not-checked'};
     });},
-    async submit(args={},ctx={}){for(const field of Object.keys(args))if(!SUBMIT_FIELDS.has(field))throw fail(`Unknown professional job field: ${field}; Modelica time settings belong under simulation`);if(typeof args.expectedHash!=='string'||!/^[a-f0-9]{64}$/.test(args.expectedHash))throw fail('expectedHash of the current model is required before submission');const {main,sourceFiles}=await snapshotSources(args),operation=args.operation||'check';if(!['check','simulate'].includes(operation))throw fail('operation must be check or simulate');if(main.language==='c-source')throw fail('Execute C tables through a .stf.json mission manifest with explicit dependencies');if(main.language==='sysml'&&(operation!=='check'||sourceFiles.length!==1))throw fail('SysML supports single-source semantic check; behavior simulation is unavailable');if(main.language==='modelica'&&(typeof args.modelName!=='string'||! /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/.test(args.modelName)||args.modelName.length>300))throw fail('modelName must be a dotted Modelica identifier');if(main.language!=='modelica'&&args.simulation&&Object.keys(args.simulation).length)throw fail('simulation time settings are Modelica-only; this tool uses its native source or fixed recipe');const checks=normalizeChecks(args.checks);return enqueue({projectId:args.projectId,main,sourceFiles,operation,modelName:args.modelName,parameters:normalizeParameters(args.parameters),simulation:main.language==='modelica'?normalizeSimulation(args.simulation):main.language==='nos3-stf'?{mode:'native-recipe',durationSeconds:operation==='simulate'?96:null}:{mode:'native-source'},signals:normalizeSignals(args.signals,main.language,checks),checks,timeoutMs:Math.min(Math.max(Number.isFinite(args.timeoutMs)?args.timeoutMs:maxJobMs,100),maxJobMs)},ctx);},
+    async submit(args={},ctx={}){
+      for(const field of Object.keys(args))if(!SUBMIT_FIELDS.has(field))throw fail(`Unknown professional job field: ${field}; Modelica time settings belong under simulation`);
+      if(typeof args.expectedHash!=='string'||!/^[a-f0-9]{64}$/.test(args.expectedHash))throw fail('expectedHash of the current model is required before submission');
+      if(typeof args.path==='string'&&/\.sysml$/i.test(args.path)&&(args.operation||'check')==='simulate'&&args.sourcePaths?.length)throw fail('A SysML FMI simulation takes exactly one SysML source; inline dependencies in that source');
+      const {main,sourceFiles}=await snapshotSources(args),operation=args.operation||'check';
+      if(!['check','simulate'].includes(operation))throw fail('operation must be check or simulate');
+      if(main.language==='c-source')throw fail('Execute C tables through a .stf.json mission manifest with explicit dependencies');
+      if(main.language==='sysml'){
+        if(sourceFiles.length!==1)throw fail('A SysML job takes exactly one .sysml source');
+        if(operation==='check'&&args.fmu)throw fail('A SysML semantic check takes no FMU; omit fmu for operation check');
+        if(operation==='simulate'&&!args.fmu)throw fail('A SysML FMI simulation requires fmu:{path,expectedHash}; behavior simulation runs a pinned FMU, not the semantic kernel');
+        if(operation==='simulate'&&(typeof args.modelName!=='string'||!/^[A-Za-z_]\w*(?:(?:::|\.)[A-Za-z_]\w*)*$/.test(args.modelName)||args.modelName.length>300))throw fail('modelName must be the qualified name of the SysML analysis or calc to run');
+      }
+      if(main.language==='modelica'&&(typeof args.modelName!=='string'||! /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/.test(args.modelName)||args.modelName.length>300))throw fail('modelName must be a dotted Modelica identifier');
+      const fmi=main.language==='sysml'&&operation==='simulate';
+      if(main.language!=='modelica'&&!fmi&&args.simulation&&Object.keys(args.simulation).length)throw fail('simulation time settings are Modelica-only; this tool uses its native source or fixed recipe');
+      const fmu=fmi?await snapshotFmu({projectId:args.projectId,fmu:args.fmu}):null;
+      if(fmi){
+        if(!runner?.status)throw fail('SysML FMI jobs require a configured Docker professional runner','RUNNER_UNAVAILABLE');
+        const environment=await runner.status();
+        if(environment?.isolated!==true||environment?.brokerIsolation?.kind!=='rootless-task-container')throw fail('SysML FMI jobs load native FMU binaries and require the isolated rootless broker task runner; shared-container and host-managed VM execution are not supported','RUNNER_NOT_ISOLATED');
+      }
+      const checks=normalizeChecks(args.checks);
+      return enqueue({projectId:args.projectId,main,sourceFiles,operation,modelName:args.modelName,parameters:normalizeParameters(args.parameters),fmu,
+        simulation:main.language==='modelica'?normalizeSimulation(args.simulation):fmi?normalizeFmiSimulation(args.simulation):main.language==='nos3-stf'?{mode:'native-recipe',durationSeconds:operation==='simulate'?96:null}:{mode:'native-source'},
+        signals:normalizeSignals(args.signals,main.language,checks),checks,timeoutMs:Math.min(Math.max(Number.isFinite(args.timeoutMs)?args.timeoutMs:maxJobMs,100),maxJobMs)},ctx);
+    },
     async list({projectId}={}){workspace(projectId);return [...jobs.values()].filter(job=>job.projectId===projectId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(publicJob);},
     async status(args){return publicJob(scoped(args));},
     async result(args){const job=scoped(args);if(!TERMINAL.has(job.status))return {jobId:job.id,status:job.status,ready:false};if(!job.resultSha256)return {jobId:job.id,status:job.status,ready:true,executionSucceeded:false,reason:job.reason||'No committed result receipt',integrity:{verified:false,reason:'No committed result receipt'},series:[],table:null,verification:{status:'unknown',checks:[]}};
       let result;try{const bytes=await fs.readFile(safePath(jobDirectory(job),'result.json'));if(sha(bytes)!==job.resultSha256)throw Error('Result receipt integrity mismatch');result=JSON.parse(bytes);for(const [relative,entry]of Object.entries(job.artifactHashes)){if(sha(await fs.readFile(safePath(jobDirectory(job),relative)))!==entry.sha256)throw Error('Artifact integrity mismatch: '+relative);}return {...result,artifacts:clone(job.artifacts),integrity:{verified:true}};}catch(error){return {jobId:job.id,status:job.status,ready:true,executionSucceeded:false,passed:null,reason:error.message,integrity:{verified:false,reason:error.message},series:[],table:null,verification:{status:'unknown',checks:[]},artifacts:clone(job.artifacts||[])};}
     },
     async cancel(args){const job=scoped(args);if(TERMINAL.has(job.status))return publicJob(job);job.cancelRequested=true;if(controllers.has(job.id))controllers.get(job.id).abort();else{job.status='cancelled';job.reason='Cancelled before professional tool execution';job.finishedAt=now();await finish(job,{executionSucceeded:false,reason:job.reason,table:null,series:[]});await persist(job);}return publicJob(job);},
-    async restart(args,ctx={}){const previous=scoped(args);if(!TERMINAL.has(previous.status))throw fail('Cancel or finish the existing job before restart');const sourceFiles=[];for(const source of previous.sourceFiles){const content=await fs.readFile(safePath(jobDirectory(previous),source.snapshot),'utf8');if(sha(content)!==source.sha256)throw Error('Pinned source snapshot integrity mismatch');sourceFiles.push({...source,content});}return enqueue({projectId:previous.projectId,main:{...previous.model},sourceFiles,operation:previous.operation,modelName:previous.modelName,parameters:previous.parameters,simulation:previous.simulation,signals:previous.signals||[],checks:previous.checks,timeoutMs:previous.timeoutMs},ctx,previous.id);},
+    async restart(args,ctx={}){
+      const previous=scoped(args);if(!TERMINAL.has(previous.status))throw fail('Cancel or finish the existing job before restart');
+      const sourceFiles=[];
+      for(const source of previous.sourceFiles){const content=await fs.readFile(safePath(jobDirectory(previous),source.snapshot),'utf8');if(sha(content)!==source.sha256)throw Error('Pinned source snapshot integrity mismatch');sourceFiles.push({...source,content});}
+      let fmu=null;
+      if(previous.fmu){const content=await fs.readFile(safePath(jobDirectory(previous),previous.fmu.snapshot));if(sha(content)!==previous.fmu.sha256)throw Error('Pinned FMU snapshot integrity mismatch');fmu={path:previous.fmu.path,sha256:previous.fmu.sha256,content};}
+      return enqueue({projectId:previous.projectId,main:{...previous.model},sourceFiles,fmu,operation:previous.operation,modelName:previous.modelName,parameters:previous.parameters,simulation:previous.simulation,signals:previous.signals||[],checks:previous.checks,timeoutMs:previous.timeoutMs},ctx,previous.id);
+    },
     async wait(args,{signal,timeoutMs=1800000}={}){const job=scoped(args);if(TERMINAL.has(job.status))return {...publicJob(job),result:await service.result(args)};aborted(signal);return new Promise((resolve,reject)=>{const cleanup=()=>{clearTimeout(timer);events.off(job.id,changed);signal?.removeEventListener('abort',abort);};const changed=async next=>{if(TERMINAL.has(next.status)){cleanup();try{resolve({...next,result:await service.result(args)});}catch(error){reject(error);}}};const abort=()=>{cleanup();reject(fail('Cancelled waiting; the professional job continues','CANCELLED'));};const timer=setTimeout(()=>{cleanup();resolve({...publicJob(job),waitTimedOut:true});},Math.min(Math.max(timeoutMs,1),1800000));events.on(job.id,changed);signal?.addEventListener('abort',abort,{once:true});if(TERMINAL.has(job.status))changed(publicJob(job));});},
     async readOutput(args){const job=scoped(args);let file=args.file;if(typeof file==='string'&&file.startsWith(job.relative+'/'))file=file.slice(job.relative.length+1);const entry=job.artifactHashes[file];if(!entry)throw fail('Unknown professional job artifact');const buffer=await fs.readFile(safePath(jobDirectory(job),file));if(sha(buffer)!==entry.sha256)throw Error('Artifact integrity mismatch');return {buffer,contentType:entry.mimeType,sha256:entry.sha256};},
     async close(){closed=true;for(const job of jobs.values())if(!TERMINAL.has(job.status)){job.shutdown=true;if(controllers.has(job.id))controllers.get(job.id).abort();else{job.status='interrupted';job.reason='Manta stopped before execution';job.finishedAt=now();await persist(job);}}await Promise.allSettled([...tasks]);}

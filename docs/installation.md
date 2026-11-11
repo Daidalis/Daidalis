@@ -2,7 +2,7 @@
 
 ## Linux Docker deployment
 
-For narrower per-task isolation, see the separate [rootless broker deployment](docker.md#opt-in-rootless-task-isolation). It requires an existing rootless daemon and supports API-mode and native Codex/Claude Agents, commands, three solvers, GIS/orbit and optional NOS3 tasks. Project-isolated browser/desktop and stdio MCP, HTTP MCP, the SciPy service and the fixed evaluator are also supported. STF and legacy VM management remain disabled in that mode.
+For narrower per-task isolation, see the separate [rootless broker deployment](docker.md#opt-in-rootless-task-isolation). It requires an existing rootless daemon and supports API-mode and native Codex/Claude Agents, commands, OpenModelica/ngspice/OpenSCAD, the optional SysML FMI runtime, GIS/orbit and optional NOS3 tasks. Project-isolated browser/desktop and stdio MCP, HTTP MCP, the SciPy service and the fixed evaluator are also supported. STF and legacy VM management remain disabled in that mode.
 
 For the tested Linux amd64 path, use an existing Docker Engine and Compose 2.20+:
 
@@ -78,6 +78,8 @@ On macOS, Manta normally uses an existing Chrome channel. Set `MBSE_CHROME_PATH`
 ### Numerical and professional execution
 
 `npm ci` installs the application, not OpenModelica, ngspice, OpenSCAD, NOS3, GDAL or a VM disk. Source installations require an explicitly configured runner. The Docker installer provisions the selected supported tool groups and connects their container backends. `npm run doctor` reports missing optional configuration without claiming that tools are ready.
+
+**SysML-driven FMI simulation is provided by the Docker tool image.** The full preset includes the `sysmlsim` group; use `sh install.sh --tools=ngspice,sysmlsim` to add it to a selected shared-container image. The isolated broker installer includes it by default (`MANTA_SYML_SIM=1`; set `0` to omit). A SysML job binds one project `.fmu` by path and SHA-256; OpenSysML analysis assertions supply verdicts, while FMPy writes the trajectory CSV for the professional result chart. Rebuild the matching architecture image when the toolchain changes; do not install these native libraries in the host Python environment. Native FMI execution is not available from the managed Apple Silicon VM runner.
 
 The managed Apple Silicon VM source is in `vm/`. Set `MANTA_NOS3_VM_ROOT` only to a dedicated VM directory with its reviewed `host/`, `worker/` and required frozen input bundle. Historical setup documentation describes an already staged environment: **a fresh clone does not include the frozen `handoff/` archives, NASA binary packages, 42 assets, or generated source integrity manifests pinned by `vm/worker/native-inputs.json`.** There is currently no complete verified public installer that recreates that exact bundle. Do not use another user's VM state or disable hash checks to bypass it. That historical VM workflow is unavailable until its bundle is supplied and verified. The Docker NOS3/cFS/42 path instead rebuilds selected workflows from checksum-pinned public inputs; it does not restore missing historical STF reference assets. Public source-fetch helpers accept explicit paths; fetching upstream sources alone does not recreate the pinned bundle.
 

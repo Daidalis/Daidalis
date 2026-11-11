@@ -22,9 +22,10 @@ export MANTA_TAG=${MANTA_TAG:-isolated}
 export MANTA_PORT=${MANTA_PORT:-4320}
 export MANTA_DESKTOP_PORT=${MANTA_DESKTOP_PORT:-6084}
 export MANTA_ENV_FILE=${MANTA_ENV_FILE:-.env.example}
-export MANTA_TOOLS=${MANTA_TOOLS-scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab}
+export MANTA_TOOLS=${MANTA_TOOLS-scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab,sysmlsim}
 export MANTA_MODELICA=${MANTA_MODELICA:-1}
 export MANTA_ORBIT42=${MANTA_ORBIT42:-1}
+export MANTA_SYML_SIM=${MANTA_SYML_SIM:-1}
 export MANTA_BROKER_FLIGHT=${MANTA_BROKER_FLIGHT:-0}
 export MANTA_TASK_FLIGHT_IMAGE=
 if [ "$MANTA_BROKER_FLIGHT" = 1 ]; then MANTA_TASK_FLIGHT_IMAGE=manta-flight:$MANTA_TAG; export MANTA_TASK_FLIGHT_IMAGE; fi
@@ -42,13 +43,13 @@ for port in "$MANTA_PORT" "$MANTA_DESKTOP_PORT"; do
 done
 [ "$MANTA_PORT" != "$MANTA_DESKTOP_PORT" ] || { echo 'Ports must differ.' >&2; exit 2; }
 [ -f "$MANTA_ENV_FILE" ] || { echo 'MANTA_ENV_FILE does not exist.' >&2; exit 2; }
-for flag in "$MANTA_MODELICA" "$MANTA_ORBIT42" "$MANTA_BROKER_FLIGHT"; do
+for flag in "$MANTA_MODELICA" "$MANTA_ORBIT42" "$MANTA_BROKER_FLIGHT" "$MANTA_SYML_SIM"; do
   case "$flag" in 0|1) ;; *) echo 'Tool flags must be 0 or 1.' >&2; exit 2 ;; esac
 done
 case ",$MANTA_TOOLS," in *,,*) [ -z "$MANTA_TOOLS" ] || { echo 'Empty tool group.' >&2; exit 2; } ;; esac
 oldIFS=$IFS; IFS=,
 for group in $MANTA_TOOLS; do
-  case "$group" in scipy|ngspice|openscad|browser|desktop|gis|freecad|scilab) ;; *) echo "Unsupported tool group: $group" >&2; exit 2 ;; esac
+  case "$group" in scipy|ngspice|openscad|browser|desktop|gis|freecad|scilab|sysmlsim) ;; *) echo "Unsupported tool group: $group" >&2; exit 2 ;; esac
 done
 IFS=$oldIFS
 engine_major=$(docker info --format '{{.ServerVersion}}' | cut -d . -f 1)
@@ -74,7 +75,7 @@ umask 077
   printf 'COMPOSE_FILE=%s\nCOMPOSE_PROFILES=\nCOMPOSE_PROJECT_NAME=%s\n' "$COMPOSE_FILE" "$COMPOSE_PROJECT_NAME"
   printf 'MANTA_ROOTLESS_SOCKET=%s\nMANTA_ROOTLESS_SOCKET_GID=%s\n' "$MANTA_ROOTLESS_SOCKET" "$MANTA_ROOTLESS_SOCKET_GID"
   printf 'MANTA_TAG=%s\nMANTA_TASK_CPUS=%s\nMANTA_ENV_FILE=%s\n' "$MANTA_TAG" "$MANTA_TASK_CPUS" "$MANTA_ENV_FILE"
-  printf 'MANTA_TOOLS=%s\nMANTA_MODELICA=%s\nMANTA_ORBIT42=%s\n' "$MANTA_TOOLS" "$MANTA_MODELICA" "$MANTA_ORBIT42"
+  printf 'MANTA_TOOLS=%s\nMANTA_MODELICA=%s\nMANTA_ORBIT42=%s\nMANTA_SYML_SIM=%s\n' "$MANTA_TOOLS" "$MANTA_MODELICA" "$MANTA_ORBIT42" "$MANTA_SYML_SIM"
   printf 'MANTA_BROKER_FLIGHT=%s\nMANTA_TASK_FLIGHT_IMAGE=%s\n' "$MANTA_BROKER_FLIGHT" "$MANTA_TASK_FLIGHT_IMAGE"
   printf 'MANTA_PORT=%s\nMANTA_DESKTOP_PORT=%s\n' "$MANTA_PORT" "$MANTA_DESKTOP_PORT"
 } > deploy/local/broker.env

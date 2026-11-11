@@ -35,7 +35,8 @@ def validate(payload):
         'command': {'kind', 'project', 'command', 'timeoutMs'},
         'adapter': {'kind', 'adapter', 'mode', 'input', 'timeoutMs'},
         'professional': {'kind', 'toolId', 'operation', 'sourceFiles', 'mainFile',
-                         'modelName', 'parameters', 'simulation', 'inputHash', 'timeoutMs', 'jobId', 'signals'},
+                         'modelName', 'parameters', 'simulation', 'inputHash', 'timeoutMs', 'jobId', 'signals',
+                         'fmuFiles'},
     }
     if kind not in fields or set(payload) - fields[kind]:
         raise ValueError('Unsupported task or fields')

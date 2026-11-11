@@ -14,6 +14,7 @@ for group in $TOOLCHAINS; do
     freecad) packages="$packages freecad" ;;
     scilab) packages="$packages scilab" ;;
     gis) packages="$packages gdal-bin python3-gdal proj-bin" ;;
+    sysmlsim) ;; # Installed independently by install-sysml-sim.sh.
     *) echo "Unsupported toolchain: $group" >&2; exit 2 ;;
   esac
 done

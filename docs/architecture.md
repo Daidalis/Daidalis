@@ -42,7 +42,7 @@
 
 `engineering.mjs` 执行冻结的双节点热控制 ODE，通过真实 SciPy `solve_ivp` 求解、参数扫描及独立能量/解析极限检查。图形工作面直接使用运行数据；记录参数、单位、模型版本、求解器配置、软件版本、哈希、CSV 和 SVG。同项目求解排队，等待可取消，实际求解有超时。
 
-本轮模型来自工作台声明，非上游卫星设计。专业工具目录区分可运行、缺失和未连接；没有把 SciPy 工作面当作 Capella、OpenModelica 或商业软件的验收。详细模型、接口和限制见 [mbse-workflow.md](mbse-workflow.md)。
+Manta 的专业求解后端还包括一个单独的 SysML FMI 数字仿真路径：OpenSysML 用指定模型版本计算 analysis verdict，FMPy 对同一哈希固定的 FMU 和实验生成 CSV 轨迹。该作业使用 Docker task container，不由 SysML WASM 内核执行动态行为；通过的数值判据不表示物理正确、HIL 合格或工程接受。
 
 题库把公开题干与评测方历史资料隔离。上游 issue 的初始状态是 `source-verified / not-reproduced`。交付完整性、接口子题和工程行为是不同范围；四元数独立矩阵 oracle 只验证声明式接口约定，不能升级为 NOS3/cFS/42 复现。
 

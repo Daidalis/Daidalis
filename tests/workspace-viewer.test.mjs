@@ -17,6 +17,21 @@ async function fixture(t, extras={}) {
   return {directory,store,project,workspace,put,viewer:createWorkspaceViewer({store,...extras})};
 }
 
+test('discovery lists only integrity-verified SysML FMI professional jobs alongside NOS3 simulations',async t=>{
+ const jobs=[
+  {id:'professional_'+'a'.repeat(32),toolId:'sysml-fmi',status:'completed',model:{path:'models/FMUDecay.sysml'},createdAt:'2026-11-10T00:00:00.000Z'},
+  {id:'professional_'+'b'.repeat(32),toolId:'sysml-fmi',status:'completed',model:{path:'models/Tampered.sysml'},createdAt:'2026-11-10T00:01:00.000Z'},
+  {id:'professional_'+'c'.repeat(32),toolId:'openmodelica',status:'completed',model:{path:'models/Other.mo'},createdAt:'2026-11-10T00:02:00.000Z'},
+ ];
+ const professionalModels={list:async()=>jobs,result:async({jobId})=>({ready:true,integrity:{verified:jobId===jobs[0].id}})};
+ const nos3={list:async()=>[{id:'nos3_'+'d'.repeat(32),scope:'integration',status:'completed'}]};
+ const f=await fixture(t,{professionalModels,nos3});
+ const discovered=(await f.viewer.list({projectId:f.project.id})).discovered;
+ assert.deepEqual(discovered.simulations.map(job=>job.id),[jobs[0].id,'nos3_'+'d'.repeat(32)]);
+ assert.equal(discovered.simulations[0].kind,'professional');
+ assert.equal(discovered.simulations[0].scope,'SysML v2 / FMI');
+});
+
 test('project browsing discovers unregistered models and Markdown, without traversing the repository or internal folders',async t=>{
   const f=await fixture(t);
   await Promise.all([f.put('models/live.sysml','package A {}'),f.put('reports/verification.md','# Real report'),f.put('README.md','# Readme'),f.put('components/deep/model.sysml','hidden from targeted discovery'),f.put('.env','DO_NOT_EXPOSE'),f.put('secrets.json','DO_NOT_EXPOSE'),f.put('.git/config','DO_NOT_EXPOSE'),f.put('node_modules/huge.md','DO_NOT_SCAN')]);

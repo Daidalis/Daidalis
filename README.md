@@ -64,7 +64,7 @@ The source includes the following adapters and viewers. Availability is project-
 
 | Integration | Work supported in Manta | Scope |
 | --- | --- | --- |
-| **SysML v2 / KerML** | Source editing, semantic checks, queries, structural diagrams, outline and diagnostics | Pinned Open-MBEE kernel; no dynamic SysML behavior execution |
+| **SysML v2 / KerML** | Source editing, semantic checks, queries, structural diagrams, outline and diagnostics | Pinned Open-MBEE kernel; Docker task-runner jobs can execute FMI-backed continuous analyses with verdicts and trajectories; the kernel itself does not execute dynamic SysML behavior |
 | **OpenModelica** | Model/parameter editing, native jobs, numerical signals and CSV exports | Configured runner required |
 | **ngspice** | Native circuit transient jobs and result curves | Configured runner required |
 | **OpenSCAD** | Geometry generation and interactive STL inspection | Configured runner required |

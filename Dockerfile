@@ -1,21 +1,24 @@
-# syntax=docker/dockerfile:1
-ARG NODE_IMAGE=node:22-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
+# syntax=docker.m.daocloud.io/docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
+ARG NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d
 FROM ${NODE_IMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 git tini && rm -rf /var/lib/apt/lists/*
+RUN --network=host apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 git tini && rm -rf /var/lib/apt/lists/*
 
 FROM base AS tools
 # Comma-separated, validated by the installer. Omit groups to save actual image space.
 ARG TOOLCHAINS=scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab
 COPY deploy/docker/install-tools.sh /opt/install-tools.sh
 COPY deploy/docker/fetch-packages.py /opt/fetch-packages.py
-RUN --mount=type=cache,target=/var/cache/apt,id=manta-tool-packages,sharing=locked TOOLCHAINS="$TOOLCHAINS" sh /opt/install-tools.sh
+RUN --network=host --mount=type=cache,target=/var/cache/apt,id=manta-tool-packages,sharing=locked TOOLCHAINS="$TOOLCHAINS" sh /opt/install-tools.sh
 ARG WITH_MODELICA=1
 ARG MODELICA_VERSION=1.27.1-1
 COPY deploy/docker/install-modelica.sh /opt/install-modelica.sh
 COPY deploy/docker/fetch-modelica.py /opt/fetch-modelica.py
-RUN --mount=type=cache,target=/var/cache/apt,id=manta-modelica-packages,sharing=locked TOOLCHAINS="$TOOLCHAINS" WITH_MODELICA="$WITH_MODELICA" MODELICA_VERSION="$MODELICA_VERSION" sh /opt/install-modelica.sh
-COPY deploy/runner/worker.py /opt/runner/worker.py
+RUN --network=host TOOLCHAINS="$TOOLCHAINS" WITH_MODELICA="$WITH_MODELICA" MODELICA_VERSION="$MODELICA_VERSION" sh /opt/install-modelica.sh
+ARG WITH_SYML_SIM=1
+COPY deploy/docker/install-sysml-sim.sh /opt/install-sysml-sim.sh
+RUN --network=host WITH_SYML_SIM="$WITH_SYML_SIM" sh /opt/install-sysml-sim.sh
+COPY deploy/runner/worker.py deploy/runner/sysml_fmi.py /opt/runner/
 RUN dpkg-query -W > /opt/runner/packages.txt
 
 FROM base AS native-agents
@@ -26,7 +29,7 @@ FROM base AS orbit42-build
 ARG WITH_ORBIT42=1
 COPY deploy/docker/build-orbit42.py /opt/build-orbit42.py
 COPY vm/worker/orbit42-run.py /opt/orbit42-reference.py
-RUN --mount=type=cache,target=/var/cache/manta42,id=manta-orbit42-source,sharing=locked mkdir -p /opt/orbit42 && if [ "$WITH_ORBIT42" = 1 ]; then apt-get update && apt-get install -y --no-install-recommends build-essential && python3 /opt/build-orbit42.py; elif [ "$WITH_ORBIT42" != 0 ]; then exit 2; fi
+RUN --network=host --mount=type=cache,target=/var/cache/manta42,id=manta-orbit42-source,sharing=locked mkdir -p /opt/orbit42 && if [ "$WITH_ORBIT42" = 1 ]; then apt-get update && apt-get install -y --no-install-recommends build-essential && python3 /opt/build-orbit42.py; elif [ "$WITH_ORBIT42" != 0 ]; then exit 2; fi
 
 # Only the broker image contains a Docker client; applications/tasks never get a socket.
 FROM docker:29.4.1-cli@sha256:17b5c235f40be7432a7c0914c154e9278aed63bad4afe5607e4f91840696a9f8 AS docker-client
