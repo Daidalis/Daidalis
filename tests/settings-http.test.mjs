@@ -58,6 +58,18 @@ test('settings routes enforce Host, Origin, fetch-site and JSON content type pro
   assert.deepEqual((await f.api('/api/settings')).data,DEFAULT);
 });
 
+test('project API validates and persists ordinary execution budgets',async t=>{
+ const f=await fixture(t),project=await f.project('Execution budgets');
+ const route='/api/projects/'+project.id;
+ const saved=await f.api(route,'PATCH',{resources:{maxRunTurns:48,maxRunContinuations:2}});
+ assert.equal(saved.status,200);assert.equal(saved.data.resources.maxRunTurns,48);assert.equal(saved.data.resources.maxRunContinuations,2);
+ for(const resources of [{maxRunTurns:1},{maxRunTurns:201},{maxRunTurns:2.5},{maxRunContinuations:-1},{maxRunContinuations:4}])assert.equal((await f.api(route,'PATCH',{resources})).status,400);
+ assert.equal((await f.api('/api/bootstrap')).data.capabilities.limits.maxModelTurns,32);
+ await f.restart();
+ const restored=(await f.api('/api/bootstrap')).data.projects.find(p=>p.id===project.id);
+ assert.equal(restored.resources.maxRunTurns,48);assert.equal(restored.resources.maxRunContinuations,2);
+});
+
 test('auto default applies to newly created projects without elevating remembered or explicit manual sends',async t=>{
   const f=await fixture(t),old=await f.project('Existing manual project');
   const original=await f.send(old,'manual');assert.equal(original.run.permissionMode,'manual');await f.complete(original.run);

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Model Preview · Manta</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/document-viewer.css">
+  <link rel="stylesheet" href="/workspace-ui.css">
+  <style>
+    .model-preview-page{height:100dvh;display:flex;flex-direction:column}
+    .model-preview-page .manta-workbench{flex:1;height:auto;min-height:0}
+    .model-preview-controls{display:flex;align-items:center;gap:8px}
+    .model-preview-controls label{font-size:11px;color:var(--muted)}
+    .model-preview-controls select{font-size:12px;padding:5px 8px}
+    .model-preview-footer{padding:10px 20px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+    .model-preview-footer p+p{margin-top:3px}
+    #status[data-error=true]{color:var(--red)}
+    @media(max-width:700px){.model-preview-page>.topbar{height:auto;min-height:64px;padding:12px 16px;flex-wrap:wrap}}
+  </style>
+</head>
+<body class="model-preview-page">
+  <header class="topbar">
+    <div class="breadcrumb"><strong>Manta</strong><span>/</span><span>Model Preview</span></div>
+    <div class="model-preview-controls">
+      <label for="sample">Model</label>
+      <select id="sample"><option value="connected">Connected example</option><option value="original">Repository model</option></select>
+    </div>
+  </header>
+  <main class="manta-workbench" aria-label="Model preview workspace">
+    <div class="workbench-tabbar" role="tablist" aria-label="Model files">
+      <span class="workbench-tab active"><button type="button" role="tab" aria-selected="true" aria-controls="current-viewer" id="model-title">model.sysml</button></span>
+    </div>
+    <div class="workbench-content">
+      <div class="workbench-file-actions"><span id="model-path"></span><button id="reload" type="button">Reload model</button></div>
+      <div class="workbench-viewer" id="current-viewer" role="tabpanel" aria-labelledby="model-title"></div>
+    </div>
+  </main>
+  <footer class="model-preview-footer">
+    <p id="status" role="status">Loading model…</p>
+    <p id="sample-note"></p>
+    <p>Development preview of composition, types, and port connections. No natural-language generation or dynamic simulation is performed.</p>
+  </footer>
+  <script type="module" src="/preview.mjs"></script>
+</body>
+</html>

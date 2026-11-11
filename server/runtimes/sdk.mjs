@@ -61,7 +61,7 @@ async function withToolAbort(operation,signal){
   try{return await Promise.race([Promise.resolve().then(operation),new Promise((_,reject)=>{abort=()=>reject(Error('Tool interrupted; incomplete execution is not success evidence'));signal.addEventListener('abort',abort,{once:true});})]);}
   finally{signal.removeEventListener('abort',abort);}
 }
-export function createSdkRuntime({providers,dataDir,loadAgents=()=>import('@openai/agents'),maxTurns=12}={}){
+export function createSdkRuntime({providers,dataDir,loadAgents=()=>import('@openai/agents'),maxTurns=32}={}){
   if(!providers?.complete||!dataDir)throw Error('SDK runtime needs providers.complete and dataDir');
   const active=new Set();let modulePromise;
   return {kind:'agents-sdk',startTurn(options={}){
@@ -76,28 +76,40 @@ export function createSdkRuntime({providers,dataDir,loadAgents=()=>import('@open
         let workspace=options.workspace||'';if(workspace){try{workspace=fss.realpathSync(workspace);}catch{workspace=path.resolve(workspace);}}
         const session=await new JsonSdkSession({directory:path.join(dataDir,'sdk-sessions'),id:sessionId,providerId:options.providerId,workspace,history:options.history||[],resume:!!options.sessionId}).init();
         options.onSession?.(sessionId);
+        const usageRecords=[];
         const model={async getResponse(request){
           if(signal.aborted)throw Error('Cancelled');
           event('sdk.model.started','Official Runner requested a model response');
           const response=await providers.complete(options.providerId,{messages:itemsToMessages(request.input,request.systemInstructions||''),tools:request.tools.map(t=>({name:t.name,description:t.description,parameters:t.parameters})),signal:request.signal||signal,workspace:options.workspace,onEvent:options.onEvent,...(options.model?{model:options.model}:{}),...(options.baseUrl?{baseUrl:options.baseUrl}:{}),...(options.apiKey?{apiKey:options.apiKey}:{})});
           if(signal.aborted)throw Error('Cancelled');
-          event('sdk.model.completed','Model response received');
+          event('sdk.model.completed','Model response received',{usage:response.usage||null});
           const output=[];if(response.content)output.push({id:'msg_'+randomUUID(),type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:response.content}]});
           output.push(...(response.toolCalls||[]).map(c=>({type:'function_call',callId:c.id||'call_'+randomUUID(),name:c.name,arguments:JSON.stringify(c.args||{}),status:'completed'})));
           if(response.responseItems?.length){if(!output.length)output.push({type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:''}]});output[0].providerData={syspilotResponseItems:copy(response.responseItems)};}
           if(response.content)options.onMessage?.({id:output[0].id,text:response.content,phase:response.toolCalls?.length?'commentary':'final',partial:false});
-          return {usage:new Usage({requests:1,...response.usage}),output};
+          const usage=new Usage({requests:1,...response.usage});usageRecords.push(usage);
+          return {usage,output};
         },async *getStreamedResponse(request){/* Event streaming only: API calls are non-token-streaming. */const response=await this.getResponse(request);yield {type:'response_done',response:{...response,id:response.responseId||'sdk_response_'+randomUUID()}};}};
         const sdkTools=(options.tools||[]).map(t=>tool({name:t.name,description:t.description||'',parameters:t.parameters||{type:'object',properties:{}},strict:false,errorFunction:(_context,error)=>JSON.stringify({error:providers.redact?.(error.message)||error.message}),execute:async(args,_context,details)=>{const invocation=new AbortController(),toolSignal=AbortSignal.any([signal,invocation.signal,...(details?.signal?[details.signal]:[])]);toolControllers.add(invocation);try{return asToolOutput(await withToolAbort(()=>options.executeTool(t.name,args,{signal:toolSignal}),toolSignal));}finally{toolControllers.delete(invocation);}}}));
         const agent=new Agent({name:'Manta',instructions:options.instructions||'',model,tools:sdkTools});
         const runner=new Runner({tracingDisabled:true,traceIncludeSensitiveData:false,toolExecution:{maxFunctionToolConcurrency:1},toolNotFoundBehavior:'return_error_to_model',toolErrorFormatter:args=>{event('sdk.tool.rejected','Tool is not permitted for this agent role',{tool:args.toolName,callId:args.callId});return JSON.stringify({error:`Tool ${args.toolName} is not permitted for this agent role`});}});
-        let input=options.input||'',result;
-        // Each iteration is a new queued USER turn. All model/tool iterations belong to Runner.run.
-        do{if(signal.aborted)throw Error('Cancelled');event('sdk.turn.started','Official Agents SDK turn started',{sessionId});result=await runner.run(agent,input,{session,signal,maxTurns:options.maxTurns||maxTurns,stream:true});
+        let input=options.input||'',result,continuations=0;
+        const turnBudget=options.maxTurns??maxTurns,continuationBudget=options.maxContinuations??0;
+        if(!Number.isInteger(turnBudget)||turnBudget<1||!Number.isInteger(continuationBudget)||continuationBudget<0||continuationBudget>3)throw Error('Invalid SDK execution budget');
+        // Runner owns each model/tool segment; budget continuations keep the
+        // recorded history, and queued human instructions follow its completion.
+        do{if(signal.aborted)throw Error('Cancelled');event('sdk.turn.started','Official Agents SDK turn started',{sessionId,maxTurns:turnBudget,continuations,continuationBudget});result=await runner.run(agent,input,{session,signal,maxTurns:turnBudget,stream:true});
           try{for await(const _event of result){/* Official SDK owns all model/tool scheduling. */}await result.completed;}
-          catch(error){const history=copy(result.state.history),completed=new Set(history.filter(i=>i.type==='function_call_result').map(i=>i.callId));for(const call of history.filter(i=>i.type==='function_call'&&!completed.has(i.callId)))history.push({type:'function_call_result',callId:call.callId,name:call.name,status:'incomplete',output:JSON.stringify({error:'Run interrupted before a tool result was recorded. Execution outcome is unknown; this is not success evidence.'})});await session.replaceItems(history);throw error;}
+          catch(error){const history=copy(result.state.history),completed=new Set(history.filter(i=>i.type==='function_call_result').map(i=>i.callId));for(const call of history.filter(i=>i.type==='function_call'&&!completed.has(i.callId)))history.push({type:'function_call_result',callId:call.callId,name:call.name,status:'incomplete',output:JSON.stringify({error:'Run interrupted before a tool result was recorded. Execution outcome is unknown; this is not success evidence.'})});await session.replaceItems(history);
+            if(!signal.aborted&&(error.name==='MaxTurnsExceededError'||/Max turns \(\d+\) exceeded/.test(error.message))&&continuations<continuationBudget){
+              continuations++;event('sdk.turn.continued','Execution segment budget reached; continuing the saved SDK session',{sessionId,maxTurns:turnBudget,continuations,continuationBudget});
+              // Empty input resumes after the recorded tool outputs without
+              // replaying the original user request or any completed tool.
+              input=[];continue;
+            }
+            throw error;}
           if(signal.aborted)throw Error('Cancelled');const next=pending.shift();input=next?.input;if(next)event('sdk.steering.delivered','Queued user instruction delivered to the next official SDK turn',{sessionId,text:next.text});}while(input!==undefined);
-        return {sessionId,content:typeof result.finalOutput==='string'?result.finalOutput:JSON.stringify(result.finalOutput??''),usage:result.rawResponses?.map(x=>x.usage)};
+        return {sessionId,content:typeof result.finalOutput==='string'?result.finalOutput:JSON.stringify(result.finalOutput??''),usage:usageRecords};
       }finally{settled=true;active.delete(sessionId);}
     })();
     return {completion,async steer(text){if(typeof text!=='string'||!text.trim())throw Error('Steering must be nonempty text');if(settled||signal.aborted)return {accepted:false,delivery:'not-running'};pending.push({text,input:text});for(const invocation of toolControllers)invocation.abort();event('sdk.steering.queued','User instruction queued for the next official SDK turn',{sessionId,text});return {accepted:true,delivery:'queued-next-turn'};},cancel(){controller.abort();}};

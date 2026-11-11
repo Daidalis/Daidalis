@@ -10,7 +10,7 @@ const RUNTIMES=['codex-app-server','claude-agent-sdk','openai-agents-sdk'];
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 async function eventually(check,label='condition',timeout=3000){const end=Date.now()+timeout;while(Date.now()<end){if(check())return;await new Promise(r=>setTimeout(r,5));}assert.fail('Timed out: '+label);}
 function gate(promise,signal){let abort;return new Promise((resolve,reject)=>{abort=()=>reject(Object.assign(new Error('Native fixture interrupted'),{name:'AbortError'}));if(signal.aborted)return abort();signal.addEventListener('abort',abort,{once:true});promise.then(resolve,reject);}).finally(()=>signal.removeEventListener('abort',abort));}
-async function fixture(t,handler,{resources={},runTimeoutMs=4000,autoResumeDebounceMs=5,webFetcher}={}){
+async function fixture(t,handler,{resources={},runTimeoutMs=4000,autoResumeDebounceMs=5,webFetcher,webSearch}={}){
   const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-coordination-engine-'))),dataDir=path.join(root,'data'),store=createStore({dataDir,seed:false}),calls=[],events=[];let sequence=0;
   store.add('providers',{id:'api-profile',name:'Custom API fixture',type:'openai-responses',baseUrl:'https://example.test/v1',model:'fixture'});
   const providers={getConfig:key=>structuredClone(store.get('providers',key)),list:()=>store.data.providers.map(p=>({...p,configured:true})),redact:value=>String(value),complete(){throw new Error('No inner Agent loop may replace native adapters');}};
@@ -19,7 +19,7 @@ async function fixture(t,handler,{resources={},runTimeoutMs=4000,autoResumeDebou
     const completion=Promise.resolve().then(async()=>{options.onSession(sessionId);const result=await handler(call);return {sessionId,content:'Fixture finding',...result};});
     return {completion,async steer(text){call.steerings.push(text);return {accepted:true,delivery:'native-fixture'};},cancel(){call.cancelled=true;}};
   }}]));
-  const engine=createEngine({store,providers,runtimeAdapters:adapters,autoResumeDebounceMs,runTimeoutMs,webFetcher,emit:event=>{const recorded={id:id('event'),createdAt:now(),...structuredClone(event)};events.push(recorded);store.data.events.push(recorded);store.save();}});
+  const engine=createEngine({store,providers,runtimeAdapters:adapters,autoResumeDebounceMs,runTimeoutMs,webFetcher,webSearch,emit:event=>{const recorded={id:id('event'),createdAt:now(),...structuredClone(event)};events.push(recorded);store.data.events.push(recorded);store.save();}});
   const project=store.createProject({name:'Evidence handoff integration',resources:{maxAutoResumes:2,...resources}}),thread=store.get('threads',project.coordinatorThreadId);
   const h={root,dataDir,store,engine,project,thread,calls,events};
   t.after(async()=>{await engine.close();await fs.rm(root,{recursive:true,force:true});});return h;
@@ -116,6 +116,9 @@ test('Coordinator source fetches wait for an owning thread and its handoff is a 
     }
     assignment=await options.executeTool('start_thread',{name:'Public sources',task:'Investigate primary public sources',taskKey:'source-investigation',workKind:'public_sources'});
     assert.equal(assignment.thread.taskContract.workKind,'public_sources');
+    const blockedSearch=await options.executeTool('web_search',{query:'duplicate source investigation'});
+    assert.match(blockedSearch.error,/assigned to Public sources/);
+    assert.equal(fetchedUrls.includes('search:duplicate source investigation'),false);
     const blocked=await options.executeTool('web_fetch',{url:'https://example.org/duplicate'});
     assert.match(blocked.error,/assigned to Public sources/);
     assert.equal(fetchedUrls.includes('https://example.org/duplicate'),false,'Coordinator must not issue a network request while the worker owns source research');
@@ -124,7 +127,7 @@ test('Coordinator source fetches wait for an owning thread and its handoff is a 
     const independent=await options.executeTool('web_fetch',{url:'https://example.org/review'});
     assert.equal(independent.text,'Bounded source fixture');
     return {content:'Source task handed off; independent review may proceed.'};
-  },{resources:{maxAutoResumes:0},webFetcher:async url=>{fetchedUrls.push(url);return {text:'Bounded source fixture'};}});
+  },{resources:{maxAutoResumes:0},webFetcher:async url=>{fetchedUrls.push(url);return {text:'Bounded source fixture'};},webSearch:{search:async({query})=>{fetchedUrls.push('search:'+query);return {results:[]};}}});
   const {run}=start(h);await eventually(()=>run.executionPhase==='waiting_tasks'||!h.engine.active.has(run.id));
   assert.equal(run.executionPhase,'waiting_tasks',run.error||'Coordinator ended before waiting for public sources');
   workerGate.resolve();await finished(h,run);
@@ -250,8 +253,8 @@ async function inspectReviewAndMerge(call){
   const {options}=call,results=autoResults(call);assert.ok(results.length);
   for(const result of results){assert.equal(result.status,'completed');assert.ok(result.artifacts.length);for(const recorded of result.artifacts){const file=await options.executeTool('read_file',{path:recorded.path});assert.ok(file.content?.includes('Recorded fixture source'),file.error);}}
   const reviewed=await options.executeTool('review_task_results',{reviews:results.map(result=>review(result,result.artifacts.map(recorded=>recorded.id)))});assert.equal(reviewed.reviews?.length,results.length,reviewed.error);
-  const graph=await options.executeTool('get_model',{}),nodes=[...graph.nodes,...results.map(result=>({id:'requirement-'+result.runId,type:'requirement',name:'Reviewed source requirement for '+result.title}))];
-  const merged=await options.executeTool('update_model',{nodes,links:graph.links,version:graph.version});assert.equal(merged.nodes?.length,nodes.length,merged.error);return results;
+  for(const result of results){const saved=await options.executeTool('create_artifact',{name:'reviewed-'+result.runId+'.md',content:'Reviewed source requirement for '+result.title});assert.ok(saved.id,saved.error);}
+  return results;
 }
 
 for(const providerId of ['codex-local','claude-local'])test(providerId+' automatically reviews each returned batch without waiting for unrelated workers',async t=>{
@@ -264,7 +267,7 @@ for(const providerId of ['codex-local','claude-local'])test(providerId+' automat
   aGate.resolve();await eventually(()=>h.store.data.runs.filter(r=>r.source==='auto-summary'&&r.status==='completed').length===1);assert.equal(h.engine.active.has(b.run.id),true,'An unrelated worker must not block review of the ready result');
   bGate.resolve();await eventually(()=>h.store.data.runs.filter(r=>r.source==='auto-summary'&&r.status==='completed').length===2,'automatic evidence review');await delay(30);
   const summary=h.store.data.runs.find(r=>r.source==='auto-summary'),mainCalls=h.calls.filter(main);assert.equal(h.store.data.runs.filter(r=>r.source==='auto-summary').length,2);assert.equal(mainCalls.length,3);assert.equal(h.calls.length,5);assert.equal(mainCalls[1].sessionId,mainCalls[0].sessionId,'Automatic handoff must resume the native main session');assert.equal(mainCalls[1].name,mainCalls[0].name);
-  assert.deepEqual(new Set(received.map(r=>r.runId)),new Set([a.run.id,b.run.id]));assert.equal(h.store.get('runs',a.run.id).review.outcome,'accepted');assert.equal(h.store.get('runs',b.run.id).review.outcome,'accepted');assert.equal(h.store.data.models.find(m=>m.projectId===h.project.id).nodes.length,2);assert.equal(summary.executionPhase,'summarizing');assert.ok(h.store.data.messages.filter(m=>m.type==='thread.result').every(m=>m.metadata.summaryStatus==='summarized'));
+  assert.deepEqual(new Set(received.map(r=>r.runId)),new Set([a.run.id,b.run.id]));assert.equal(h.store.get('runs',a.run.id).review.outcome,'accepted');assert.equal(h.store.get('runs',b.run.id).review.outcome,'accepted');assert.equal(h.store.data.artifacts.filter(a=>a.projectId===h.project.id&&a.name.startsWith('reviewed-')).length,2);assert.equal(summary.executionPhase,'summarizing');assert.ok(h.store.data.messages.filter(m=>m.type==='thread.result').every(m=>m.metadata.summaryStatus==='summarized'));
 });
 
 test('three distinct returning-result batches each wake native synthesis beyond the old total default of two',async t=>{
@@ -275,7 +278,7 @@ test('three distinct returning-result batches each wake native synthesis beyond 
     const worker=h.store.createThread(h.project.id,'Independent batch '+index,h.thread.id,{assignment:'BATCH_'+index,taskContract:{taskKey:'batch-'+index,scope:'Evidence batch '+index,deliverables:[],ownedPaths:[],acceptanceCriteria:[]}}),result=h.engine.start({threadId:worker.id,providerId:'codex-local',permissionMode:'auto',content:'BATCH_'+index});
     await finished(h,result.run);await eventually(()=>h.store.data.runs.filter(r=>r.source==='auto-summary'&&r.status==='completed').length===index,'automatic batch '+index);assert.equal(h.store.get('runs',result.run.id).review.outcome,'accepted');
   }
-  await delay(30);assert.equal(h.project.autoResumeCount,3);assert.equal(h.store.data.runs.filter(r=>r.source==='auto-summary').length,3);assert.equal(batches.length,3);assert.ok(batches.every(batch=>batch.length===1));assert.equal(new Set(batches.flat()).size,3);assert.equal(h.calls.length,7);assert.equal(h.store.data.models.find(m=>m.projectId===h.project.id).nodes.length,3);
+  await delay(30);assert.equal(h.project.autoResumeCount,3);assert.equal(h.store.data.runs.filter(r=>r.source==='auto-summary').length,3);assert.equal(batches.length,3);assert.ok(batches.every(batch=>batch.length===1));assert.equal(new Set(batches.flat()).size,3);assert.equal(h.calls.length,7);assert.equal(h.store.data.artifacts.filter(a=>a.projectId===h.project.id&&a.name.startsWith('reviewed-')).length,3);
 });
 
 test('failed automatic review blocks that receipt without looping and a new result can wake another native turn',async t=>{

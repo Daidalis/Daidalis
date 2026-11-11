@@ -55,12 +55,6 @@ test('desktop/browser payloads support flattened and nested schemas without losi
   const v=present({tool:'computer_use',args:{action:'desktop.click',x:0,y:0}});assert.ok(v.fields.some(f=>f.label==='X 坐标'&&f.value==='0'));
 });
 
-test('model counts supplement the complete proposed model, including stable IDs and zero values',()=>{
-  const args={version:0,nodes:[{id:'R-1',type:'requirement',text:'retain'}],links:[]};
-  const v=present({tool:'update_model',args});assert.ok(v.fields.some(f=>f.label==='模型版本'&&f.value==='0'));
-  assert.ok(v.fields.some(f=>f.label==='模型关联'&&f.value==='0'));assert.deepEqual(JSON.parse(v.blocks[0].content),args);
-});
-
 test('unknown tools retain semantic arguments, including thread IDs and metadata-like names',()=>{
   const args={threadId:'target-worker',turnId:'semantic-user-value',native:'semantic',commandActions:['do not drop'],custom:{x:1}};
   const v=present({tool:'custom_operation',args});assert.equal(v.title,'使用工具');assert.equal(v.source,'Manta');

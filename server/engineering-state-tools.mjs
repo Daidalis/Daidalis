@@ -7,14 +7,20 @@ export const ENGINEERING_STATE_TOOL_DEFINITIONS=[
   {name:'propose_engineering_change',description:'Record a proposed change with rationale and explicit affected object IDs; calculate dependent objects and evidence needing review. Does not approve or implement the change. Preserve untested physical/HIL/environment/lifetime requirements.',parameters:schema({title:str,reason:str,objectIds:strings,baseSnapshotId:str},['title','reason','objectIds'])},
   {name:'record_engineering_evidence',description:'Register declared evidence for actual inspected project files and object versions, with exact limited scope. Historical result is immutable; current applicability changes with dependencies. This is an evidence declaration, not a verified native execution receipt or automatic engineering acceptance. Never invent passed results; use inconclusive/not_executed when unsupported.',parameters:schema({title:str,scope:str,result:{type:'string',enum:['passed','failed','inconclusive','not_executed']},objectIds:strings,paths:strings,runId:str,artifactId:str,snapshotId:str},['title','scope','result','objectIds'])}
 ];
+// Relationship payloads in old evidence are historical graph fragments, not
+// current model context. Keep their IDs, results and applicability in AI views.
+const evidenceSummary=({relations,...record})=>record;
+// Historical revisions remain available to the human-facing service, while
+// every agent response describes only the current explicit observation.
+const objectSummary=({history,...object})=>({...object,historyCount:object.historyCount??history?.length??0});
 export function summarizeEngineeringState(value) {
   if(!value)return {available:false};
   const take=(a,n)=>Array.isArray(a)?a.slice(-n):[];
   return {schema:value.schema,projectId:value.projectId,revision:value.revision,
     counts:{objects:value.objects?.length||0,snapshots:value.snapshots?.length||0,changes:value.changes?.length||0,evidence:value.evidence?.length||0},
-    objects:take(value.objects,100).map(({history,...object})=>({...object,description:String(object.description||'').slice(0,2000),historyCount:object.historyCount??history?.length??0})),
+    objects:take(value.objects,100).map(object=>({...objectSummary(object),description:String(object.description||'').slice(0,2000)})),
     relations:take(value.relations,200),snapshots:take(value.snapshots,8).map(s=>({id:s.id,name:s.name,kind:s.kind,createdAt:s.createdAt,approval:s.approval,files:s.files,objectVersions:s.objectVersions})),
-    changes:take(value.changes,12),evidence:take(value.evidence,30),issues:take(value.issues,50),
+    changes:take(value.changes,12),evidence:take(value.evidence,30).map(evidenceSummary),issues:take(value.issues,50),
     bounded:true,scope:'Versioned engineering records and declared evidence; no automatic compliance or full workspace restore.'};
 }
 export function engineeringStatePage(value,args={}) {
@@ -23,11 +29,10 @@ export function engineeringStatePage(value,args={}) {
   if(args.objectIds!==undefined&&(!Array.isArray(args.objectIds)||args.objectIds.length>100||args.objectIds.some(id=>typeof id!=='string'||!id.trim()||id.length>150)))throw new Error('objectIds must be up to 100 stable object IDs.');
   const wanted=args.objectIds?.length?new Set(args.objectIds):null;
   const result=summarizeEngineeringState(value);
-  const cleanObject=({history,...object})=>({...object,historyCount:object.historyCount??history?.length??0});
   const cleanSnapshot=s=>({id:s.id,name:s.name,kind:s.kind,createdAt:s.createdAt,approval:s.approval,files:s.files,objectVersions:s.objectVersions,applicability:s.applicability});
   const collections={objects:(value.objects||[]).filter(o=>!wanted||wanted.has(o.id)),snapshots:value.snapshots||[],changes:(value.changes||[]).filter(c=>!wanted||(c.affectedObjectIds||[]).some(id=>wanted.has(id))),evidence:(value.evidence||[]).filter(e=>!wanted||Object.keys(e.objectVersions||{}).some(id=>wanted.has(id)))};
   const selected=section==='all'?'objects':section,total=collections[selected].length;
-  result[selected]=collections[selected].slice(offset,offset+limit).map(row=>selected==='objects'?cleanObject(row):selected==='snapshots'?cleanSnapshot(row):row);
+  result[selected]=collections[selected].slice(offset,offset+limit).map(row=>selected==='objects'?objectSummary(row):selected==='snapshots'?cleanSnapshot(row):selected==='evidence'?evidenceSummary(row):row);
   if(section!=='all')for(const key of Object.keys(collections))if(key!==section)result[key]=[];
   result.page={section:selected,offset,limit,total,hasMore:offset+limit<total,nextOffset:offset+limit<total?offset+limit:null};
   if(wanted)result.missingObjectIds=[...wanted].filter(id=>!(value.objects||[]).some(o=>o.id===id));
@@ -42,7 +47,7 @@ export function createEngineeringStateRuntime({service,authorizeMutation}) {
     await authorizeMutation(name,args,ctx);
     if(ctx.signal?.aborted)throw new Error('Cancelled');
     const actor={kind:'agent',id:ctx.agentId||ctx.runId};
-    if(name==='record_engineering_object')return service.upsertObject(ctx.projectId,args,{actor});
+    if(name==='record_engineering_object')return objectSummary(await service.upsertObject(ctx.projectId,args,{actor}));
     if(name==='capture_configuration')return service.captureSnapshot(ctx.projectId,args,{actor});
     if(name==='propose_engineering_change')return service.createChange(ctx.projectId,args,{actor});
     if(name==='record_engineering_evidence')return service.registerEvidence(ctx.projectId,{...args,...(ctx.runId?{runId:ctx.runId}: {})},{actor});

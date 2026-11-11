@@ -5,10 +5,10 @@ const CLAUDE_TOOLS = new Set(['Bash', 'Write', 'Edit', 'MultiEdit', 'NotebookEdi
 const TITLES = {
   call_external_tool:'调用项目 MCP 工具',import_system_model:'保存 SysML 模型',prepare_nos3_model:'建立 NOS3 接口模型',validate_system_model:'检查 SysML 模型',verify_system_model:'求值模型约束',bind_nos3_results:'回填 NOS3 结果',submit_nos3_job:'运行 NOS3 作业',cancel_nos3_job:'停止 NOS3 作业',
   record_engineering_object:'记录工程对象', capture_configuration:'捕获观察快照', propose_engineering_change:'记录工程变更', record_engineering_evidence:'登记工程证据',
-  update_model:'更新系统模型', create_artifact:'保存项目产物', update_project_memory:'更新项目记忆',
+  create_artifact:'保存项目产物', update_project_memory:'更新项目记忆',
   save_professional_model:'保存原生模型',submit_professional_job:'运行专业求解',cancel_professional_job:'停止专业求解',prepare_professional_environment:'准备隔离求解环境',create_stf_case:'建立 STF 工程资产',
   run_engineering_model:'运行工程仿真', computer_use:'操作电脑', start_thread:'创建子线程',
-  delegate_task:'创建子线程', steer_thread:'向子线程发送指令', web_fetch:'读取网页',
+  delegate_task:'创建子线程', steer_thread:'向子线程发送指令', web_search:'搜索网页', web_fetch:'读取网页',
   read_file:'读取项目文件', read_thread:'读取子线程', search_files:'搜索项目文件',
 };
 const COMPUTER_TITLES = {
@@ -85,14 +85,6 @@ export function buildApprovalPresentation(approval={}) {
     if(payload.text!==undefined)block('输入文字',payload.text);
     const rest=remaining(payload,new Set(['action','url','toolId','app','key','x','y','deltaX','deltaY','text','reason','description','cwd']));
     if(Object.keys(rest).length)block('操作参数',rest,'json');
-    return view;
-  }
-
-  if(tool==='update_model') {
-    field('模型版本',args.version);
-    if(Array.isArray(args.nodes))field('模型元素',args.nodes.length);
-    if(Array.isArray(args.links))field('模型关联',args.links.length);
-    const content=remaining(args,new Set(['reason','description','cwd']),native);if(Object.keys(content).length)block('模型内容',content,'json');
     return view;
   }
 

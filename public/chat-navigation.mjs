@@ -1,5 +1,5 @@
 import {runExecutionStatus} from '../shared/run-presentation.mjs';
-const routineReadTools=new Set(['read_file','list_files','search_files','search_knowledge','web_fetch','WebFetch','WebSearch','codex.webSearch','Read','Glob','Grep']);
+const routineReadTools=new Set(['read_file','list_files','search_files','search_knowledge','web_search','web_fetch','WebFetch','WebSearch','codex.webSearch','Read','Glob','Grep']);
 /** Source and file discovery failures remain inspectable in the process record.
  * Solver, verification, write and approval failures are never treated as routine. */
 export function isRoutineReadFailure(activity={}) {

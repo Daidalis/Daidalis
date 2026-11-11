@@ -40,7 +40,7 @@ test('Native sessions persist per provider and thread; server restart resumes wi
   await completed(h,{content:'Second native turn'});assert.equal(h.calls.at(-1).options.sessionId,first.sessionId);assert.deepEqual(h.calls.at(-1).options.history,[]);
   await completed(h,{providerId:'claude-local',content:'Use another native provider'});const claude=h.calls.at(-1);assert.equal(claude.name,'claude-agent-sdk');assert.equal(claude.options.sessionId,undefined);assert.ok(claude.options.history.some(m=>m.content==='MAIN_ONLY_CONTEXT'));
   await completed(h,{providerId:'api-profile',content:'Use official Agents SDK'});const sdk=h.calls.at(-1);assert.equal(sdk.name,'openai-agents-sdk');assert.equal(sdk.options.sessionId,undefined);
-  const worker=h.store.createThread(h.project.id,'Independent worker',h.thread.id,{assignment:'Check the independent interface'});await completed(h,{threadId:worker.id,content:'Independent worker request'});const workerCall=h.calls.at(-1);assert.notEqual(workerCall.sessionId,first.sessionId);assert.equal(JSON.stringify(workerCall.options.history).includes('MAIN_ONLY_CONTEXT'),false);assert.equal(workerCall.tools.some(t=>t.name==='update_model'),false);
+  const worker=h.store.createThread(h.project.id,'Independent worker',h.thread.id,{assignment:'Check the independent interface'});await completed(h,{threadId:worker.id,content:'Independent worker request'});const workerCall=h.calls.at(-1);assert.notEqual(workerCall.sessionId,first.sessionId);assert.equal(JSON.stringify(workerCall.options.history).includes('MAIN_ONLY_CONTEXT'),false);assert.equal(workerCall.tools.some(t=>t.name==='record_engineering_object'),false);
   const saved=h.store.get('threads',h.thread.id).runtimeSessions;assert.deepEqual(Object.keys(saved).sort(),['api-profile','claude-local','codex-local']);assert.equal(saved['codex-local'].sessionId,first.sessionId);
   await h.engine.close();const restarted=h.open();await completed({...h,...restarted},{content:'Continue after restarting Manta'});const resumed=h.calls.at(-1);assert.equal(resumed.options.sessionId,first.sessionId);assert.deepEqual(resumed.options.history,[]);assert.equal(restarted.store.get('threads',worker.id).runtimeSessions['codex-local'].sessionId,workerCall.sessionId);
 });
@@ -49,12 +49,12 @@ test('Cumulative partial messages update one public row, final answers are not d
   const h=await fixture(t,async({options})=>{
     options.onMessage({id:'progress',text:'Checking',partial:true,phase:'commentary'});options.onMessage({id:'progress',text:'Checking the evidence.',partial:true,phase:'commentary'});options.onMessage({id:'progress',text:'Checking the evidence.',partial:false,phase:'commentary'});
     options.onEvent({type:'item.reasoning.delta',message:'PRIVATE_REASONING',data:{text:'PRIVATE_REASONING'}});options.onEvent({type:'thinking',message:'PRIVATE_REASONING'});
-    const model=await options.executeTool('get_model',{});assert.equal(model.version,0);
-    options.onEvent({type:'tool.started',message:'duplicate bridge',data:{native:false,tool:'get_model'}});options.onEvent({type:'tool.completed',message:'duplicate bridge',data:{native:false,tool:'get_model',result:{version:0}}});
+    const files=await options.executeTool('list_files',{});assert.ok(Array.isArray(files.files));
+    options.onEvent({type:'tool.started',message:'duplicate bridge',data:{native:false,tool:'list_files'}});options.onEvent({type:'tool.completed',message:'duplicate bridge',data:{native:false,tool:'list_files',result:{files:[]}}});
     options.onEvent({type:'tool.started',message:'Native read',data:{native:true,tool:'codex.commandExecution',itemId:'native-read'}});options.onEvent({type:'tool.completed',message:'Native read',data:{native:true,tool:'codex.commandExecution',itemId:'native-read',result:{stdout:'actual native output',code:0}}});
     options.onMessage({id:'final',text:'Evidence',partial:true,phase:'final_answer'});options.onMessage({id:'final',text:'Evidence remains analytical.',partial:false,phase:'final_answer'});options.onMessage({id:'final',text:'Evidence remains analytical.',partial:false,phase:'final_answer'});return {content:'Evidence remains analytical.',usage:{outputTokens:4}};
   });
-  const {run}=await completed(h),rows=h.store.data.messages.filter(m=>m.runId===run.id&&m.type==='runtime.message');assert.equal(rows.length,2);assert.equal(rows.filter(m=>m.content==='Evidence remains analytical.').length,1);assert.ok(rows.every(m=>m.metadata.partial===false));assert.equal(run.usage.outputTokens,4);assert.equal(JSON.stringify({rows,events:h.events}).includes('PRIVATE_REASONING'),false);assert.equal(h.events.filter(e=>e.type==='tool.started'&&e.data.tool==='get_model').length,1);assert.equal(h.events.filter(e=>e.type==='tool.completed'&&e.data.tool==='get_model').length,1);assert.equal(h.events.find(e=>e.type==='tool.completed'&&e.data.native===true).data.result.stdout,'actual native output');
+  const {run}=await completed(h),rows=h.store.data.messages.filter(m=>m.runId===run.id&&m.type==='runtime.message');assert.equal(rows.length,2);assert.equal(rows.filter(m=>m.content==='Evidence remains analytical.').length,1);assert.ok(rows.every(m=>m.metadata.partial===false));assert.equal(run.usage.outputTokens,4);assert.equal(JSON.stringify({rows,events:h.events}).includes('PRIVATE_REASONING'),false);assert.equal(h.events.filter(e=>e.type==='tool.started'&&e.data.tool==='list_files').length,1);assert.equal(h.events.filter(e=>e.type==='tool.completed'&&e.data.tool==='list_files').length,1);assert.equal(h.events.find(e=>e.type==='tool.completed'&&e.data.native===true).data.result.stdout,'actual native output');
 });
 
 test('Rejected bridge writes and native approval requests preserve real denial instead of success evidence',async t=>{
@@ -73,7 +73,7 @@ test('Native questions return validated human answers; rejected questions do not
 test('Cross-runtime workers start asynchronously with independent sessions and inherited, non-elevatable permission',async t=>{
   const gate=deferred(),results=[];const h=await fixture(t,async call=>{
     const {options}=call;if(options.instructions.includes('Role: coordinator')){for(const providerId of ['claude-local','api-profile'])results.push(await options.executeTool('start_thread',{name:'Worker '+providerId,task:'Independent interface analysis for '+providerId,providerId,permissionMode:'auto'}));return {content:'The two independent tasks are running.'};}
-    assert.equal(options.permissionMode,'manual');assert.equal(JSON.stringify(options.history).includes('MAIN_ONLY_PRIVATE_CONTEXT'),false);assert.equal(call.tools.some(t=>t.name==='update_model'),false);await assert.rejects(options.executeTool('update_model',{nodes:[],links:[],version:0}),/not permitted/);await waitForGate(gate.promise,options.signal);return {content:'Actual independent fixture finding from '+call.name};
+    assert.equal(options.permissionMode,'manual');assert.equal(JSON.stringify(options.history).includes('MAIN_ONLY_PRIVATE_CONTEXT'),false);assert.equal(call.tools.some(t=>t.name==='record_engineering_object'),false);await assert.rejects(options.executeTool('record_engineering_object',{id:'R',kind:'requirement',title:'Worker attempt'}),/not permitted/);await waitForGate(gate.promise,options.signal);return {content:'Actual independent fixture finding from '+call.name};
   });
   t.after(()=>gate.resolve());const {run}=await completed(h,{content:'MAIN_ONLY_PRIVATE_CONTEXT dispatch tasks',permissionMode:'manual'});await eventually(()=>h.calls.length===3,'both worker runtimes');assert.equal(run.status,'completed');assert.equal(h.store.data.runs.filter(r=>r.source==='delegated'&&r.status==='running').length,2);assert.equal(results.length,2);assert.ok(results.every(r=>r.asynchronous&&r.run.permissionMode==='manual'));assert.deepEqual(new Set(h.calls.map(c=>c.name)),new Set(NAMES));assert.equal(new Set(h.calls.map(c=>c.sessionId)).size,3);
   gate.resolve();await eventually(()=>h.store.data.runs.filter(r=>r.source==='delegated'&&r.status==='completed').length===2);const returned=h.store.data.messages.filter(m=>m.threadId===h.thread.id&&m.type==='thread.result');assert.equal(returned.length,2);assert.ok(returned.every(m=>m.metadata.result.summary.includes('Actual independent fixture finding')));
@@ -255,4 +255,22 @@ test('turn-budget exhaustion preserves a resumable session and reports interrupt
  const session=h.calls[0].sessionId;
  await completed(h,{providerId:'api-profile',content:'Continue'});
  assert.equal(h.calls.at(-1).options.sessionId,session);
+});
+
+test('ordinary API execution snapshots project budgets and defaults to 32 turns',async t=>{
+ const h=await fixture(t,async()=>({content:'Budget checked'}));
+ const first=await completed(h,{providerId:'api-profile'});
+ assert.equal(h.calls.at(-1).options.maxTurns,32);assert.equal(first.run.executionPolicy.maxContinuations,1);
+ h.project.resources.maxRunTurns=7;h.project.resources.maxRunContinuations=2;
+ const next=await completed(h,{providerId:'api-profile'});
+ assert.equal(h.calls.at(-1).options.maxTurns,7);assert.equal(h.calls.at(-1).options.maxContinuations,2);
+ assert.equal(first.run.executionPolicy.maxTurns,32);assert.equal(next.run.executionPolicy.maxTurns,7);
+});
+
+test('exhausted model timeouts are resumable interruptions with attempt details',async t=>{
+ const h=await fixture(t,async()=>{throw Object.assign(Error('Request timed out.'),{code:'MODEL_REQUEST_TIMEOUT',attempts:3,requestTimeoutMs:1000});});
+ const {run}=h.engine.start({threadId:h.thread.id,providerId:'api-profile',content:'Slow model',permissionMode:'auto'});
+ await eventually(()=>!h.engine.active.has(run.id));
+ assert.equal(run.status,'interrupted');assert.equal(run.stopReason,'model-request-timeout');assert.match(run.error,/已尝试 3 次/);assert.match(run.error,/每次请求时限 1 秒/);
+ assert.ok(h.thread.runtimeSessions['api-profile'].sessionId);
 });
