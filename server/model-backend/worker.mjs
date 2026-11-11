@@ -27,9 +27,10 @@ try {
       // The kernel deliberately permits unresolved draft references as warnings.
       // Manta's import/acceptance gate treats referential warnings as failures.
       const valid=!findings.some(f=>f.severity==='error'||f.stage==='referential');
+      const graph=()=>({...JSON.parse(session.toGraph()),interconnection:JSON.parse(session.toGraph('{"view":"interconnection"}'))});
       let data;
       switch(request.operation){
-        case 'query':data=request.query?JSON.parse(session.query(request.query)):JSON.parse(session.toGraph());break;
+        case 'query':data=request.query?JSON.parse(session.query(request.query)):graph();break;
         case 'verify':data=JSON.parse(session.verify());break;
         case 'export':
           if(!valid)throw Error('Export requires a model with no errors or unresolved references');
@@ -37,7 +38,7 @@ try {
           else if(request.format==='full-json')data=session.toFullJson(true);
           else if(request.format==='plantuml')data=session.toPlantuml();
           else throw Error('Unknown export format');break;
-        default:data={graph:JSON.parse(session.toGraph()),elementCount:JSON.parse(session.toCompactJson()).length};
+        default:data={graph:graph(),elementCount:JSON.parse(session.toCompactJson()).length};
       }
       process.stdout.write(JSON.stringify({version:api.version(),findings,valid,scope:'sysml-v2-syntax-and-supported-semantic-rules',data}));
     } finally {session.free();library.free();}
