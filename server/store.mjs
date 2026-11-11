@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 export const now = () => new Date().toISOString();
 export const id = (prefix = 'id') => `${prefix}_${randomUUID()}`;
 export const DEFAULT_RESOURCES = Object.freeze({maxConcurrentAgents:4,maxTasksPerRun:16,maxAutoResumes:2,maxAutoTurns:4,maxAutoRunMs:300000,maxAutoContinuations:24,maxRunContinuations:1});
-const collections = ['projects','threads','messages','runs','agents','artifacts','approvals','events','providers','knowledge','models','evaluations','steerings'];
+const collections = ['projects','threads','messages','runs','agents','artifacts','approvals','events','providers','knowledge','evaluations','steerings'];
 const contains=(parent,child)=>child===parent||child.startsWith(parent+path.sep);
 function existingDirectory(value){if(typeof value!=='string'||!value||value.includes('\0')||value.length>4096||!path.isAbsolute(value))throw new Error('项目文件夹必须是已存在目录的绝对路径。');let folder;try{folder=fs.realpathSync(value);if(!fs.statSync(folder).isDirectory())throw Error();}catch{throw new Error('项目文件夹不存在或不是目录，请先创建或选择工程文件夹。');}return folder;}
 export function createStore({dataDir, workspacesDir = path.join(dataDir, 'workspaces'), root, protectedPaths = [], seed = true, addDefaultCodexProvider = true, getDefaultPermissionMode = () => 'manual'}) {
@@ -21,6 +21,24 @@ export function createStore({dataDir, workspacesDir = path.join(dataDir, 'worksp
   try { data = JSON.parse(fs.readFileSync(file,'utf8')); }
   catch (e) { if(e.code !== 'ENOENT') throw new Error('Persistence is unreadable; preserve state.json and repair it before restarting.'); data = {}; }
   for (const name of collections) if (!Array.isArray(data[name])) data[name] = [];
+  // Retired JSON project graphs are historical data, never an active model or
+  // a source for engineering records. Preserve them once, including prior syncs.
+  if (Array.isArray(data.models) && data.models.length) {
+    data.legacyProjectGraphs = [...(data.legacyProjectGraphs || []), ...data.models];
+  }
+  delete data.models;
+  for (const ledger of data.engineeringStates || []) {
+    const objects = ledger.objects.filter(object => object.origin === 'graph');
+    if (objects.length || ledger.relations?.length || ledger.relationHistory?.length || ledger.graphVersion !== undefined || ledger.graphFingerprint !== undefined) {
+      ledger.legacyProjectGraph = { objects, relations: ledger.relations || [], relationHistory: ledger.relationHistory || [], graphVersion: ledger.graphVersion, graphFingerprint: ledger.graphFingerprint, archivedAt: now() };
+      ledger.objects = ledger.objects.filter(object => object.origin !== 'graph');
+      ledger.relations = [];
+      ledger.relationHistory = [];
+      delete ledger.graphVersion;
+      delete ledger.graphFingerprint;
+      ledger.revision++;
+    }
+  }
   const store = {
     data, dataDir, workspacesDir, id,
     canonicalFolder:existingDirectory,

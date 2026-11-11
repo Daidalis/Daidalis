@@ -5,10 +5,10 @@ import path from 'node:path';
 import os from 'node:os';
 import { createStore } from '../server/store.mjs';
 import { createEngineeringStateService } from '../server/engineering-state.mjs';
+import { summarizeEngineeringState, engineeringStatePage, createEngineeringStateRuntime } from '../server/engineering-state-tools.mjs';
 
 const user = { actor: { kind: 'user', id: 'reviewer' } };
 const agent = { actor: { kind: 'agent', id: 'worker' } };
-const graph = (description = 'Data delivered within TBD contact constraints', links = [{ id: 'satisfies-1', source: 'C-1', target: 'R-1', type: 'satisfies' }, { id: 'verifies-1', source: 'T-1', target: 'R-1', type: 'verifies' }], version = 1) => ({ version, nodes: [{ id: 'R-1', type: 'requirement', name: 'Downlink', description }, { id: 'C-1', type: 'component', name: 'Radio' }, { id: 'T-1', type: 'test', name: 'Contact test' }, { id: 'U-1', type: 'component', name: 'Unrelated structure' }], links });
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'manta-engineering-state-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -19,11 +19,19 @@ async function fixture(t) {
   return { root, folder, options, store, projectId: project.id, service, emitted };
 }
 async function declared(f, input = {}) { return f.service.registerEvidence(f.projectId, { title: 'Recorded observation', scope: 'Fixture scope only', result: 'passed', objectIds: ['C-1'], ...input }, agent); }
+async function seedObjects(f) {
+  for (const object of [
+    {id:'R-1',kind:'requirement',title:'Downlink',description:'Data delivered within TBD contact constraints'},
+    {id:'C-1',kind:'component',title:'Radio',dependsOn:['R-1']},
+    {id:'T-1',kind:'test',title:'Contact test',dependsOn:['R-1']},
+    {id:'U-1',kind:'component',title:'Unrelated structure'}
+  ]) await f.service.upsertObject(f.projectId, object, agent);
+}
 const reason = (record, code) => record.applicability.reasons.some(item => item.code === code);
 
-test('brownfield graph IDs, revisions and history persist across a real store restart', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph(), agent);
-  await f.service.syncGraph(f.projectId, graph('Updated requirement', undefined, 2), agent);
+test('explicit engineering IDs, revisions and history persist across a real store restart', async t => {
+  const f = await fixture(t); await seedObjects(f);
+  await f.service.upsertObject(f.projectId, {id:'R-1',description:'Updated requirement',expectedRevision:1}, agent);
   const reopened = createStore(f.options), service = createEngineeringStateService({ store: reopened });
   const state = await service.get(f.projectId), requirement = state.objects.find(item => item.id === 'R-1');
   assert.equal(state.schema, 'manta-engineering-state-v1'); assert.equal(requirement.revision, 2); assert.equal(requirement.history.length, 1);
@@ -41,39 +49,19 @@ test('concurrent CAS accepts exactly one write; missing revision cannot overwrit
 });
 
 test('declaration provenance remains unknown and does not prove engineering compliance', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph()); const evidence = await declared(f);
+  const f = await fixture(t); await seedObjects(f); const evidence = await declared(f);
   const row = (await f.service.get(f.projectId)).evidence.find(item => item.id === evidence.id);
   assert.equal(row.provenance, 'declared'); assert.equal(row.result, 'passed'); assert.equal(row.applicability.status, 'unknown'); assert.ok(reason(row, 'declared_provenance'));
   assert.deepEqual(row.objectVersions, { 'C-1': 1, 'R-1': 1 });
 });
 
-test('upstream graph change marks dependent evidence for review while unrelated changes leave it unchanged', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph()); await declared(f);
-  const unrelated = graph(); unrelated.nodes.find(item => item.id === 'U-1').description = 'Structure changed'; unrelated.version = 2;
-  await f.service.syncGraph(f.projectId, unrelated);
+test('upstream object change marks dependent evidence for review while unrelated changes leave it unchanged', async t => {
+  const f = await fixture(t); await seedObjects(f); await declared(f);
+  await f.service.upsertObject(f.projectId, {id:'U-1',description:'Structure changed',expectedRevision:1});
   assert.equal((await f.service.get(f.projectId)).evidence[0].applicability.status, 'unknown');
   assert.ok(!reason((await f.service.get(f.projectId)).evidence[0], 'object_changed'));
-  const changed = graph('Requirement changed', undefined, 3); await f.service.syncGraph(f.projectId, changed);
+  await f.service.upsertObject(f.projectId, {id:'R-1',description:'Requirement changed',expectedRevision:1});
   const row = (await f.service.get(f.projectId)).evidence[0]; assert.equal(row.applicability.status, 'needs_review'); assert.ok(reason(row, 'object_changed')); assert.equal(row.result, 'passed');
-});
-
-test('deleted graph objects retain immutable historical versions and invalidate affected applicability', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph()); await declared(f, { result: 'failed' });
-  const next = graph(); next.nodes = next.nodes.filter(item => item.id !== 'C-1'); next.links = next.links.filter(item => item.source !== 'C-1'); next.version = 2;
-  await f.service.syncGraph(f.projectId, next);
-  const state = await f.service.get(f.projectId), deleted = state.objects.find(item => item.id === 'C-1');
-  assert.ok(deleted.deletedAt); assert.equal(deleted.revision, 2); assert.equal(deleted.history[0].title, 'Radio');
-  assert.equal(state.evidence[0].applicability.status, 'invalid'); assert.equal(state.evidence[0].result, 'failed');
-});
-
-test('changed and unknown relation semantics request local review rather than globally failing evidence', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph()); await declared(f);
-  const next = graph(); next.links = next.links.filter(item => item.source !== 'C-1'); next.version = 2;
-  await f.service.syncGraph(f.projectId, next); let row = (await f.service.get(f.projectId)).evidence[0];
-  assert.ok(reason(row, 'dependency_relation_changed')); assert.equal(row.applicability.status, 'needs_review');
-  const f2 = await fixture(t); await f2.service.syncGraph(f2.projectId, graph()); await declared(f2);
-  const ambiguous = graph(); ambiguous.links.push({ id: 'trace', source: 'C-1', target: 'U-1', type: 'traces_to' }); ambiguous.version = 2;
-  await f2.service.syncGraph(f2.projectId, ambiguous); row = (await f2.service.get(f2.projectId)).evidence[0]; assert.ok(reason(row, 'ambiguous_relation_changed'));
 });
 
 test('explicit dependsOn propagates transitive change impact and evidence captures dependencies', async t => {
@@ -89,7 +77,7 @@ test('explicit dependsOn propagates transitive change impact and evidence captur
 });
 
 test('snapshot is an immutable observation with selected file hashes and separate user approval', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph()); await fs.writeFile(path.join(f.folder, 'model.sysml'), 'package M {}');
+  const f = await fixture(t); await seedObjects(f); await fs.writeFile(path.join(f.folder, 'model.sysml'), 'package M {}');
   const snapshot = await f.service.captureSnapshot(f.projectId, { name: 'Observed config', paths: ['model.sysml'] });
   assert.equal(snapshot.kind, 'observation'); assert.match(snapshot.files[0].sha256, /^[a-f0-9]{64}$/); assert.equal(snapshot.objectVersions['R-1'], 1);
   await assert.rejects(f.service.approveSnapshot(f.projectId, snapshot.id, { reason: 'Agent self approval' }, agent), error => error.status === 403);
@@ -127,26 +115,20 @@ test('agent cannot self-approve objects; approval requires a human reason and is
   assert.equal(changed.maturity, 'candidate'); assert.equal(changed.reviewRecord, null); assert.equal(changed.history[0].maturity, 'approved');
 });
 
-test('graph edits downgrade approval without rewriting the approved historical revision', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph());
+test('object edits downgrade approval without rewriting the approved historical revision', async t => {
+  const f = await fixture(t); await seedObjects(f);
   await f.service.upsertObject(f.projectId, { id: 'R-1', expectedRevision: 1, maturity: 'approved', reviewReason: 'Requirement review' }, user);
-  await f.service.syncGraph(f.projectId, graph('Changed after review', undefined, 2));
+  await f.service.upsertObject(f.projectId, {id:'R-1',description:'Changed after review',expectedRevision:2}, agent);
   const object = (await f.service.get(f.projectId)).objects.find(item => item.id === 'R-1');
   assert.equal(object.maturity, 'candidate'); assert.equal(object.revision, 3); assert.equal(object.history[1].maturity, 'approved');
 });
 
-test('lazy synchronization reads the authoritative saved graph and ignores late old notifications', async t => {
-  const f = await fixture(t); f.store.data.models.push({ projectId: f.projectId, ...graph('Authoritative version two', undefined, 2) }); f.store.save();
-  await f.service.syncGraph(f.projectId, graph('Old notification', undefined, 1));
-  assert.equal((await f.service.get(f.projectId)).objects.find(item => item.id === 'R-1').description, 'Authoritative version two');
-});
-
-test('failed operation after lazy sync cannot leave memory different from persisted state', async t => {
-  const f = await fixture(t); f.store.data.models.push({ projectId: f.projectId, ...graph() }); f.store.save();
+test('failed file capture cannot leave memory different from persisted state', async t => {
+  const f = await fixture(t);
   await assert.rejects(f.service.captureSnapshot(f.projectId, { name: 'Invalid', paths: ['missing.txt'] }), error => error.status === 400);
   assert.equal(f.store.data.engineeringStates.length, 0);
   const reopened = createStore(f.options); assert.equal(reopened.data.engineeringStates?.length || 0, 0);
-  assert.equal((await f.service.get(f.projectId)).objects.length, 4);
+  assert.equal((await f.service.get(f.projectId)).objects.length, 0);
 });
 
 test('one project failure cannot roll back another project successful commit', async t => {
@@ -170,11 +152,11 @@ test('unbound and unexecuted evidence stays unknown; returned values cannot muta
 });
 
 test('snapshot-referenced evidence rejects changed, absent and mismatched configuration while permitting an unaffected subset', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph()); await fs.writeFile(path.join(f.folder, 'a.txt'), 'version one');
+  const f = await fixture(t); await seedObjects(f); await fs.writeFile(path.join(f.folder, 'a.txt'), 'version one');
   const snapshot = await f.service.captureSnapshot(f.projectId, { name: 'Initial observation', paths: ['a.txt'] });
-  const unrelated = graph(); unrelated.nodes.find(item => item.id === 'U-1').description = 'Unrelated revision'; unrelated.version = 2; await f.service.syncGraph(f.projectId, unrelated);
+  await f.service.upsertObject(f.projectId, {id:'U-1',description:'Unrelated revision',expectedRevision:1});
   await declared(f, { snapshotId: snapshot.id, paths: ['a.txt'] });
-  await f.service.syncGraph(f.projectId, graph('Changed relevant requirement', undefined, 3));
+  await f.service.upsertObject(f.projectId, {id:'R-1',description:'Changed relevant requirement',expectedRevision:1});
   await assert.rejects(declared(f, { snapshotId: snapshot.id }), error => error.status === 409);
   await assert.rejects(declared(f, { snapshotId: snapshot.id, objectIds: ['U-1'] }), error => error.status === 409);
   await fs.writeFile(path.join(f.folder, 'a.txt'), 'version two');
@@ -186,69 +168,87 @@ test('snapshot-referenced evidence rejects changed, absent and mismatched config
   assert.equal((await f.service.get(f.projectId)).evidence.length, 1);
 });
 
-test('older direct graph notifications cannot replace a newer engineering graph', async t => {
-  const f = await fixture(t); await f.service.syncGraph(f.projectId, graph('New version', undefined, 3));
-  await f.service.syncGraph(f.projectId, graph('Old late version', undefined, 2));
-  const state = await f.service.get(f.projectId); assert.equal(state.objects.find(item => item.id === 'R-1').description, 'New version');
-});
-
-test('a changed object connected by ambiguous trace requests local review without invalidating unrelated evidence', async t => {
-  const f = await fixture(t); const initial = graph(); initial.links.push({ id: 'uncertain', source: 'C-1', target: 'U-1', type: 'traces_to' }); await f.service.syncGraph(f.projectId, initial); await declared(f);
-  const next = graph(); next.links = initial.links; next.nodes.find(item => item.id === 'U-1').description = 'Changed uncertain neighbor'; next.version = 2; await f.service.syncGraph(f.projectId, next);
-  const row = (await f.service.get(f.projectId)).evidence[0]; assert.equal(row.applicability.status, 'needs_review'); assert.ok(reason(row, 'uncertain_dependency_changed')); assert.equal(row.result, 'passed');
-});
-
 test('ordinary project configuration files remain capturable while credential dotfiles are blocked', async t => {
   const f = await fixture(t); await fs.writeFile(path.join(f.folder, 'config.json'), '{"orbit": "TBD"}');
   const snapshot = await f.service.captureSnapshot(f.projectId, { name: 'Engineering config', paths: ['config.json'] }); assert.equal(snapshot.files[0].path, 'config.json');
   for (const file of ['.npmrc', '.netrc', '.git-credentials']) await assert.rejects(f.service.captureSnapshot(f.projectId, { name: 'Credentials', paths: [file] }), error => error.status === 403);
 });
 
-test('commitGraph writes graph and engineering state in exactly one durable save', async t => {
-  const f = await fixture(t); let saves = 0; const originalSave = f.store.save; f.store.save = () => { saves++; originalSave(); };
-  const saved = await f.service.commitGraph(f.projectId, graph(), { ...user, expectedVersion: 0 });
-  assert.equal(saves, 1); assert.equal(saved.version, 1); assert.equal(f.store.data.models[0].version, 1);
-  assert.equal(f.store.data.engineeringStates[0].graphVersion, 1); assert.equal(f.store.data.engineeringStates[0].objects.length, 4);
-  const reopened = createStore(f.options); assert.equal(reopened.data.models[0].version, 1); assert.equal(reopened.data.engineeringStates[0].graphVersion, 1);
-});
-
-test('commitGraph validation and concurrent CAS failures leave both model and ledger unchanged', async t => {
-  const f = await fixture(t); await f.service.commitGraph(f.projectId, graph(), { expectedVersion: 0 });
-  const before = JSON.stringify({ models: f.store.data.models, engineeringStates: f.store.data.engineeringStates });
-  const bad = graph(); bad.links.push({ source: 'missing', target: 'R-1', type: 'satisfies' });
-  await assert.rejects(f.service.commitGraph(f.projectId, bad, { expectedVersion: 1 }), error => error.status === 400);
-  assert.equal(JSON.stringify({ models: f.store.data.models, engineeringStates: f.store.data.engineeringStates }), before);
-  const results = await Promise.allSettled(['One', 'Two'].map(description => f.service.commitGraph(f.projectId, graph(description), { expectedVersion: 1 })));
-  assert.equal(results.filter(item => item.status === 'fulfilled').length, 1); assert.equal(results.find(item => item.status === 'rejected').reason.status, 409);
-  assert.equal(f.store.data.models[0].version, 2); assert.equal(f.store.data.engineeringStates[0].graphVersion, 2);
-  assert.equal(f.store.data.models[0].nodes[0].description, f.store.data.engineeringStates[0].objects.find(item => item.id === 'R-1').description);
-});
-
-test('commitGraph rolls back graph and ledger together on save failure including first creation', async t => {
-  const f = await fixture(t); const originalSave = f.store.save;
+test('failed engineering saves roll back new and existing ledgers without emitting success', async t => {
+  const f = await fixture(t), realSave = f.store.save;
   f.store.save = () => { throw new Error('simulated disk failure'); };
-  await assert.rejects(f.service.commitGraph(f.projectId, graph(), { expectedVersion: 0 }), /simulated disk failure/);
-  assert.equal(f.store.data.models.length, 0); assert.equal(f.store.data.engineeringStates.length, 0);
-  f.store.save = originalSave; await f.service.commitGraph(f.projectId, graph(), { expectedVersion: 0 });
-  const before = JSON.stringify({ models: f.store.data.models, engineeringStates: f.store.data.engineeringStates });
+  await assert.rejects(f.service.upsertObject(f.projectId, {id:'R',title:'Initial'}), /simulated disk failure/);
+  assert.equal(f.store.data.engineeringStates.length, 0); assert.equal(f.emitted.length, 0);
+  f.store.save = realSave; await f.service.upsertObject(f.projectId, {id:'R',title:'Initial'});
+  const before = JSON.stringify(f.store.data.engineeringStates), count = f.emitted.length;
   f.store.save = () => { throw new Error('simulated disk failure'); };
-  await assert.rejects(f.service.commitGraph(f.projectId, graph('Must not persist'), { expectedVersion: 1 }), /simulated disk failure/);
-  assert.equal(JSON.stringify({ models: f.store.data.models, engineeringStates: f.store.data.engineeringStates }), before);
-  f.store.save = originalSave; const reopened = createStore(f.options);
-  assert.equal(JSON.stringify({ models: reopened.data.models, engineeringStates: reopened.data.engineeringStates }), before);
+  await assert.rejects(f.service.upsertObject(f.projectId, {id:'R',title:'Not persisted',expectedRevision:1}), /simulated disk failure/);
+  assert.equal(JSON.stringify(f.store.data.engineeringStates), before); assert.equal(f.emitted.length, count);
+  f.store.save = realSave;
+  assert.equal(JSON.stringify(createStore(f.options).data.engineeringStates), before);
 });
 
-test('commitGraph synchronization failure cannot persist a partially synchronized graph', async t => {
-  const f = await fixture(t); await f.service.commitGraph(f.projectId, graph(), { expectedVersion: 0 });
-  // Inject an invalid persisted authority to simulate an incompatible legacy row.
-  f.store.data.engineeringStates[0].objects[0].history = null; f.store.save();
-  const before = JSON.stringify({ models: f.store.data.models, engineeringStates: f.store.data.engineeringStates });
-  await assert.rejects(f.service.commitGraph(f.projectId, graph('Triggers history update'), { expectedVersion: 1 }));
-  assert.equal(JSON.stringify({ models: f.store.data.models, engineeringStates: f.store.data.engineeringStates }), before);
+test('legacy project graphs and imported ledger rows are archived once without becoming current records', async t => {
+  const f = await fixture(t); await seedObjects(f);
+  const imported = f.store.data.engineeringStates[0].objects.find(object => object.id === 'R-1');
+  imported.origin = 'graph'; imported.description = 'RETIRED_GRAPH_CONTENT';
+  await declared(f);
+  const snapshot = await f.service.captureSnapshot(f.projectId, {name:'Old observation'});
+  const ledger = f.store.data.engineeringStates[0];
+  ledger.relations = [{id:'old-link',source:'C-1',target:'R-1',type:'satisfies'}];
+  ledger.graphVersion = 3; ledger.graphFingerprint = 'old-fingerprint';
+  ledger.evidence[0].relations = [{id:'RETIRED_GRAPH_EDGE',source:'C-1',target:'R-1',type:'satisfies'}];
+  f.store.data.models = [{projectId:f.projectId,version:3,nodes:[{id:'R-1',name:'RETIRED_GRAPH_CONTENT'}],links:ledger.relations}];
+  f.store.save();
+  const reopened = createStore(f.options), service = createEngineeringStateService({store:reopened});
+  const state = await service.get(f.projectId);
+  assert.equal(reopened.data.models, undefined); assert.equal(reopened.data.legacyProjectGraphs.length, 1);
+  assert.equal(reopened.data.legacyProjectGraphs[0].nodes[0].name, 'RETIRED_GRAPH_CONTENT');
+  assert.ok(!state.objects.some(object => object.id === 'R-1')); assert.deepEqual(state.relations, []);
+  assert.equal(JSON.stringify(summarizeEngineeringState(state)).includes('RETIRED_GRAPH_CONTENT'), false);
+  assert.equal(JSON.stringify(engineeringStatePage(state,{section:'snapshots'})).includes('RETIRED_GRAPH_CONTENT'), false);
+  assert.equal(state.snapshots[0].objects.find(object => object.id === 'R-1').description, 'RETIRED_GRAPH_CONTENT');
+  assert.equal(state.evidence[0].relations[0].id, 'RETIRED_GRAPH_EDGE');
+  assert.equal(JSON.stringify(summarizeEngineeringState(state)).includes('RETIRED_GRAPH_EDGE'), false);
+  assert.equal(JSON.stringify(engineeringStatePage(state,{section:'evidence'})).includes('RETIRED_GRAPH_EDGE'), false);
+  assert.equal(state.snapshots[0].id, snapshot.id); assert.equal(state.snapshots[0].applicability.status, 'invalid');
+  assert.equal(state.evidence[0].result, 'passed'); assert.equal(state.evidence[0].applicability.status, 'invalid');
+  assert.ok(state.issues.some(issue => issue.kind === 'missing_dependency'));
+  assert.equal(reopened.data.engineeringStates[0].legacyProjectGraph.objects.length, 1);
+  assert.equal(service.commitGraph, undefined); assert.equal(service.syncGraph, undefined);
+  const revision = state.revision, archive = JSON.stringify(reopened.data.engineeringStates[0].legacyProjectGraph);
+  const again = createStore(f.options);
+  assert.equal(again.data.legacyProjectGraphs.length, 1); assert.equal(again.data.engineeringStates[0].revision, revision);
+  assert.equal(JSON.stringify(again.data.engineeringStates[0].legacyProjectGraph), archive);
+  // An explicit new observation with the same ID must not resurrect old evidence.
+  const restored = await service.upsertObject(f.projectId, {id:'R-1',title:'New sourced requirement',sources:['models/current.sysml']});
+  assert.equal(restored.origin, 'engineering'); assert.equal(restored.revision, 2);
+  assert.equal((await service.get(f.projectId)).evidence[0].applicability.status, 'needs_review');
 });
 
-test('commitGraph accepts a valid graph above two million ASCII characters within the HTTP 2 MiB limit', async t => {
-  const f = await fixture(t), large = { version: 0, nodes: Array.from({ length: 101 }, (_, i) => ({ id: `R-${i}`, type: 'requirement', name: `Requirement ${i}`, description: 'A'.repeat(19950) })), links: [] };
-  assert.ok(JSON.stringify(large).length > 2_000_000); assert.ok(JSON.stringify(large).length < 2 * 1024 * 1024);
-  const saved = await f.service.commitGraph(f.projectId, large, { expectedVersion: 0 }); assert.equal(saved.version, 1); assert.equal(f.store.data.engineeringStates[0].objects.length, 101);
+test('agent object writes preserve archived revisions without replaying graph history in tool results', async t => {
+  const f = await fixture(t);
+  await f.service.upsertObject(f.projectId, {id:'R-1',title:'RETIRED_GRAPH_CONTENT'});
+  await f.service.upsertObject(f.projectId, {id:'R-1',title:'RETIRED_GRAPH_REVISION',expectedRevision:1});
+  await f.service.upsertObject(f.projectId, {id:'R-approved',title:'Old approved candidate'});
+  for (const object of f.store.data.engineeringStates[0].objects) object.origin = 'graph';
+  await declared(f, {objectIds:['R-1']});
+  f.store.save();
+  const reopened = createStore(f.options), service = createEngineeringStateService({store:reopened});
+  const runtime = createEngineeringStateRuntime({service,authorizeMutation:async()=>{}});
+  const ctx = {projectId:f.projectId,isCoordinator:true,agentId:'coordinator'};
+  const created = await runtime.execute('record_engineering_object', {id:'R-1',title:'Current sourced requirement'}, ctx);
+  assert.equal(created.revision, 3); assert.equal(created.title, 'Current sourced requirement');
+  assert.equal(created.history, undefined); assert.equal(created.historyCount, 2);
+  assert.equal(JSON.stringify(created).includes('RETIRED_GRAPH'), false);
+  const updated = await runtime.execute('record_engineering_object', {id:'R-1',title:'Reviewed current requirement',expectedRevision:3}, ctx);
+  assert.equal(updated.revision, 4); assert.equal(updated.history, undefined); assert.equal(updated.historyCount, 3);
+  assert.equal(JSON.stringify(updated).includes('RETIRED_GRAPH'), false);
+  const state = await service.get(f.projectId);
+  assert.equal(state.objects[0].history[0].title, 'RETIRED_GRAPH_CONTENT');
+  assert.equal(state.objects[0].history[1].title, 'RETIRED_GRAPH_REVISION');
+  assert.equal(state.evidence[0].result, 'passed'); assert.equal(state.evidence[0].applicability.status, 'needs_review');
+  const approved = await service.upsertObject(f.projectId, {id:'R-approved',title:'Current reviewed requirement',maturity:'approved',reviewReason:'Current requirement checked'}, user);
+  assert.equal(approved.revision, 2);
+  assert.equal(approved.reviewRecord.revision, approved.revision);
 });

@@ -7,6 +7,7 @@ const base={projectId:'project_test',engineering:{tools:[{id:'scipy',available:f
 
 test('installed software never becomes integrated and semantic views do not imply graphical editing or behavior execution',()=>{
   const result=buildEngineeringRegistry(base);
+  assert.equal(item(result,'traceability'),undefined);
   assert.equal(item(result,'matlab').integrated,false);assert.equal(item(result,'matlab').ready,false);assert.equal(item(result,'matlab').status,'not-integrated');assert.deepEqual(item(result,'matlab').operations,[]);
   assert.equal(item(result,'sysml').ready,true);assert.match(item(result,'sysml').limitations.join(' '),/不执行 SysML 动态行为/);assert.match(item(result,'sysml').limitations.join(' '),/修改由 Agent/);
   assert.equal(item(result,'sysml-v2'),undefined,'remote REST placeholder must not contradict the actual WASM backend');
@@ -146,7 +147,7 @@ test('project integrations registry uses the same native readiness without start
 });
 
 test('presentation uses only known actions, statuses and workflow stages',()=>{
-  const actions=new Set(['open-engineering-records','open-model','open-simulations','open-engineering','open-traceability','open-library','open-computer','open-integrations','recheck-engineering']);
+  const actions=new Set(['open-engineering-records','open-model','open-simulations','open-engineering','open-library','open-computer','open-integrations','recheck-engineering']);
   const statuses=new Set(['ready','unverified','blocked','not-integrated','configured','disabled']);
   const stages=new Set(['requirements','architecture','simulation','verification','delivery','integration']);
   const result=buildEngineeringRegistry(base);assert.equal(result.schema,'manta-engineering-capabilities-v1');assert.equal(result.projectId,base.projectId);assert.ok(!Number.isNaN(Date.parse(result.observedAt)));
