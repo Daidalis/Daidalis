@@ -373,7 +373,7 @@ function renderPhysicalBody(physical, model) {
     ${issues}<div class="semantic-legend"><span>拖动旋转 · Shift + 拖动平移 · 滚轮缩放</span><span>${physical.parts.length} 个实体 · mm</span></div>`;
 }
 
-const shapeName = {box:'长方体', cylinder:'圆柱体', cone:'圆锥体', sphere:'球体'};
+const shapeName = {box:'长方体', cylinder:'圆柱体', cone:'圆锥体', sphere:'球体', loft:'截面放样'};
 const formatLengths = (values, separator = ' × ') => values.map(value => Number(value.toPrecision(8))).join(separator) + ' mm';
 
 function physicalDetails(parts, selected, graph, file) {

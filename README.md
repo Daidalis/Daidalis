@@ -73,7 +73,9 @@ The source includes the following adapters and viewers. Availability is project-
 | **External MCP** | Project-scoped stdio and Streamable HTTP connections | A gateway; each professional integration still needs its own setup and validation |
 | **Documents & evidence** | Markdown, source, CSV/JSON plots and tables, bounded GeoJSON preview | Protected job evidence remains read-only |
 
-To try the physical preview, open [the table model](examples/physical-preview/table.sysml) in the project Library and select **实物预览**. The solid dimensions come from SysML shape attributes. This viewer uses `centerX`, `centerY` and `centerZ` as local centre offsets with Z up. Click a solid to inspect its dimensions in millimetres and jump to its SysML declaration. Models containing only interfaces or requirements show a missing-geometry message.
+Open [the Tesla Model 3 exterior](examples/physical-preview/model-3.sysml) in the project Library and select **实物预览**. This example follows Tesla's 2024+ US Rear-Wheel Drive / Long Range dimensions, with an 18-inch wheel option. The body is 4,720 mm long and 1,850 mm wide, and the wheelbase is 2,875 mm. Body panels, glass, lamps, wheel covers and colours are illustrative. [Tesla dimensions](https://www.tesla.com/ownersmanual/model3/en_us/GUID-56562137-FC31-4110-A13C-9A9FC6657BF0.html) · [Wheel and tire specifications](https://www.tesla.com/ownersmanual/model3/en_us/GUID-FDDB10EF-FFA9-46EB-B8CC-03614AE92B6B.html)
+
+Click a solid to inspect its dimensions in millimetres and jump to the SysML declaration. In this viewer's geometry convention, `centerX/Y/Z` place an item with Z up. A `shape = "loft"` item contains cross sections along X, each with lower and upper widths and elevations. Optional lateral offsets and shoulder dimensions describe curved sides. The wheel definitions set `axis = "Y"`. Editing the model and refreshing the file regenerates the assembly.
 
 Capella, Cameo, MATLAB/Simulink, FEM, RF, PCB, and hardware platforms should not be assumed to be integrated. A tool name or an MCP connection does not establish a validated engineering workflow.
 

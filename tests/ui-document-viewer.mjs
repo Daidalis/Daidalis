@@ -20,10 +20,10 @@ function kernel(operation, file) {
 }
 const mission = {path:'models/mission.sysml',content:source};
 const fixture = {file:mission,model:kernel('query',mission),verification:kernel('verify',mission)};
-const tablePath = 'examples/physical-preview/table.sysml';
-const table = {path:tablePath,content:await fs.readFile(path.join(root,tablePath),'utf8')};
-const widerTable = {...table,content:table.content.replace('length = 120 [cm]','length = 160 [cm]')};
-assert.notEqual(widerTable.content,table.content);
+const carPath = 'examples/physical-preview/model-3.sysml';
+const car = {path:carPath,content:await fs.readFile(path.join(root,carPath),'utf8')};
+const editedCar = {...car,content:car.content.replace(/upperZ\s*=\s*1440\s*\[mm\]/g,'upperZ = 1470 [mm]')};
+assert.notEqual(editedCar.content,car.content);
 const threeModules = new Set(['/vendor/three/three.module.min.js','/vendor/three/three.core.min.js']);
 const markdown = '# NOS3 验证报告\n\n> 本次真实软件链结果\n\n| 场景 | 判据 |\n|---|---|\n| 正常 | **误差 < 0.02°** |\n\n- 坐标\n  - 输入\n- [x] 复核\n\n```sysml\npart starTracker : Sensor;\n```\n\n[查看模型](../models/mission.sysml#L16)\n\n[官方文档](https://nos3.readthedocs.io/)\n\n<img src=x onerror="window.pwned=1">\n\n[恶意](javascript:window.pwned=2)';
 const server = http.createServer(async(req,res) => {
@@ -58,15 +58,15 @@ try {
     await canvas.waitFor();
     await cameraFrame();
   }
-  await openProduct(table);
-  assert.match(await page.locator('.semantic-details').innerText(),/1200 × 700 × 750 mm/);
+  await openProduct(car);
+  assert.match(await page.locator('.semantic-details').innerText(),/4720 × 2089 × 1440 mm/);
   const part = page.locator('select[data-physical-part]');
   const names = await part.locator('option').allTextContents();
-  for(const name of ['tabletop','frontLeftLeg','frontRightLeg','rearLeftLeg','rearRightLeg'])
+  for(const name of ['bodyShell','panoramicGlass','frontLeftTyre','frontRightTyre','rearLeftTyre','rearRightTyre'])
     assert.ok(names.some(label => label.includes(name)),name);
-  await part.selectOption(await part.locator('option').filter({hasText:'frontLeftLeg'}).getAttribute('value'));
-  assert.match(await page.locator('.semantic-details').innerText(),/frontLeftLeg/);
-  assert.match(await page.locator('.semantic-details').innerText(),/60 × 60 × 720 mm/);
+  await part.selectOption(await part.locator('option').filter({hasText:'frontLeftTyre'}).getAttribute('value'));
+  assert.match(await page.locator('.semantic-details').innerText(),/frontLeftTyre/);
+  assert.match(await page.locator('.semantic-details').innerText(),/668\.7 × 235 × 668\.7 mm/);
   await cameraFrame();
   const initialImage = await canvas.screenshot();
   await page.locator('[data-document-zoom="in"]').click();
@@ -80,11 +80,11 @@ try {
   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+70,y+30,{steps:5});await page.mouse.up();
   await cameraFrame();
   const rotated = await canvas.screenshot();
-  assert.ok(!initialImage.equals(rotated),'drag should rotate the table');
+  assert.ok(!initialImage.equals(rotated),'drag should rotate the car');
   await page.keyboard.down('Shift');
   await page.mouse.down();await page.mouse.move(x+120,y+80,{steps:5});await page.mouse.up();
   await page.keyboard.up('Shift');await cameraFrame();
-  assert.ok(!rotated.equals(await canvas.screenshot()),'shift-drag should pan the table');
+  assert.ok(!rotated.equals(await canvas.screenshot()),'shift-drag should pan the car');
   await page.setViewportSize({width:700,height:800});await cameraFrame();
   assert.ok((await canvas.boundingBox()).width < area.width);
   await page.setViewportSize({width:1440,height:1000});await cameraFrame();
@@ -92,15 +92,15 @@ try {
   const sourceLine = Number(await location.getAttribute('data-document-source-line'));
   await location.click();
   assert.equal(await page.locator('.source-line.is-highlighted').getAttribute('data-source-line'),String(sourceLine));
-  assert.ok(table.content.split(/\r?\n/)[sourceLine-1].includes('frontLeftLeg'));
+  assert.ok(car.content.split(/\r?\n/)[sourceLine-1].includes('frontLeftTyre'));
   assert.equal(await canvas.count(),0);
 
-  await openProduct(table);
-  const originalTable = await canvas.screenshot({path:path.join(temporary,'table-3d.png')});
-  await openProduct(widerTable);
-  assert.match(await page.locator('.semantic-details').innerText(),/1600 × 700 × 750 mm/);
-  assert.ok(!originalTable.equals(await canvas.screenshot()),'an edited tabletop length should change the solid assembly');
-  steps.push('SysML solid table, dimension change, missing geometry, part selection, camera and source location');
+  await openProduct(car);
+  const originalCar = await canvas.screenshot({path:path.join(temporary,'model-3.png')});
+  await openProduct(editedCar);
+  assert.match(await page.locator('.semantic-details').innerText(),/4720 × 2089 × 1470 mm/);
+  assert.ok(!originalCar.equals(await canvas.screenshot()),'editing the roof section height should change the solid assembly');
+  steps.push('SysML Model 3 assembly, dimension change, missing geometry, part selection, camera and source location');
   await page.evaluate(() => viewer.update({...fixture,tab:'diagram'}));
   await page.locator('button[data-document-tab="outline"]').click();await page.locator('[data-document-search]').fill('CorrectFrame');assert.match(await page.locator('.semantic-outline').innerText(),/CorrectFrame/);assert.ok(await page.locator('.semantic-outline-row').count() <= 3);
   await page.locator('.semantic-outline-row').first().click();assert.equal(await page.locator('.source-line.is-highlighted').count(),1,JSON.stringify({errors,tab:await page.locator('.document-viewer').getAttribute('data-document-tab'),body:(await page.locator('#viewer').innerText()).slice(0,1000)}));steps.push('searchable semantic outline jumps to original source');

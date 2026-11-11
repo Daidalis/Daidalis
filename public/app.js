@@ -397,4 +397,4 @@ window.addEventListener('message',e=>{const frame=document.querySelector('.engin
 
 // A standalone engineering page can return to the same project/file entrypoint.
 const initialFile=initialLocation.get('file');
-if(initialFile){const openInitial=setInterval(()=>{if(!state.loading&&state.projectId){clearInterval(openInitial);openWorkspacePath(initialFile).catch(e=>toast(e.message,true));}},100);setTimeout(()=>clearInterval(openInitial),15000);}
+if(initialFile){const openInitial=setInterval(()=>{if(!state.loading&&state.projectId){clearInterval(openInitial);openWorkspacePath(initialFile,{view:initialLocation.get('view')}).catch(e=>toast(e.message,true));}},100);setTimeout(()=>clearInterval(openInitial),15000);}

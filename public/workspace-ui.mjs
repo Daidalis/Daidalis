@@ -105,12 +105,13 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
     }catch(e){tab.error=e.message;}
     finally{tab.loading=false;if(id===projectId&&tabs.includes(tab)&&active===tab.id)draw();}
   }
-  async function openPath(path,{line,raw=false}={}){
+  async function openPath(path,{line,raw=false,view}={}){
     const artifact=/^\/api\/artifacts\/([^/]+)$/.exec(String(path));if(artifact)return openArtifact(artifact[1]);
     const p=ensureProject(),relative=projectRelativePath(path,p.folderPath),source=raw||(Number.isInteger(line)&&line>0),tabId=(source?'raw:':'file:')+relative;
     let tab=tabs.find(t=>t.id===tabId);
     if(!tab){tab={id:tabId,kind:'file',path:relative,raw:source,title:workspaceFileTitle(relative,getArtifacts(),p.id,source)};tabs.push(tab);}
     if(source){tab.documentTab='source';tab.sourceLine=Number.isInteger(line)&&line>0?line:undefined;}else tab.sourceLine=undefined;
+    if(!source && view==='physical' && /\.sysml$/i.test(relative))tab.documentTab='preview3d';
     active=tab.id;if(!tab.file&&!tab.simulation&&!tab.loading)await loadTab(tab);else draw();
   }
   async function openJob(jobId,{caseId}={}){

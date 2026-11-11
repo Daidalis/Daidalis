@@ -64,7 +64,9 @@ Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以�
 | **外部 MCP** | 项目级 stdio 与 Streamable HTTP 连接 | 各专业工具仍需单独配置和验收 |
 | **文档与证据** | Markdown、源码、CSV/JSON 表格与曲线、有界 GeoJSON 预览 | 已登记的作业证据只读 |
 
-在项目 Library 打开[桌子示例模型](examples/physical-preview/table.sysml)，选择 **实物预览**。桌板和桌腿的尺寸来自 SysML 形状属性。预览器约定用 `centerX`、`centerY`、`centerZ` 表示局部中心偏移，Z 轴向上。点选实体可以查看毫米尺寸并跳到 SysML 声明。只有接口或需求的模型会提示缺少几何信息。
+在项目 Library 打开 [Tesla Model 3 整车外形](examples/physical-preview/model-3.sysml)，选择 **实物预览**。示例采用 Tesla 美国版 2024+ 车主手册中后驱版 / 长续航版的尺寸，以及 18 英寸轮胎规格。车长 4,720 mm，车身宽 1,850 mm，轴距 2,875 mm。钣金轮廓、玻璃、车灯、轮盖和配色为近似表达。[官方车身尺寸](https://www.tesla.com/ownersmanual/model3/en_us/GUID-56562137-FC31-4110-A13C-9A9FC6657BF0.html) · [轮毂和轮胎规格](https://www.tesla.com/ownersmanual/model3/en_us/GUID-FDDB10EF-FFA9-46EB-B8CC-03614AE92B6B.html)
+
+点选零件可查看毫米尺寸并跳到 SysML 声明。预览器用 `centerX/Y/Z` 定位零件，Z 轴向上。`shape = "loft"` 表示沿 X 轴连接一组截面，每个截面给出上下缘的宽度和高度，可再声明横向偏移和肩线。车轮定义用 `axis = "Y"` 指定车轴方向。修改模型并刷新文件即可更新整车外形。
 
 Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 和硬件平台尚不能视为已集成。发现工具名称或连通 MCP，不足以证明专业工程流程已跑通。
 
