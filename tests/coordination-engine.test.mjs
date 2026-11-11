@@ -253,8 +253,8 @@ async function inspectReviewAndMerge(call){
   const {options}=call,results=autoResults(call);assert.ok(results.length);
   for(const result of results){assert.equal(result.status,'completed');assert.ok(result.artifacts.length);for(const recorded of result.artifacts){const file=await options.executeTool('read_file',{path:recorded.path});assert.ok(file.content?.includes('Recorded fixture source'),file.error);}}
   const reviewed=await options.executeTool('review_task_results',{reviews:results.map(result=>review(result,result.artifacts.map(recorded=>recorded.id)))});assert.equal(reviewed.reviews?.length,results.length,reviewed.error);
-  const graph=await options.executeTool('get_model',{}),nodes=[...graph.nodes,...results.map(result=>({id:'requirement-'+result.runId,type:'requirement',name:'Reviewed source requirement for '+result.title}))];
-  const merged=await options.executeTool('update_model',{nodes,links:graph.links,version:graph.version});assert.equal(merged.nodes?.length,nodes.length,merged.error);return results;
+  for(const result of results){const saved=await options.executeTool('create_artifact',{name:'reviewed-'+result.runId+'.md',content:'Reviewed source requirement for '+result.title});assert.ok(saved.id,saved.error);}
+  return results;
 }
 
 for(const providerId of ['codex-local','claude-local'])test(providerId+' automatically reviews each returned batch without waiting for unrelated workers',async t=>{
@@ -267,7 +267,7 @@ for(const providerId of ['codex-local','claude-local'])test(providerId+' automat
   aGate.resolve();await eventually(()=>h.store.data.runs.filter(r=>r.source==='auto-summary'&&r.status==='completed').length===1);assert.equal(h.engine.active.has(b.run.id),true,'An unrelated worker must not block review of the ready result');
   bGate.resolve();await eventually(()=>h.store.data.runs.filter(r=>r.source==='auto-summary'&&r.status==='completed').length===2,'automatic evidence review');await delay(30);
   const summary=h.store.data.runs.find(r=>r.source==='auto-summary'),mainCalls=h.calls.filter(main);assert.equal(h.store.data.runs.filter(r=>r.source==='auto-summary').length,2);assert.equal(mainCalls.length,3);assert.equal(h.calls.length,5);assert.equal(mainCalls[1].sessionId,mainCalls[0].sessionId,'Automatic handoff must resume the native main session');assert.equal(mainCalls[1].name,mainCalls[0].name);
-  assert.deepEqual(new Set(received.map(r=>r.runId)),new Set([a.run.id,b.run.id]));assert.equal(h.store.get('runs',a.run.id).review.outcome,'accepted');assert.equal(h.store.get('runs',b.run.id).review.outcome,'accepted');assert.equal(h.store.data.models.find(m=>m.projectId===h.project.id).nodes.length,2);assert.equal(summary.executionPhase,'summarizing');assert.ok(h.store.data.messages.filter(m=>m.type==='thread.result').every(m=>m.metadata.summaryStatus==='summarized'));
+  assert.deepEqual(new Set(received.map(r=>r.runId)),new Set([a.run.id,b.run.id]));assert.equal(h.store.get('runs',a.run.id).review.outcome,'accepted');assert.equal(h.store.get('runs',b.run.id).review.outcome,'accepted');assert.equal(h.store.data.artifacts.filter(a=>a.projectId===h.project.id&&a.name.startsWith('reviewed-')).length,2);assert.equal(summary.executionPhase,'summarizing');assert.ok(h.store.data.messages.filter(m=>m.type==='thread.result').every(m=>m.metadata.summaryStatus==='summarized'));
 });
 
 test('three distinct returning-result batches each wake native synthesis beyond the old total default of two',async t=>{
@@ -278,7 +278,7 @@ test('three distinct returning-result batches each wake native synthesis beyond 
     const worker=h.store.createThread(h.project.id,'Independent batch '+index,h.thread.id,{assignment:'BATCH_'+index,taskContract:{taskKey:'batch-'+index,scope:'Evidence batch '+index,deliverables:[],ownedPaths:[],acceptanceCriteria:[]}}),result=h.engine.start({threadId:worker.id,providerId:'codex-local',permissionMode:'auto',content:'BATCH_'+index});
     await finished(h,result.run);await eventually(()=>h.store.data.runs.filter(r=>r.source==='auto-summary'&&r.status==='completed').length===index,'automatic batch '+index);assert.equal(h.store.get('runs',result.run.id).review.outcome,'accepted');
   }
-  await delay(30);assert.equal(h.project.autoResumeCount,3);assert.equal(h.store.data.runs.filter(r=>r.source==='auto-summary').length,3);assert.equal(batches.length,3);assert.ok(batches.every(batch=>batch.length===1));assert.equal(new Set(batches.flat()).size,3);assert.equal(h.calls.length,7);assert.equal(h.store.data.models.find(m=>m.projectId===h.project.id).nodes.length,3);
+  await delay(30);assert.equal(h.project.autoResumeCount,3);assert.equal(h.store.data.runs.filter(r=>r.source==='auto-summary').length,3);assert.equal(batches.length,3);assert.ok(batches.every(batch=>batch.length===1));assert.equal(new Set(batches.flat()).size,3);assert.equal(h.calls.length,7);assert.equal(h.store.data.artifacts.filter(a=>a.projectId===h.project.id&&a.name.startsWith('reviewed-')).length,3);
 });
 
 test('failed automatic review blocks that receipt without looping and a new result can wake another native turn',async t=>{

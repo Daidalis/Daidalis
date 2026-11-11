@@ -31,7 +31,7 @@ Example input to the service API:
   "toolPolicies": {
     "list_models": "read",
     "submit_simulation": "run",
-    "update_model": "write"
+    "save_model": "write"
   }
 }
 ```

@@ -1,10 +1,10 @@
 # Engineering state and configuration evidence
 
-Manta keeps engineering state separate from chat, agent execution, and tool permissions. A completed agent turn does not approve a requirement or verify a spacecraft. This M1 increment records stable engineering objects, trace relations, observed configurations, explicit user approval, proposed changes, and the applicability of recorded evidence.
+Manta keeps engineering state separate from chat, agent execution, and tool permissions. A completed agent turn does not approve a requirement or verify a spacecraft. This M1 increment records explicit engineering records and dependencies, observed configurations, explicit user approval, proposed changes, and the applicability of recorded evidence.
 
 ## Working from existing engineering
 
-Choose the existing engineering folder when creating a project. The project model graph is adopted using its existing node identities and relations. Newly adopted objects remain candidates. An observation snapshot records the selected project files and current engineering objects; it is not an approved engineering baseline.
+Choose the existing engineering folder when creating a project. SysML and other model source files remain the model authority. Create engineering records explicitly when needed for decisions, changes, and evidence; the application does not automatically copy model elements into a second project graph. New records remain candidates. An observation snapshot records the selected project files and current engineering objects; it is not an approved engineering baseline.
 
 Review the observation and its unresolved issues before approving it. Approval requires an explicit user action and a reason. An agent may prepare objects, observations, proposed changes, or evidence, but cannot turn its own suggestion into a user-approved baseline. Auto mode controls operational permissions and does not grant engineering approval. The current local user confirmation entry is separate from the agent tools; it is not an authenticated engineering signature or an independent review system.
 
@@ -27,7 +27,11 @@ All paths below are scoped to `/api/projects/:projectId/engineering-state`. File
 | `POST /changes` | Record `title`, `reason`, affected `objectIds`, and optional `baseSnapshotId`. A change proposal does not silently approve or implement its design. |
 | `POST /evidence` | Record `title`, `scope`, actual `result`, relevant `objectIds`, `paths`, and optional `snapshotId`. |
 
-Saving the existing `/api/projects/:projectId/model` graph also updates its engineering identities and trace relations. It does not establish a SysML source-file authority or prove that the graph's relationships are physically correct.
+The independent JSON project graph, its editor, structural coverage, `get_model` / `update_model`, and `/api/projects/:projectId/model` routes have been removed. The separate `/api/projects/:projectId/workspace/model?path=...` interface still parses the current SysML file for its structure and requirement views. Model validation, query, verification, and export remain available.
+
+On startup, former `models` rows move to `legacyProjectGraphs` in the persistent state. Graph-imported ledger objects, relations, and relation history move to that ledger's `legacyProjectGraph` archive. Neither archive is exposed as current engineering objects or injected as the current model in the AI context. Explicit engineering objects, immutable snapshots, approvals, changes, and evidence remain. Old evidence bound to archived objects becomes inapplicable until reviewed; its original result is preserved. Explicitly recording a new object with an archived ID continues its revision sequence so it cannot silently reactivate old evidence. Restarting does not duplicate the archive. This is preservation of history, not an active graph service.
+
+Agent reads and object-write responses include current objects and history counts, without replaying historical revisions. This also applies when explicitly reusing an archived ID. The service retains the full revision history for human inspection.
 
 ## Verification and limits
 
@@ -37,7 +41,7 @@ Run the focused HTTP suite with an existing Node runtime:
 node --test tests/engineering-state-http.test.mjs
 ```
 
-The suite uses independent temporary application data and project folders. Computer control, model backends, evaluators, numerical engineering, NOS3, external connectors, and VM services are disabled. No environment is installed and no spacecraft simulation is started. It checks adoption, configuration observation, explicit approval, evidence applicability after related and unrelated edits, file changes, persistence, revision conflicts, and project boundary validation.
+The suite uses independent temporary application data and project folders. Computer control, model backends, evaluators, numerical engineering, NOS3, external connectors, and VM services are disabled. No environment is installed and no spacecraft simulation is started. It checks explicit object registration, configuration observation, explicit approval, evidence applicability after related and unrelated edits, file changes, persistence, revision conflicts, and project boundary validation.
 
 The STF fixture preserves the six public L0 objectives at NOS3 commit `5a3bdee6be9a2c67fdf994ae6db56d5c60395302`, their known definition gaps, and unfinished real engineering conditions. The original source is [STF ConOps at the pinned version](https://github.com/nasa/nos3/blob/5a3bdee6be9a2c67fdf994ae6db56d5c60395302/docs/wiki/STF_ConOps.md). Imported reference objectives are not a NASA-approved Manta baseline. Fixture checks are not a full STF verification matrix, professional tool acceptance, physical qualification, or mission completion.
 

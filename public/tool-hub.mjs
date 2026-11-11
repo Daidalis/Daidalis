@@ -1,8 +1,8 @@
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const statuses={ready:'可用',unverified:'待检查',blocked:'未就绪',configured:'已配置',disabled:'已停用','not-integrated':'未接入'};
 const stages={requirements:'需求',architecture:'架构与模型',simulation:'仿真',verification:'验证',delivery:'交付',integration:'连接'};
-const actions=new Set(['open-professional','open-engineering-records','open-model','open-simulations','open-engineering','open-traceability','open-library','open-computer','open-integrations','recheck-engineering']);
-const actionLabel={'open-professional':'编辑模型与求解','open-engineering-records':'打开工程记录', 'open-model':'打开模型','open-simulations':'查看仿真','open-engineering':'参数与求解','open-traceability':'打开追溯图','open-library':'查看文件','open-computer':'打开 Computer','open-integrations':'连接设置','recheck-engineering':'检查环境'};
+const actions=new Set(['open-professional','open-engineering-records','open-model','open-simulations','open-engineering','open-library','open-computer','open-integrations','recheck-engineering']);
+const actionLabel={'open-professional':'编辑模型与求解','open-engineering-records':'打开工程记录', 'open-model':'打开模型','open-simulations':'查看仿真','open-engineering':'参数与求解','open-library':'查看文件','open-computer':'打开 Computer','open-integrations':'连接设置','recheck-engineering':'检查环境'};
 export function renderToolHub({registry,status,error,stage='all'}={}) {
   const heading='<div class="pane-heading"><h2>工具</h2><button class="button compact" data-action="open-integrations">连接设置</button></div>';
   if(!registry)return heading+(error?`<p role="alert">${esc(error)}</p><button class="button" data-action="refresh-integrations">重试</button>`:'<p class="muted" role="status">正在读取工具状态…</p>');
