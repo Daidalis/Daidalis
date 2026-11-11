@@ -193,8 +193,8 @@ test('source axis gives rotational solids their world-axis dimensions', () => {
   assert.match(issues[0],/n3.*axis/);
 });
 
-test('Model 3 exterior matches its declared overall bounds, body width and wheel positions', () => {
-  const {parts,issues} = preview(readFileSync(local('examples/physical-preview/model-3.sysml'), 'utf8'));
+test('electric vehicle exterior matches its declared overall bounds, body width and wheel positions', () => {
+  const {parts,issues} = preview(readFileSync(local('examples/physical-preview/electric-vehicle.sysml'), 'utf8'));
   assert.deepEqual(issues, []);
   const bounds = [0,1,2].map(i => [
     Math.min(...parts.map(p => p.position[i] - p.size[i] / 2)),

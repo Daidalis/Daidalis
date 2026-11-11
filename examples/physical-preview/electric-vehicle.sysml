@@ -1,21 +1,18 @@
-package Model3Exterior {
+package ElectricVehicleExterior {
     private import SI::*;
     private import ScalarValues::*;
 
-    doc /* Illustrative Tesla Model 3 exterior, based on the 2024+ US owner's
-           manual (Rear-Wheel Drive / Long Range, with an 18-inch wheel option).
+    doc /* 新能源汽车 — an illustrative electric sedan with 18-inch wheels.
            X points forward, Y left and Z up. Ground is Z = 0. The front bumper
            is at X = 2360 mm. Excluding mirrors, width is 1850 mm; deployed
            mirrors span 2089 mm. Length and height are 4720 and 1440 mm.
            Front/rear overhangs of 868/977 mm locate axle centers at 1492 and
            -1383 mm, a 2875 mm wheelbase. Track is 1584 mm on both axles.
-           https://www.tesla.com/ownersmanual/model3/en_us/GUID-56562137-FC31-4110-A13C-9A9FC6657BF0.html
 
            Nominal 235/45R18 tire radius = 18 * 25.4 / 2 + 235 * 0.45 = 334.35 mm.
            Axle heights use this unloaded radius. The paint, panel sections,
            lights, glass and wheel cover profiles are illustrative dimensions.
-           This model describes exterior appearance only.
-           https://www.tesla.com/ownersmanual/model3/en_us/GUID-FDDB10EF-FFA9-46EB-B8CC-03614AE92B6B.html */
+           Dimensional references are linked in the project README. */
 
 
     item def RoadTyre :> ShapeItems::RightCircularCylinder {
@@ -179,7 +176,7 @@ package Model3Exterior {
 
     }
 
-    part model3 {
+    part '新能源汽车' {
 
         item bodyShell {
             doc /* Illustrative red outer skin. Raised lower edges at both axles form wheel openings. Cross sections and finish are approximate. */

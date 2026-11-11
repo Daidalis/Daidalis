@@ -20,7 +20,7 @@ function kernel(operation, file) {
 }
 const mission = {path:'models/mission.sysml',content:source};
 const fixture = {file:mission,model:kernel('query',mission),verification:kernel('verify',mission)};
-const carPath = 'examples/physical-preview/model-3.sysml';
+const carPath = 'examples/physical-preview/electric-vehicle.sysml';
 const car = {path:carPath,content:await fs.readFile(path.join(root,carPath),'utf8')};
 const editedCar = {...car,content:car.content.replace(/upperZ\s*=\s*1440\s*\[mm\]/g,'upperZ = 1470 [mm]')};
 assert.notEqual(editedCar.content,car.content);
@@ -96,11 +96,11 @@ try {
   assert.equal(await canvas.count(),0);
 
   await openProduct(car);
-  const originalCar = await canvas.screenshot({path:path.join(temporary,'model-3.png')});
+  const originalCar = await canvas.screenshot({path:path.join(temporary,'electric-vehicle.png')});
   await openProduct(editedCar);
   assert.match(await page.locator('.semantic-details').innerText(),/4720 × 2089 × 1470 mm/);
   assert.ok(!originalCar.equals(await canvas.screenshot()),'editing the roof section height should change the solid assembly');
-  steps.push('SysML Model 3 assembly, dimension change, missing geometry, part selection, camera and source location');
+  steps.push('SysML electric vehicle assembly, dimension change, missing geometry, part selection, camera and source location');
   await page.evaluate(() => viewer.update({...fixture,tab:'diagram'}));
   await page.locator('button[data-document-tab="outline"]').click();await page.locator('[data-document-search]').fill('CorrectFrame');assert.match(await page.locator('.semantic-outline').innerText(),/CorrectFrame/);assert.ok(await page.locator('.semantic-outline-row').count() <= 3);
   await page.locator('.semantic-outline-row').first().click();assert.equal(await page.locator('.source-line.is-highlighted').count(),1,JSON.stringify({errors,tab:await page.locator('.document-viewer').getAttribute('data-document-tab'),body:(await page.locator('#viewer').innerText()).slice(0,1000)}));steps.push('searchable semantic outline jumps to original source');
