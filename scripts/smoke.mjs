@@ -13,11 +13,12 @@ try {
   app=await createStudioServer({dataDir:path.join(temporary,'data'),seed:false,addDefaultCodexProvider:false});
   const address=await app.listen({port:0});
   const base='http://127.0.0.1:'+address.port;
-  for(const route of ['/api/health','/','/app.js','/shared/run-presentation.mjs','/api/bootstrap']) {
+  for(const route of ['/api/health','/','/app.js','/shared/run-presentation.mjs','/vendor/three/three.module.min.js','/vendor/three/three.core.min.js','/api/bootstrap']) {
     const response=await fetch(base+route);
     assert.equal(response.status,200,route+' should respond successfully');
     const body=await response.text();
     assert(body.length>0,route+' should have content');
+    if(route.startsWith('/vendor/three/'))assert.match(response.headers.get('content-type'),/javascript/);
     if(route==='/api/health')assert.equal(JSON.parse(body).ok,true);
     if(route==='/api/bootstrap') {
       const bootstrap=JSON.parse(body);
@@ -27,6 +28,10 @@ try {
     }
     checks.push({route,status:response.status});
   }
+  const unlistedModule=await fetch(base+'/vendor/three/three.cjs');
+  assert.equal(unlistedModule.status,404,'Only the browser modules should be served');
+  await unlistedModule.arrayBuffer();
+  checks.push({route:'/vendor/three/three.cjs',status:unlistedModule.status});
   const crossOrigin=await fetch(base+'/api/health',{headers:{origin:'https://example.com'}});
   assert.equal(crossOrigin.status,403,'Cross-origin requests must be rejected');
   await crossOrigin.arrayBuffer();
