@@ -8,7 +8,7 @@ const TOOL_LABELS = {
   list_external_tools:'发现项目 MCP 工具',call_external_tool:'调用外部 MCP 工具',model_backend_catalog:'检查模型后端',import_system_model:'导入 SysML 模型',prepare_nos3_model:'建立 NOS3 接口模型',query_system_model:'查询 SysML 模型',validate_system_model:'检查 SysML 语义',export_system_model:'导出 SysML 模型',verify_system_model:'求值模型约束',bind_nos3_results:'回填 NOS3 验证结果',inspect_nos3:'检查 NOS3 环境',submit_nos3_job:'提交 NOS3 作业',get_nos3_job:'读取 NOS3 结果',wait_nos3_job:'等待 NOS3 作业',cancel_nos3_job:'停止 NOS3 作业',
   read_file:'读取项目文件', write_file:'写入项目文件', list_files:'查看项目文件',
   search_files:'搜索项目文件', search_knowledge:'检索项目资料', web_search:'搜索公开资料', web_fetch:'读取公开资料',
-  run_command:'执行已审批命令', get_model:'读取系统模型', update_model:'更新系统模型',
+  run_command:'执行已审批命令',
   create_artifact:'保存工件', read_project_memory:'读取项目记忆', update_project_memory:'更新项目记忆',
   engineering_catalog:'检查工程工具', run_engineering_model:'运行工程分析', get_engineering_run:'读取工程分析结果',
   start_thread:'启动独立任务', delegate_task:'启动独立任务', list_threads:'查看任务状态',
@@ -236,7 +236,7 @@ export function visibleRunWork(row={}, {hasResult=()=>false,resultKey=()=>null,m
  const name=a=>String(a.tool||'').split('__').at(-1),active=a=>['running','started','queued','pending','waiting_approval','waiting_tasks','waiting_job','preparing_environment'].includes(a.status),failed=a=>['blocked','failed','error','rejected'].includes(a.status)||['submit_professional_job','get_professional_job','wait_professional_job'].includes(name(a))&&(a.result?.executionSucceeded===false||a.result?.verification?.status==='failed');
  const controls=new Set(['wait_for_tasks','wait_threads','route_user_message','start_thread','delegate_task','get_task_assignments','review_task_results']);
  const routine=new Set(['get_engineering_state','record_engineering_object','get_engineering_plan','read_project_memory','update_project_memory']);
- const recoverable=new Set(['update_engineering_plan','update_model']),destination=a=>a.args?.path||a.args?.model?.path||a.args?.modelPath||'',recovered=new Set();
+ const recoverable=new Set(['update_engineering_plan','import_system_model']),destination=a=>a.args?.path||a.args?.model?.path||a.args?.modelPath||'',recovered=new Set();
  for(let index=0;index<activities.length;index++){const a=activities[index];if(!recoverable.has(name(a))||!failed(a))continue;if(activities.slice(index+1).some(later=>name(later)===name(a)&&destination(later)===destination(a)&&later.status==='completed'&&!failed(later)&&!later.result?.error))recovered.add(a.id);}
  const important=activities.filter(a=>!recovered.has(a.id)&&a.type!=='thread.routed'&&(failed(a)||!controls.has(name(a))&&(live&&active(a)||!routine.has(name(a))&&(a.kind==='thread'||hasResult(a)))));
  // One logical destination per result, rather than one card per poll/file. Repeated

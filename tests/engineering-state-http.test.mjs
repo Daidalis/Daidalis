@@ -45,28 +45,20 @@ async function fixture(t){
   await f.boot();return f;
 }
 
-function graph(){
-  return {nodes:[
-    ...stf.requirements.map(row=>({id:row.id,type:'requirement',name:row.summary,description:row.original+'\nImported public objective; lower-level definition and acceptance remain pending.'})),
-    {id:'T-DATA-SHAPE',type:'test',name:'Fixture input shape only',description:resultScope},
-    {id:'C-DOWNLINK',type:'component',name:'Candidate downlink and storage chain',description:'Candidate decomposition, no approved capacity or contact budget.'}
-  ],links:[{id:'shape-to-delivery',source:'T-DATA-SHAPE',target:'L0-05',type:'verifies'},{id:'downlink-to-delivery',source:'C-DOWNLINK',target:'L0-05',type:'satisfies'}]};
-}
-
 async function saveObject(f,project,input){
   const current=(await f.state(project)).objects.find(row=>row.id===input.id);
   return f.post(project,'objects',{...input,...(current?{expectedRevision:current.revision}: {})});
 }
 
-async function importGraph(f,project){
-  const response=await f.api(`/api/projects/${project.id}/model`,'PUT',{...graph(),version:0});assert.equal(response.status,200,JSON.stringify(response.data));
-  // Refine the same stable ID with an explicit dependency and source path.
+async function importObjects(f,project){
+  for(const row of stf.requirements) await saveObject(f,project,{id:row.id,kind:'requirement',title:row.summary,description:row.original+'\nCandidate objective; acceptance pending.',sources:['source/stf-conops-extract.md']});
   await saveObject(f,project,{id:'T-DATA-SHAPE',kind:'test',title:'Fixture input shape only',description:resultScope,sources:['source/stf-fixture.json'],dependsOn:['L0-05']});
+  await saveObject(f,project,{id:'C-DOWNLINK',kind:'component',title:'Candidate downlink and storage chain',dependsOn:['L0-05']});
   return f.state(project);
 }
 
 async function observedAndEvidence(f,project){
-  await importGraph(f,project);
+  await importObjects(f,project);
   const snapshot=await f.post(project,'snapshots',{name:'Observed STF fixture; approval is separate',paths:['source/stf-conops-extract.md','source/stf-fixture.json','analysis/input-shape-check.txt']});
   const evidence=await f.post(project,'evidence',{title:'Actual input fixture row check',scope:resultScope,result:'passed',objectIds:['T-DATA-SHAPE'],paths:['analysis/input-shape-check.txt'],snapshotId:snapshot.id});
   return {snapshot,evidence};
@@ -83,13 +75,13 @@ test('STF fixture preserves original objectives and unresolved real engineering 
   assert.ok(stf.unfinishedConditions.every(row=>row.status!=='not_applicable'&&row.status!=='passed'));
 });
 
-test('existing model takeover retains IDs, trace links and candidate maturity without running any agent or simulator',async t=>{
-  const f=await fixture(t),project=await f.create(),state=await importGraph(f,project);
+test('explicit records retain IDs, dependencies and candidate maturity without running any agent or simulator',async t=>{
+  const f=await fixture(t),project=await f.create(),state=await importObjects(f,project);
   assert.equal(typeof state.schema,'string');assert.ok(Number.isInteger(state.revision));
   for(const key of ['objects','relations','snapshots','changes','evidence','issues'])assert.ok(Array.isArray(state[key]),key);
   for(const row of stf.requirements)assert.ok(state.objects.some(object=>object.id===row.id),'Stable imported objective '+row.id);
   assert.ok(state.objects.some(object=>object.id==='T-DATA-SHAPE'));
-  assert.ok(state.relations.length>=2,'Existing trace links are retained, not flattened away');
+  assert.deepEqual(state.relations,[]);assert.deepEqual(state.objects.find(object=>object.id==='C-DOWNLINK').dependsOn,['L0-05']);
   assert.equal(state.snapshots.length,0);assert.equal(state.evidence.length,0);assert.equal(f.app.store.data.runs.length,0);
   assert.equal(f.app.computer,null);assert.equal(f.app.nos3,null);assert.equal(f.app.localVm,null);assert.equal(f.app.engineering,null);
 });
@@ -125,15 +117,13 @@ test('current file contents and model revisions affect applicability without rew
   let state=await f.state(project);assert.notEqual(applicability(state,evidence.id),'current');assert.equal(recordedEvidence(state,evidence.id).result,'passed');
   const snapshot=await f.post(project,'snapshots',{name:'New observation after explicit file edit',paths:['analysis/input-shape-check.txt']});
   const modelEvidence=await f.post(project,'evidence',{title:'Reference for subsequent model change',scope:'Configuration bookkeeping only; no new numerical or mission acceptance result.',result:'not_executed',objectIds:['L0-05'],paths:['analysis/input-shape-check.txt'],snapshotId:snapshot.id});
-  const current=(await f.api(`/api/projects/${project.id}/model`)).data;
-  const updated={...current,nodes:current.nodes.map(row=>row.id==='L0-05'?{...row,description:row.description+'\nProposed receiving endpoint clarification.'}:row)};
-  assert.equal((await f.api(`/api/projects/${project.id}/model`,'PUT',updated)).status,200);
+  await saveObject(f,project,{id:'L0-05',description:'Proposed receiving endpoint clarification.'});
   state=await f.state(project);assert.equal(applicability(state,modelEvidence.id),'needs_review');assert.equal(recordedEvidence(state,modelEvidence.id).result,'not_executed');
-  assert.equal(state.objects.filter(row=>row.id==='L0-05').length,1,'Graph updates revise the same object identity');
+  assert.equal(state.objects.filter(row=>row.id==='L0-05').length,1,'Explicit updates revise the same object identity');
 });
 
 test('engineering state rejects missing objects, stale revisions and cross-project or escaping file paths',async t=>{
-  const f=await fixture(t),project=await f.create();await importGraph(f,project);const other=await f.create('Other isolated project',f.otherFolder);
+  const f=await fixture(t),project=await f.create();await importObjects(f,project);const other=await f.create('Other isolated project',f.otherFolder);
   const state=await f.state(project);
   const conflict=await f.api(`/api/projects/${project.id}/engineering-state/objects`,'POST',{id:'L0-05',kind:'requirement',title:'Stale edit',description:'Must not overwrite newer state.',sources:[],dependsOn:[],expectedRevision:Math.max(0,state.objects.find(row=>row.id==='L0-05').revision-1)});assert.equal(conflict.status,409,JSON.stringify(conflict.data));
   const escapedPaths=['../other-workspace/outside.txt',path.join(f.otherFolder,'outside.txt'),'/etc/hosts','source/../../other-workspace/outside.txt'];
@@ -190,32 +180,14 @@ test('snapshot-bound evidence must match its selected object dependencies and fi
 });
 
 
-test('HTTP model save rolls back graph, model version, ledger and disk when the real store save fails',async t=>{
-  const f=await fixture(t),project=await f.create();await importGraph(f,project);
-  const route=`/api/projects/${project.id}/model`,beforeGraph=(await f.api(route)).data,beforeState=await f.state(project);
-  const beforeLedger=structuredClone(f.app.store.data.engineeringStates.find(row=>row.projectId===project.id));
-  const diskPath=path.join(f.dataDir,'state.json'),beforeDisk=await fs.readFile(diskPath,'utf8');
-  const beforeModelEvents=f.app.store.data.events.filter(row=>row.projectId===project.id&&row.type==='model.updated').length;
-  const changed={...beforeGraph,nodes:beforeGraph.nodes.map(row=>row.id==='L0-05'?{...row,description:row.description+' Proposed but not persisted.'}:row)};
-  const realSave=f.app.store.save;let saveAttempts=0,failed;
-  f.app.store.save=()=>{saveAttempts++;throw new Error('Synthetic persistence failure during HTTP graph commit');};
-  try{failed=await f.api(route,'PUT',changed);}finally{f.app.store.save=realSave;}
-  assert.ok(failed.status>=400,JSON.stringify(failed));assert.match(failed.data.error,/Synthetic persistence failure/);assert.equal(saveAttempts,1,'Graph and ledger use one persistent commit');
-  assert.deepEqual((await f.api(route)).data,beforeGraph,'Failed HTTP write must retain the original model and version');
-  const afterState=await f.state(project);assert.equal(afterState.revision,beforeState.revision);assert.deepEqual(afterState.objects,beforeState.objects);assert.deepEqual(afterState.relations,beforeState.relations);
-  assert.deepEqual(f.app.store.data.engineeringStates.find(row=>row.projectId===project.id),beforeLedger,'Ledger history and graph fingerprint must also roll back');
-  assert.equal(await fs.readFile(diskPath,'utf8'),beforeDisk,'A rejected transaction must not alter persisted state');
-  assert.equal(f.app.store.data.events.filter(row=>row.projectId===project.id&&row.type==='model.updated').length,beforeModelEvents,'No successful model update event is emitted');
-  await f.restart();assert.deepEqual((await f.api(route)).data,beforeGraph);assert.equal((await f.state(project)).revision,beforeState.revision);
-});
-
-test('a valid HTTP graph larger than two million characters saves model and ledger together and reopens consistently',async t=>{
-  const f=await fixture(t),project=await f.create(),route=`/api/projects/${project.id}/model`;
-  const input={version:0,nodes:Array.from({length:101},(_,n)=>({id:'LARGE-'+String(n).padStart(3,'0'),type:'requirement',name:'Application transport boundary '+n,description:'x'.repeat(20000)})),links:[]};
-  const bytes=Buffer.byteLength(JSON.stringify(input));assert.ok(bytes>2000000&&bytes<2*1024*1024,`Expected legal 2.02 MB HTTP body; got ${bytes} bytes`);
-  const saved=await f.api(route,'PUT',input);assert.equal(saved.status,200,saved.data.error);assert.equal(saved.data.version,1);assert.equal(saved.data.nodes.length,101);
-  let state=await f.state(project);assert.equal(state.objects.length,101);assert.ok(state.revision>0);
-  for(const node of saved.data.nodes){const object=state.objects.find(row=>row.id===node.id);assert.ok(object,node.id);assert.equal(object.description,node.description);assert.equal(object.revision,1);}
-  const revision=state.revision;await f.restart();const reopened=(await f.api(route)).data;state=await f.state(project);
-  assert.deepEqual(reopened,saved.data);assert.equal(state.revision,revision);assert.equal(state.objects.length,101);assert.equal(state.objects.find(row=>row.id==='LARGE-000').description.length,20000);
+test('HTTP engineering object saves roll back ledger and disk on persistence failure',async t=>{
+  const f=await fixture(t),project=await f.create();await importObjects(f,project);
+  const beforeState=await f.state(project), beforeLedger=structuredClone(f.app.store.data.engineeringStates);
+  const diskPath=path.join(f.dataDir,'state.json'), beforeDisk=await fs.readFile(diskPath,'utf8');
+  const realSave=f.app.store.save;let attempts=0,response;
+  f.app.store.save=()=>{attempts++;throw new Error('Synthetic engineering persistence failure');};
+  try{response=await f.api(`/api/projects/${project.id}/engineering-state/objects`,'POST',{id:'L0-05',title:'Must not persist',expectedRevision:1});}finally{f.app.store.save=realSave;}
+  assert.equal(response.status,400);assert.match(response.data.error,/Synthetic engineering persistence failure/);assert.equal(attempts,1);
+  assert.deepEqual(f.app.store.data.engineeringStates,beforeLedger);assert.equal(await fs.readFile(diskPath,'utf8'),beforeDisk);
+  await f.restart();const state=await f.state(project);assert.equal(state.revision,beforeState.revision);assert.deepEqual(state.objects,beforeState.objects);
 });

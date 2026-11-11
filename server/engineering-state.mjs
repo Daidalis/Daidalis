@@ -2,10 +2,9 @@ import fs from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { checkGraph, sanitizeGraph } from './model.mjs';
 
 const SCHEMA = 'manta-engineering-state-v1';
-const LIMIT = Object.freeze({ historyProjection: 50, objects: 2000, relations: 10000, files: 32, fileBytes: 2 * 1024 * 1024, readBytes: 16 * 1024 * 1024, readPaths: 128, snapshots: 100, evidence: 500, changes: 500 });
+const LIMIT = Object.freeze({ historyProjection: 50, objects: 2000, files: 32, fileBytes: 2 * 1024 * 1024, readBytes: 16 * 1024 * 1024, readPaths: 128, snapshots: 100, evidence: 500, changes: 500 });
 const now = () => new Date().toISOString();
 const clone = value => JSON.parse(JSON.stringify(value));
 const uid = prefix => `${prefix}_${randomUUID()}`;
@@ -16,7 +15,6 @@ function canonical(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])]));
   return value;
 }
-const digest = value => createHash('sha256').update(typeof value === 'string' ? value : stable(value)).digest('hex');
 function text(value, label, max = 2000) {
   if (typeof value !== 'string' || !value.trim() || value.length > max || value.includes('\0')) fail(400, `${label} must be nonempty text (max ${max} characters).`);
   return value.trim();
@@ -88,15 +86,6 @@ function replaceObject(ledger, old, fields, actor, at, operation = 'updated') {
   ledger.objects.push(object);
   return object;
 }
-function normalizeRelations(links) {
-  const seen = new Set();
-  return links.map(link => {
-    const relation = { id: link.id || `relation_${digest([link.source, link.type, link.target]).slice(0, 24)}`, source: text(link.source, 'relation source', 150), target: text(link.target, 'relation target', 150), type: text(link.type, 'relation type', 100) };
-    if (seen.has(relation.id)) fail(400, 'Duplicate relation identifier.');
-    seen.add(relation.id);
-    return relation;
-  }).sort((a, b) => a.id.localeCompare(b.id));
-}
 // A dependency edge points from the consumer to its prerequisite. Generic trace
 // links remain ambiguous rather than inventing engineering semantics.
 function dependencyPair(relation) {
@@ -151,7 +140,7 @@ function getIssues(ledger) {
 export function createEngineeringStateService({ store, emit = () => {} }) {
   if (!store?.data || typeof store.save !== 'function' || typeof store.workspace !== 'function') throw new Error('Engineering state requires a persistent project store.');
   if (!Array.isArray(store.data.engineeringStates)) store.data.engineeringStates = [];
-  const queues = new Map(), notifications = new WeakMap(), pendingGraphs = new WeakMap();
+  const queues = new Map(), notifications = new WeakMap();
   function projectLedger(projectId) {
     if (!store.data.projects.some(project => project.id === projectId)) fail(404, 'Project not found.');
     let ledger = store.data.engineeringStates.find(item => item.projectId === projectId);
@@ -173,23 +162,13 @@ export function createEngineeringStateService({ store, emit = () => {} }) {
       const existing = store.data.engineeringStates.find(item => item.projectId === projectId);
       const ledger = clone(projectLedger(projectId));
       const result = await operation(ledger);
-      const at = store.data.engineeringStates.findIndex(item => item.projectId === projectId), pendingGraph = pendingGraphs.get(ledger);
-      const previousGraphAt = pendingGraph ? store.data.models.findIndex(item => item.projectId === projectId) : -1;
-      const previousGraph = previousGraphAt < 0 ? undefined : store.data.models[previousGraphAt];
-      if (pendingGraph && ((previousGraph?.version || 0) !== pendingGraph.expectedVersion || stable(previousGraph) !== stable(pendingGraph.previous))) fail(409, 'Model version changed before the engineering configuration could be committed.');
-      if (!existing || stable(existing) !== stable(ledger) || pendingGraph) {
+      const at = store.data.engineeringStates.findIndex(item => item.projectId === projectId);
+      if (!existing || stable(existing) !== stable(ledger)) {
         if (at < 0) store.data.engineeringStates.push(ledger); else store.data.engineeringStates[at] = ledger;
-        if (pendingGraph) {
-          if (previousGraphAt < 0) store.data.models.push(pendingGraph.next); else store.data.models[previousGraphAt] = pendingGraph.next;
-        }
         try { store.save(); }
         catch (error) {
           const currentAt = store.data.engineeringStates.findIndex(item => item.projectId === projectId);
           if (existing) store.data.engineeringStates[currentAt] = existing; else store.data.engineeringStates.splice(currentAt, 1);
-          if (pendingGraph) {
-            const graphAt = store.data.models.findIndex(item => item.projectId === projectId);
-            if (previousGraph) store.data.models[graphAt] = previousGraph; else store.data.models.splice(graphAt, 1);
-          }
           throw error;
         }
         for (const event of notifications.get(ledger) || []) { try { emit(event); } catch { /* Persistence already succeeded. */ } }
@@ -199,41 +178,6 @@ export function createEngineeringStateService({ store, emit = () => {} }) {
     queues.set(projectId, next);
     next.finally(() => { if (queues.get(projectId) === next) queues.delete(projectId); }).catch(() => {});
     return next;
-  }
-  function sync(ledger, graph, actor) {
-    if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.links) || graph.nodes.length > LIMIT.objects || graph.links.length > LIMIT.relations) fail(400, 'A bounded nodes/links engineering graph is required.');
-    const graphFingerprint = digest({ nodes: graph.nodes, links: graph.links });
-    if (Number.isFinite(graph.version) && Number.isFinite(ledger.graphVersion) && graph.version < ledger.graphVersion) return;
-    if (ledger.graphFingerprint === graphFingerprint) {
-      if (Number.isFinite(graph.version) && graph.version > (ledger.graphVersion ?? -1)) { ledger.graphVersion = graph.version; committed(ledger, 'graph_synced', actor); }
-      return;
-    }
-    const at = now(), present = new Set();
-    for (const node of graph.nodes) {
-      const id = text(node.id, 'graph node id', 150);
-      if (present.has(id)) fail(400, 'Duplicate graph node identifier.');
-      present.add(id);
-      const old = ledger.objects.find(object => object.id === id);
-      const fields = { id, kind: text(node.type || node.kind || 'unknown', 'object kind', 100), title: text(node.name || node.title, 'object title', 1000), description: typeof node.description === 'string' ? node.description.slice(0, 20000) : '', sourceStatus: node.status || '', origin: 'graph', authority: old?.authority || 'observed', maturity: old?.maturity || 'candidate', sources: old?.sources || [], dependsOn: old?.dependsOn || [] };
-      const comparable = old && Object.fromEntries(Object.keys(fields).map(key => [key, old[key]]));
-      if (!old || old.deletedAt || stable(comparable) !== stable(fields)) { fields.maturity = 'candidate'; fields.reviewRecord = null; replaceObject(ledger, old, fields, actor, at); }
-    }
-    for (const object of ledger.objects) if (object.origin === 'graph' && !object.deletedAt && !present.has(object.id)) {
-      object.history.push({ ...objectFact(object), operation: 'previous' });
-      object.revision++;
-      Object.assign(object, { deletedAt: at, updatedAt: at, updatedBy: actor });
-    }
-    const relations = normalizeRelations(graph.links);
-    for (const relation of relations) if (!present.has(relation.source) || !present.has(relation.target)) fail(400, 'Graph contains a dangling relation.');
-    if (stable(relations) !== stable(ledger.relations)) ledger.relationHistory.push({ revision: ledger.revision, relations: clone(ledger.relations), replacedAt: at, actor });
-    ledger.relations = relations;
-    ledger.graphFingerprint = graphFingerprint;
-    ledger.graphVersion = graph.version ?? null;
-    committed(ledger, 'graph_synced', actor);
-  }
-  function lazySync(ledger) {
-    const graph = store.data.models?.find(model => model.projectId === ledger.projectId);
-    if (graph) sync(ledger, graph, { kind: 'system' });
   }
   async function captureFiles(projectId, paths) {
     const root = await fs.realpath(store.workspace(projectId));
@@ -306,26 +250,8 @@ export function createEngineeringStateService({ store, emit = () => {} }) {
     return { schema: SCHEMA, projectId: ledger.projectId, revision: ledger.revision, objects: ledger.objects.map(object => ({ ...clone(object), history: clone(object.history.slice(-LIMIT.historyProjection)), historyCount: object.history.length, historyTruncated: object.history.length > LIMIT.historyProjection })), relations: clone(ledger.relations), snapshots, changes: clone(ledger.changes), evidence, issues: getIssues(ledger), limits: LIMIT, limitations: ['Observation snapshots are not automatically approved engineering baselines.', 'Evidence registration does not establish execution authenticity or engineering compliance.', 'Whole-configuration restoration, branching and solver checkpoint recovery are not implemented.'] };
   }
   const api = {
-    commitGraph(projectId, graph, { actor, expectedVersion } = {}) { return queued(projectId, async ledger => {
-      const data = safeJson(graph, 'graph', 2 * 1024 * 1024), validation = checkGraph(data);
-      if (!validation.valid) fail(400, validation.errors.join('; '));
-      const current = store.data.models.find(model => model.projectId === projectId), version = current?.version || 0;
-      const expected = expectedVersion ?? data.version;
-      if (!Number.isInteger(expected) || expected < 0) fail(400, 'An expected model version is required.');
-      if (expected !== version) fail(409, `Model version conflict: current version ${version}.`);
-      const next = sanitizeGraph(data, version + 1), by = actorValue(actor, 'system');
-      if (Number.isFinite(ledger.graphVersion) && ledger.graphVersion > version) fail(409, 'Engineering state is ahead of the saved model; reconcile the configuration before writing.');
-      sync(ledger, next, by);
-      pendingGraphs.set(ledger, { expectedVersion: version, previous: current ? clone(current) : undefined, next: { projectId, ...clone(next) } });
-      return clone(next);
-    }); },
-    get(projectId) { return queued(projectId, async ledger => { lazySync(ledger); return projection(ledger); }); },
-    syncGraph(projectId, graph, { actor } = {}) { return queued(projectId, async ledger => { const provided = safeJson(graph, 'graph', 2 * 1024 * 1024);
-      const current = store.data.models?.find(model => model.projectId === projectId);
-      // Saved traceability state is authoritative over a late notification.
-      sync(ledger, current && Number.isFinite(current.version) && current.version >= (provided.version ?? -1) ? current : provided, actorValue(actor, 'system')); return projection(ledger); }); },
+    get(projectId) { return queued(projectId, ledger => projection(ledger)); },
     upsertObject(projectId, input, { actor } = {}) { return queued(projectId, async ledger => {
-      lazySync(ledger);
       const by = actorValue(actor), data = safeJson(input, 'object'), id = data.id === undefined ? uid('object') : text(data.id, 'object id', 150), old = ledger.objects.find(object => object.id === id);
       if (old && data.expectedRevision !== old.revision) fail(409, `Object revision conflict: expected current revision ${old.revision}.`);
       if (!old && data.expectedRevision !== undefined && data.expectedRevision !== 0) fail(409, 'New objects must have no expectedRevision or expectedRevision 0.');
@@ -334,15 +260,22 @@ export function createEngineeringStateService({ store, emit = () => {} }) {
       if (['reviewed', 'approved'].includes(maturity) && by.kind !== 'user') fail(403, 'Only a user can record an engineering review or approval.');
       const reviewRecord = ['reviewed', 'approved'].includes(maturity) ? { actor: by, reason: text(data.reviewReason, 'review reason', 4000), reviewedAt: now(), revision: (old?.revision || 0) + 1 } : null;
       if (authority !== 'observed' && authority !== 'declared' && authority !== 'candidate' && by.kind !== 'user' && authority !== old?.authority) fail(403, 'An agent cannot promote engineering authority.');
-      const fields = { id, kind: text(data.kind ?? old?.kind ?? 'unknown', 'object kind', 100), title: text(data.title ?? old?.title, 'object title', 1000), description: typeof (data.description ?? old?.description) === 'string' ? (data.description ?? old?.description).slice(0, 20000) : '', authority: safeJson(authority, 'authority', 2000), maturity, reviewRecord, sources: safeJson(data.sources ?? old?.sources ?? [], 'sources', 20000), dependsOn: ids(data.dependsOn ?? old?.dependsOn ?? [], 'dependsOn'), origin: old?.origin || 'engineering', ...(old?.sourceStatus !== undefined ? { sourceStatus: old.sourceStatus } : {}) };
+      const fields = { id, kind: text(data.kind ?? old?.kind ?? 'unknown', 'object kind', 100), title: text(data.title ?? old?.title, 'object title', 1000), description: typeof (data.description ?? old?.description) === 'string' ? (data.description ?? old?.description).slice(0, 20000) : '', authority: safeJson(authority, 'authority', 2000), maturity, reviewRecord, sources: safeJson(data.sources ?? old?.sources ?? [], 'sources', 20000), dependsOn: ids(data.dependsOn ?? old?.dependsOn ?? [], 'dependsOn'), origin: 'engineering', ...(old?.sourceStatus !== undefined ? { sourceStatus: old.sourceStatus } : {}) };
       if (!Array.isArray(fields.sources)) fail(400, 'sources must be an array.');
       if (!old && ledger.objects.length >= LIMIT.objects) fail(413, 'Engineering object limit exceeded.');
       const saved = replaceObject(ledger, old, fields, by, now());
+      // Reusing an archived ID is an explicit new observation. Continue its
+      // revision sequence so historical evidence cannot become current by accident.
+      const archived = !old && ledger.legacyProjectGraph?.objects.find(object => object.id === id);
+      if (archived) {
+        saved.revision = archived.revision + 1;
+        saved.history = [...archived.history, { ...objectFact(archived), operation: 'previous' }];
+        if (saved.reviewRecord) saved.reviewRecord.revision = saved.revision;
+      }
       committed(ledger, 'object_updated', by);
       return clone(saved);
     }); },
     captureSnapshot(projectId, input, { actor } = {}) { return queued(projectId, async ledger => {
-      lazySync(ledger);
       if (ledger.snapshots.length >= LIMIT.snapshots) fail(413, 'Observation snapshot limit exceeded.');
       const by = actorValue(actor), name = text(input?.name, 'snapshot name', 500), files = await captureFiles(projectId, input.paths || []);
       const objects = ledger.objects.filter(object => !object.deletedAt);
@@ -358,18 +291,16 @@ export function createEngineeringStateService({ store, emit = () => {} }) {
       ledger.approvals.push(approval); committed(ledger, 'snapshot_approved', by); return { ...clone(snapshot), approval: clone(approval) };
     }); },
     createChange(projectId, input, { actor } = {}) { return queued(projectId, async ledger => {
-      lazySync(ledger);
       if (ledger.changes.length >= LIMIT.changes) fail(413, 'Engineering change record limit exceeded.');
       const by = actorValue(actor), title = text(input?.title, 'change title', 1000), reason = text(input?.reason, 'change reason', 4000), objectIds = ids(input.objectIds);
       requireObjects(ledger, objectIds);
       if (input.baseSnapshotId) ensureSnapshot(ledger, input.baseSnapshotId);
       const affectedObjectIds = affectedIds(ledger, objectIds), impact = new Set(affectedObjectIds);
       const affectedEvidenceIds = ledger.evidence.filter(record => [...Object.keys(record.objectVersions || {}), ...Object.keys(record.ambiguousObjectVersions || {})].some(id => impact.has(id))).map(record => record.id);
-      const change = { id: uid('change'), title, reason, objectIds, affectedObjectIds, affectedEvidenceIds, ...(input.baseSnapshotId ? { baseSnapshotId: input.baseSnapshotId } : {}), objectVersions: contextAt(ledger, objectIds).objectVersions, createdAt: now(), actor: by, status: 'proposed', impactScope: 'Declared and directional graph dependencies only; ambiguous relations require engineering review.' };
+      const change = { id: uid('change'), title, reason, objectIds, affectedObjectIds, affectedEvidenceIds, ...(input.baseSnapshotId ? { baseSnapshotId: input.baseSnapshotId } : {}), objectVersions: contextAt(ledger, objectIds).objectVersions, createdAt: now(), actor: by, status: 'proposed', impactScope: 'Explicit engineering-record dependencies only; model semantics remain in source files.' };
       ledger.changes.push(change); committed(ledger, 'change_recorded', by); return clone(change);
     }); },
     registerEvidence(projectId, input, { actor } = {}) { return queued(projectId, async ledger => {
-      lazySync(ledger);
       if (ledger.evidence.length >= LIMIT.evidence) fail(413, 'Evidence record limit exceeded.');
       const by = actorValue(actor), title = text(input?.title, 'evidence title', 1000), scope = text(input.scope, 'evidence scope', 4000), result = input.result;
       if (!['passed', 'failed', 'inconclusive', 'not_executed'].includes(result)) fail(400, 'Evidence result must be passed, failed, inconclusive or not_executed.');
