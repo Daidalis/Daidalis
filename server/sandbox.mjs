@@ -7,6 +7,7 @@ import {lookup} from 'node:dns/promises';
 import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
+import {commandTimeout} from '../shared/execution-budget.mjs';
 
 export function safePath(workspace,relative='.',{write=false}={}) {
   if(typeof relative!=='string'||relative.includes('\0')||relative.length>4096||path.isAbsolute(relative)) throw new Error('Use a project-relative path');
@@ -40,7 +41,8 @@ export async function listWorkspace(workspace,relative='.') {
   await walk(start,0); return output;
 }
 export const commandSandboxAvailable=()=>process.platform==='darwin'&&fs.existsSync('/usr/bin/sandbox-exec');
-export async function sandboxCommand({workspace,command,timeoutMs=30000,signal}) {
+export async function sandboxCommand({workspace,command,timeoutMs,signal}) {
+  timeoutMs=commandTimeout(timeoutMs);
   if(!commandSandboxAvailable()) throw new Error('Command execution unavailable: no supported OS sandbox. No unsandboxed fallback is allowed.');
   if(typeof command!=='string'||!command.trim()||command.length>16000) throw new Error('Invalid command');
   const temporary=await fsp.mkdtemp(path.join(workspace,'.command-'));
@@ -54,7 +56,7 @@ export async function sandboxCommand({workspace,command,timeoutMs=30000,signal})
   // Metadata is needed for getcwd; file contents still follow the allowlist below.
   const profile=`(version 1) (deny default) (allow process*) (allow signal (target same-sandbox)) (allow sysctl-read) (allow mach-lookup) (allow file-read-metadata) (allow file-read* (literal "/") ${reads.filter(fs.existsSync).map(p=>`(subpath ${quote(p)})`).join(' ')} (subpath ${quote(workspace)})) (allow file-write* (subpath ${quote(workspace)})) (allow file-read* file-write* (literal "/dev/null") (literal "/dev/urandom"))`;
   try {
-    return await spawnBounded('/usr/bin/sandbox-exec',['-p',profile,'/bin/sh','-c',command],{cwd:workspace,signal,timeoutMs:Math.min(Math.max(timeoutMs,100),60000),env:{PATH:`${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`,HOME:temporary,TMPDIR:temporary,LANG:'en_US.UTF-8'},maxBytes:200000});
+    return await spawnBounded('/usr/bin/sandbox-exec',['-p',profile,'/bin/sh','-c',command],{cwd:workspace,signal,timeoutMs,env:{PATH:`${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`,HOME:temporary,TMPDIR:temporary,LANG:'en_US.UTF-8'},maxBytes:200000});
   } finally {await fsp.rm(temporary,{recursive:true,force:true});}
 }
 export function spawnBounded(file,args,{cwd,signal,timeoutMs=120000,env,maxBytes=1000000,onLine,input,killGraceMs=1000}={}) {

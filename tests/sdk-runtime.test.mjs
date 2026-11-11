@@ -107,3 +107,45 @@ test('user cancellation at the continuation boundary cannot restart the model',a
  await assert.rejects(runtime.startTurn({providerId:'p',workspace:dir,input:'Cancel at budget',signal:controller.signal,maxTurns:1,maxContinuations:1,tools:[tool],executeTool:async()=>({ok:true}),onEvent:e=>{if(e.type==='sdk.turn.continued')controller.abort();}}).completion,/Cancelled|abort/i);
  assert.equal(calls,1);
 });
+
+test('queued steering shares one cumulative budget across otherwise completed SDK turns',async t=>{
+ const dir=await temp(t);let release,entered,calls=0;const gate=new Promise(r=>release=r),started=new Promise(r=>entered=r);
+ const runtime=createSdkRuntime({dataDir:dir,providers:{complete:async()=>{if(++calls===1){entered();await gate;}return {content:'answer '+calls};}}});
+ const turn=runtime.startTurn({providerId:'p',workspace:dir,input:'Initial',maxTurns:2,maxContinuations:1});
+ await started;for(const input of ['Second','Third','Fourth','Fifth'])assert.equal((await turn.steer(input)).accepted,true);
+ const rejected=assert.rejects(turn.completion,error=>{assert.equal(error.name,'MaxTurnsExceededError');return true;});release();await rejected;assert.equal(calls,4);
+});
+
+test('checkpoint alone recovers a session; a settled newer primary beats an obsolete checkpoint',async t=>{
+ const dir=await temp(t),args={directory:dir,id:'sdk_checkpoint',providerId:'p',workspace:dir};
+ const session=await new JsonSdkSession(args).init();
+ await session.checkpoint([{role:'user',content:'Durable request'},{type:'function_call',callId:'unknown',name:'write_evidence',arguments:'{}'}]);
+ const checkpoint=await fs.readFile(session.checkpointFile,'utf8');await fs.unlink(session.file);
+ const recovered=await new JsonSdkSession({...args,resume:true}).init(),items=await recovered.getItems();
+ assert.ok(items.some(i=>i.type==='function_call_result'&&i.callId==='unknown'&&i.output.includes('unknown')));
+ await recovered.finish([{role:'user',content:'Newer settled history'}]);await fs.writeFile(session.checkpointFile,checkpoint);
+ const newer=await new JsonSdkSession({...args,resume:true}).init();assert.deepEqual(await newer.getItems(),[{role:'user',content:'Newer settled history'}]);
+ await fs.unlink(session.file);await assert.rejects(new JsonSdkSession({...args,resume:true}).init(),{code:'SDK_SESSION_NOT_FOUND'});
+});
+
+test('pending Runner writes cannot hide a newer tool checkpoint, and unsafe checkpoints fail closed',async t=>{
+ const dir=await temp(t),args={directory:dir,id:'sdk_pending',providerId:'p',workspace:dir},session=await new JsonSdkSession(args).init();
+ await session.checkpoint([{role:'user',content:'Whole exchange'}]);await session.addItems([{role:'user',content:'Only Runner input'}]);
+ const recovered=await new JsonSdkSession({...args,resume:true}).init();assert.equal((await recovered.getItems())[0].content,'Whole exchange');
+ await fs.symlink(session.file,session.checkpointFile);await assert.rejects(new JsonSdkSession({...args,resume:true}).init(),/Unsafe/);
+});
+
+for(const mode of ['after-tool','mid-batch'])test('SIGKILL recovery retains completed evidence without replay: '+mode,{timeout:20000},async t=>{
+ const {fork}=await import('node:child_process'),{once}=await import('node:events'),dir=await temp(t);
+ const child=fork(new URL('./fixtures/sdk-crash-worker.mjs',import.meta.url),[dir,mode],{stdio:['ignore','ignore','pipe','ipc']});let stderr='';child.stderr.on('data',x=>stderr+=x);
+ t.after(()=>{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGKILL');});
+ const {sessionId}=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Child not ready: '+stderr)),15000);child.once('error',reject);child.on('message',m=>{if(m.ready){clearTimeout(timer);resolve(m);}});child.once('exit',code=>{clearTimeout(timer);reject(Error('Child exited '+code+': '+stderr));});});
+ const exited=once(child,'exit');child.kill('SIGKILL');await exited;let request;
+ const runtime=createSdkRuntime({dataDir:dir,providers:{complete:async(_id,r)=>{request=r;return {content:'Recovered actual evidence'};}}});
+ const result=await runtime.startTurn({providerId:'fixture',workspace:dir,sessionId,input:'Continue',executeTool:async()=>assert.fail('must not replay any previous tool')}).completion;
+ assert.equal(result.content,'Recovered actual evidence');assert.equal(await fs.readFile(path.join(dir,'evidence.txt'),'utf8'),'Actual write completed once');
+ const actual=request.messages.find(m=>m.role==='tool'&&m.tool_call_id==='completed-write');assert.match(actual.content,/Recorded output/);assert.equal(actual.images[0].data,'YWN0dWFsLWltYWdl');
+ assert.ok(request.messages.some(m=>m.role==='user'&&m.content.includes('ORIGINAL TASK')));
+ if(mode==='mid-batch')assert.match(request.messages.find(m=>m.role==='tool'&&m.tool_call_id==='unfinished-write').content,/unknown/);
+ const files=await fs.readdir(path.join(dir,'sdk-sessions'));assert.equal(files.some(f=>f.endsWith('.checkpoint.json')),false);
+});

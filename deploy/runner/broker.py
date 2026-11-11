@@ -40,9 +40,12 @@ def validate(payload):
     }
     if kind not in fields or set(payload) - fields[kind]:
         raise ValueError('Unsupported task or fields')
-    timeout = payload.get('timeoutMs', 30000)
-    maximum = (1800000 if payload.get('adapter') == 'flight' else 960000) if kind == 'adapter' else 600000 if kind == 'professional' else 60000
-    if type(timeout) not in (int, float) or not 100 <= timeout <= maximum:
+    timeout = payload.get('timeoutMs', 300000 if kind == 'command' else 30000)
+    maximum = (1800000 if payload.get('adapter') == 'flight' else 960000) if kind == 'adapter' else 600000 if kind == 'professional' else 1800000 if kind == 'command' else 60000
+    if kind == 'command':
+        if type(timeout) is not int or not 1 <= timeout <= maximum:
+            raise ValueError('Invalid command timeout')
+    elif type(timeout) not in (int, float) or not 100 <= timeout <= maximum:
         raise ValueError('Invalid task timeout')
     if kind == 'adapter':
         if payload.get('adapter') not in ('gis','orbit42','ground','flight','numerical') or payload.get('mode') not in ('status','run','nos3'):

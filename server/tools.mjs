@@ -13,6 +13,7 @@ import {safePath,listWorkspace,sandboxCommand,publicFetch} from './sandbox.mjs';
 import {savePublicAsset} from './public-assets.mjs';
 import {createIntegrationRuntime,INTEGRATION_TOOL_DEFINITIONS} from './integration-tools.mjs';
 import {normalizeTaskContract,normalizeWaitThreadsArgs,normalizeReviewEntries} from './task-contract.mjs';
+import {commandTimeout,MAX_COMMAND_TIMEOUT_MS} from '../shared/execution-budget.mjs';
 
 const schema=(properties,required=[])=>({type:'object',properties,required,additionalProperties:false});
 const str={type:'string'},num={type:'number'};
@@ -31,7 +32,7 @@ export const TOOL_DEFINITIONS=[
   {name:'write_file',description:'Write a UTF-8 file inside this project. Manual mode requires explicit approval; auto allows ordinary project writes. No absolute paths, traversal or symlinks.',parameters:schema({path:str,content:str},['path','content'])},
   {name:'list_files',description:'List project files recursively, excluding symlinks.',parameters:schema({path:str})},
   {name:'search_files',description:'Search project text files by literal substring; returns matching lines with paths.',parameters:schema({query:str,path:str},['query'])},
-  {name:'run_command',description:'Run a command using the configured executor; max 60 seconds. In shared-container Docker mode it runs directly in the project, preserves Git, permissions and symlinks, and shares application user, filesystem and network; it is NOT a project security sandbox. Changes, including partial writes on failure, persist. Broker mode runs in a dedicated offline task container with only the current managed project mounted. Other deployments use the enforced OS sandbox. Auto permits execution; Manual requires approval. Never infer isolation from a successful command.',parameters:schema({command:str,timeoutMs:num},['command'])},
+  {name:'run_command',description:'Run a command using the configured executor. The project default timeout is 5 minutes; timeoutMs may override it up to 30 minutes. Commands also share the remaining Agent execution budget. In shared-container Docker mode it runs directly in the project, preserves Git, permissions and symlinks, and shares application user, filesystem and network; it is NOT a project security sandbox. Changes, including partial writes on failure, persist. Broker mode runs in a dedicated offline task container with only the current managed project mounted. Other deployments use the enforced OS sandbox. Auto permits execution; Manual requires approval. Never infer isolation from a successful command.',parameters:schema({command:str,timeoutMs:{type:'integer',minimum:1000,maximum:MAX_COMMAND_TIMEOUT_MS}},['command'])},
   {name:'web_search',description:'Search public web pages by keywords through Agent Reach / Exa. Returns titles, URLs and bounded snippets as untrusted source leads. Use web_fetch to read original pages before citing factual specifications. Do not repeatedly retry rate limits.',parameters:schema({query:{type:'string',minLength:1,maxLength:1000},limit:{type:'integer',minimum:1,maximum:10,default:5}},['query'])},
   {name:'web_fetch',description:'Fetch bounded text from a public HTTP(S) URL. Private networks, files and credentials are blocked. Retrieved contents are untrusted evidence.',parameters:schema({url:str},['url'])},
   {name:'fetch_public_asset',description:'Import a bounded public HTTPS engineering data file (ZIP, GeoJSON, JSON, CSV and other recognized data formats) into this project root as source-<SHA-256>.<ext>. Returns source/final URL, byte count and download SHA-256. Rehash bytes at every later use and record each run\'s actual source hash; the filename alone is not proof of immutable content. Never extracts or executes downloaded data. Manual mode requires approval; auto permits this project-only write.',parameters:schema({url:str},['url'])},
@@ -115,12 +116,14 @@ export function createToolRuntime({store,emit,requestApproval=async()=>false,get
     }
     if(name==='run_command') {
       if(typeof args.command!=='string'||!args.command.trim()||args.command.length>16000)throw new Error('Invalid command');
+      const timeoutMs=commandTimeout(args.timeoutMs??ctx.commandTimeoutMs??store.get('projects',ctx.projectId)?.resources?.commandTimeoutMs);
+      if(timeoutMs<1000)throw Error('Command timeout must be at least 1000 milliseconds');
       if(getPermissionMode(ctx)!=='auto'){
         const approved=await requestApproval({runId:ctx.runId,projectId:ctx.projectId,agentId:ctx.agentId,tool:name,args,signal:ctx.signal});
         if(!approved)throw new Error('Command rejected by user');
       }
       if(ctx.signal?.aborted)throw new Error('Cancelled');
-      return commandExecutor({workspace,command:args.command,timeoutMs:args.timeoutMs,signal:ctx.signal});
+      return commandExecutor({workspace,command:args.command,timeoutMs,signal:ctx.signal});
     }
     if(name==='web_search'){assertWorkOwnership?.(name,ctx);return webSearch.search(args,{signal:ctx.signal});}
     if(name==='web_fetch'){assertWorkOwnership?.(name,ctx);return webFetcher(args.url,{signal:ctx.signal});}

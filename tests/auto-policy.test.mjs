@@ -45,3 +45,16 @@ test('Manual shell approval cancellation cannot start the command',async t=>{
   const runtime=createToolRuntime({store:h.store,emit:()=>{},requestApproval:async()=>{controller.abort();return true;},commandExecutor:async()=>{executions++;}});
   await assert.rejects(runtime.execute('run_command',{command:'printf scoped'},{projectId:h.project.id,permissionMode:'manual',signal:controller.signal}),/Cancelled/);assert.equal(executions,0);
 });
+
+test('project command budgets reach the executor; explicit overrides are bounded before approval',async t=>{
+ const h=await fixture(t),calls=[];let approvals=0;
+ const runtime=createToolRuntime({store:h.store,emit:()=>{},requestApproval:async()=>{approvals++;return true;},commandExecutor:async args=>{calls.push(args);return {code:0};}}),ctx={projectId:h.project.id,permissionMode:'auto'};
+ await runtime.execute('run_command',{command:'true'},ctx);assert.equal(calls.at(-1).timeoutMs,300000);
+ h.project.resources.commandTimeoutMs=600000;await runtime.execute('run_command',{command:'true'},ctx);assert.equal(calls.at(-1).timeoutMs,600000);
+ await runtime.execute('run_command',{command:'true'},{...ctx,commandTimeoutMs:900000});assert.equal(calls.at(-1).timeoutMs,900000);
+ await runtime.execute('run_command',{command:'true',timeoutMs:1800000},ctx);assert.equal(calls.at(-1).timeoutMs,1800000);
+ for(const timeoutMs of [0,999,1800001,1500.5,'60000']){
+   await assert.rejects(runtime.execute('run_command',{command:'true',timeoutMs},{...ctx,permissionMode:'manual'}),/timeout/i);
+ }
+ assert.equal(calls.length,4);assert.equal(approvals,0);
+});

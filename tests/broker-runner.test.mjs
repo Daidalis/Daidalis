@@ -16,7 +16,7 @@ test('broker runner rejects unmanaged roots and symlink escapes before transport
   await assert.rejects(runner.command({workspace:path.join(root,'project-escape'),command:'true'}),/managed project/);
   assert.equal(calls.length,0);
   await runner.command({workspace:path.join(root,'project-one'),command:'true'});
-  assert.deepEqual(calls[0].slice(0,3),['/fake.sock','/task',{kind:'command',project:'project-one',command:'true',timeoutMs:30000}]);
+  assert.deepEqual(calls[0].slice(0,3),['/fake.sock','/task',{kind:'command',project:'project-one',command:'true',timeoutMs:300000}]);
 });
 
 test('unavailable broker stays unavailable; no shared runner fallback',async()=>{
@@ -47,4 +47,11 @@ test('disabled services are not offered to the model, while capability discovery
   }
   assert.equal(names.has('engineering_catalog'),true);
   assert.equal(names.has('run_command'),true);
+});
+
+test('broker forwards command allowances above one minute and rejects excessive timeouts',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'broker-budgets-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const workspace=path.join(root,'project-budget');await fs.mkdir(workspace);
+ const payloads=[],runner=createBrokerRunner({socketPath:'/fixture.sock',projectsRoot:root,transport:async(_socket,_route,payload)=>{payloads.push(payload);return {code:0};}});
+ await runner.command({workspace,command:'true',timeoutMs:1800000});assert.equal(payloads[0].timeoutMs,1800000);
+ await assert.rejects(runner.command({workspace,command:'true',timeoutMs:1800001}),/timeout/);assert.equal(payloads.length,1);
 });

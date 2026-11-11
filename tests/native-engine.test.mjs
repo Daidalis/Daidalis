@@ -257,14 +257,15 @@ test('turn-budget exhaustion preserves a resumable session and reports interrupt
  assert.equal(h.calls.at(-1).options.sessionId,session);
 });
 
-test('ordinary API execution snapshots project budgets and defaults to 32 turns',async t=>{
+test('ordinary API execution snapshots project budgets and defaults to 64 turns',async t=>{
  const h=await fixture(t,async()=>({content:'Budget checked'}));
  const first=await completed(h,{providerId:'api-profile'});
- assert.equal(h.calls.at(-1).options.maxTurns,32);assert.equal(first.run.executionPolicy.maxContinuations,1);
- h.project.resources.maxRunTurns=7;h.project.resources.maxRunContinuations=2;
+ assert.equal(h.calls.at(-1).options.maxTurns,64);assert.equal(first.run.executionPolicy.maxContinuations,1);
+ h.project.resources.maxRunTurns=7;h.project.resources.maxRunContinuations=2;h.project.resources.runTimeoutMs=14400000;h.project.resources.commandTimeoutMs=600000;
  const next=await completed(h,{providerId:'api-profile'});
  assert.equal(h.calls.at(-1).options.maxTurns,7);assert.equal(h.calls.at(-1).options.maxContinuations,2);
- assert.equal(first.run.executionPolicy.maxTurns,32);assert.equal(next.run.executionPolicy.maxTurns,7);
+ assert.equal(first.run.executionPolicy.maxModelTurns,128);assert.equal(next.run.executionPolicy.maxModelTurns,21);assert.equal(next.run.executionPolicy.runTimeoutMs,14400000);assert.equal(next.run.executionPolicy.commandTimeoutMs,600000);
+ assert.equal(first.run.executionPolicy.maxTurns,64);assert.equal(next.run.executionPolicy.maxTurns,7);
 });
 
 test('exhausted model timeouts are resumable interruptions with attempt details',async t=>{
