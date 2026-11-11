@@ -18,7 +18,10 @@ try:
         command=request.get('command')
         if not isinstance(command,str) or not command.strip() or len(command)>16000:
             raise ValueError('Invalid command')
-        result=worker.run(['/bin/sh','-c',command],min(request.get('timeoutMs',30000)/1000,60))
+        timeout=request.get('timeoutMs',300000)
+        if type(timeout) is not int or not 1 <= timeout <= 1800000:
+            raise ValueError('Command timeout must be a positive integer up to 1800000 milliseconds')
+        result=worker.run(['/bin/sh','-c',command],timeout/1000)
         result['executionMode']='in-place'
     else:
         result=worker.main(request)
