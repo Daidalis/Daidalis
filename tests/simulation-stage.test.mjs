@@ -52,6 +52,21 @@ test('a verified job table renders cards without calling the result a recording'
  assert.match(html,/connect · 未绑定/);
 });
 
+test('parallel flow edges keep separate labels at a readable size',()=>{
+ const source=readFileSync(new URL('../examples/payload-bay/PayloadBay.sysml',import.meta.url),'utf8');
+ const html=renderSimulationStage({table:{columns:['time','sensor','controller'],rows:[[0,263,263],[1,287,294]],rowCount:2},source,checks:[]});
+ const labels=[...html.matchAll(/<text data-flow-label="\d+" data-flow-lane="(\d+)" x="([\d.]+)" y="([\d.]+)">/g)].map(match=>[match[1],match[2],match[3]]);
+ assert.equal(labels.length,4);
+ assert.equal(new Set(labels.map(item=>item.slice(1).join(','))).size,labels.length);
+ const size=html.match(/<svg class="pm-flow" viewBox="0 0 (\d+) (\d+)" width="(\d+)" height="(\d+)"/);
+ assert.equal(size[1],size[3]);
+ assert.equal(size[2],size[4]);
+ assert.ok(Number(size[2])>=140);
+ const flow=html.match(/data-flow-kind="flow"[^>]*d="M [\d.]+ (\d+) V (\d+)" marker-end="url\(#pm-flow-arrow\)"/);
+ assert.ok(flow);
+ assert.ok(Number(flow[2])-Number(flow[1])>24);
+});
+
 test('csv text becomes a numeric table and drops non-numeric cells',()=>{
  const table=tableFromCsv('time,x,phase\n0,1,startup\n1,0.5,done\n');
  assert.deepEqual(table.columns,['time','x','phase']);

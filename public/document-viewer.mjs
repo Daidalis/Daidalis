@@ -712,6 +712,35 @@ export function mountDocumentViewer(container, options = {}) {
   };
   const onDataHover = event => {const point=event.target.closest?.('[data-data-point]');if(!point)return;const parsed=parsedData||parseDataDocument(current.file),selected=selectedDataSet(parsed,current.dataState),plot=dataPlot(selected,current.dataState),record=plot.points[Number(point.dataset.dataPoint)],out=container.querySelector('.document-data-tooltip');if(record&&out)out.textContent='记录 '+(record.index+1)+' · '+(plot.xKey==='$index'?'序号':plot.xKey)+' = '+record.x+' · '+plot.yKey+' = '+record.y;};
   const onKey = event => {if((event.key === 'Enter' || event.key === ' ') && event.target.matches('g[data-document-element],g[data-document-edge]')) {event.preventDefault();if(event.target.dataset.documentEdge)selectEdge(event.target.dataset.documentEdge);else selectElement(event.target.dataset.documentElement);}};
+  const frameLabels = (names, attempt = 0) => {
+    const canvas = container.querySelector('.semantic-canvas');
+    if (!canvas || !Array.isArray(names) || !names.length || destroyed) return;
+    const ident = value => String(value || '').split(/[.:]/).filter(Boolean).at(-1) || '';
+    const keys = new Set(names.flatMap(name => [String(name),ident(name)]).filter(Boolean));
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const node of container.querySelectorAll('.semantic-node:not(.semantic-endpoint)')) {
+      const hit = [...node.querySelectorAll('.semantic-label')].some(item => {
+        const raw = item.textContent.trim(), declared = raw.split(/\s*:/)[0].trim();
+        return [raw,declared,ident(raw),ident(declared)].some(token => keys.has(token));
+      });
+      if (!hit) continue;
+      const moved = /translate\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/.exec(node.getAttribute('transform') || '');
+      const rect = node.querySelector('rect');
+      if (!moved || !rect) continue;
+      const x = Number(moved[1]), y = Number(moved[2]), w = Number(rect.getAttribute('width')), h = Number(rect.getAttribute('height'));
+      if (![x,y,w,h].every(Number.isFinite)) continue;
+      minX = Math.min(minX,x); minY = Math.min(minY,y); maxX = Math.max(maxX,x + w); maxY = Math.max(maxY,y + h);
+    }
+    const box = canvas.getBoundingClientRect();
+    if (!(box.width > 40 && box.height > 40)) {
+      if (attempt < 8) requestAnimationFrame(() => frameLabels(names, attempt + 1));
+      return;
+    }
+    if (!Number.isFinite(minX)) return;
+    const pad = 28, contentW = maxX - minX, contentH = maxY - minY;
+    defaultViewport = false;
+    setBox({x:contentW < box.width ? minX - (box.width - contentW) / 2 : minX - pad,y:contentH < box.height ? minY - (box.height - contentH) / 2 : minY - pad,w:box.width,h:box.height});
+  };
   container.addEventListener('click',onClick);container.addEventListener('input',onInput);container.addEventListener('change',onInput);container.addEventListener('keydown',onKey);container.addEventListener('pointerover',onDataHover);draw();if(current.sourceLine)sourceLine(current.sourceLine);
-  return {selectTab,fit,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
+  return {selectTab,fit,frameLabels,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
 }

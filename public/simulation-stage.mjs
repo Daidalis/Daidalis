@@ -130,22 +130,74 @@ function endpoint(ref){
  const parts=String(ref||'').split('.').filter(Boolean);
  return {name:ident(parts.at(-1))||parts.at(-1)||'',owner:ident(parts.length>1?parts.at(-2):parts.at(-1))||parts.at(-1)||''};
 }
+function edgeColumn(from,to,bindings){
+ for(const name of [from.owner,from.name,to.owner,to.name]){
+  const hit=bindings.find(item=>item.name===name);
+  if(hit)return hit.column;
+ }
+ return '';
+}
 function flowDiagram(edges,bindings){
  if(!edges.length)return '<p class="muted">当前模型没有 connect 或 flow 语句，不绘制流向。</p>';
  const order=[];
  const add=name=>{if(name&&!order.includes(name))order.push(name);};
- for(const edge of edges){const from=endpoint(edge.source),to=endpoint(edge.target);add(from.owner);add(to.owner);}
- const width=Math.max(520,order.length*160),height=168,slot=width/(order.length+1);
- const at=name=>order.indexOf(name);
- const paths=edges.map((edge,index)=>{
-  const from=endpoint(edge.source),to=endpoint(edge.target),left=at(from.owner),right=at(to.owner);
-  if(left<0||right<0||left===right)return '';
-  const x1=(left+1)*slot,x2=(right+1)*slot,y=78,column=bindings.find(item=>[from.name,from.owner,to.name,to.owner].includes(item.name))?.column||'';
-  const marker=edge.kind==='flow'?' marker-end="url(#pm-flow-arrow)"':'';
-  return `<path data-flow-edge="${index}" data-flow-kind="${esc(edge.kind)}" data-flow-column="${esc(column)}" d="M ${x1} ${y} C ${(x1+x2)/2} ${y-36},${(x1+x2)/2} ${y+36},${x2} ${y}"${marker}></path><text data-flow-label="${index}" x="${((x1+x2)/2).toFixed(1)}" y="${y-12}">${edge.kind==='flow'?'flow':'connect'} · 未绑定</text>`;
+ const ends=edges.map(edge=>({edge,from:endpoint(edge.source),to:endpoint(edge.target)}));
+ for(const item of ends){add(item.from.owner);add(item.to.owner);}
+ const between=new Map();
+ const rails=[];
+ for(const item of ends){
+  const from=order.indexOf(item.from.owner),to=order.indexOf(item.to.owner);
+  if(from<0||to<0||from===to)continue;
+  const upper=Math.min(from,to),lower=Math.max(from,to);
+  if(lower===upper+1){
+   const key=order[upper]+'\0'+order[lower];
+   if(!between.has(key))between.set(key,[]);
+   between.get(key).push(item);
+  }else rails.push(item);
+ }
+ if(!between.size&&!rails.length)return '<p class="muted">当前模型没有 connect 或 flow 语句，不绘制流向。</p>';
+ const nodeW=Math.max(132,...order.map(name=>Math.min(200,name.length*8+36)));
+ const nodeH=36;
+ const nodeY=new Map();
+ let y=16;
+ for(let index=0;index<order.length;index++){
+  nodeY.set(order[index],y);
+  y+=nodeH;
+  if(index===order.length-1)continue;
+  const count=(between.get(order[index]+'\0'+order[index+1])||[]).length;
+  y+=Math.max(40,14+count*16);
+ }
+ const width=Math.round(16+nodeW+154+(rails.length?28:0));
+ const height=Math.round(y+16);
+ const center=16+nodeW/2;
+ const labelX=16+nodeW+14;
+ let edgeIndex=0;
+ const shafts=[];
+ for(let index=0;index<order.length-1;index++){
+  const group=between.get(order[index]+'\0'+order[index+1])||[];
+  const yTop=nodeY.get(order[index])+nodeH,yBottom=nodeY.get(order[index+1]);
+  group.forEach((item,lane)=>{
+   const downward=order.indexOf(item.from.owner)<order.indexOf(item.to.owner);
+   const x=center+(lane-(group.length-1)/2)*18;
+   const flow=item.edge.kind==='flow';
+   const yStart=downward?yTop:yBottom;
+   const yEnd=downward?yBottom-2:yTop+2;
+   const column=edgeColumn(item.from,item.to,bindings);
+   const marker=flow?' marker-end="url(#pm-flow-arrow)"':'';
+   const id=edgeIndex++;
+   shafts.push(`<path data-flow-edge="${id}" data-flow-kind="${esc(item.edge.kind)}" data-flow-column="${esc(column)}" d="M ${x.toFixed(1)} ${yStart} V ${yEnd}"${marker}></path><text data-flow-label="${id}" data-flow-lane="${lane}" x="${labelX}" y="${yTop+16+lane*16}">${flow?'flow':'connect'} · 未绑定</text>`);
+  });
+ }
+ const rail=rails.map(item=>{
+  const y1=nodeY.get(item.from.owner)+nodeH/2,y2=nodeY.get(item.to.owner)+nodeH/2;
+  const column=edgeColumn(item.from,item.to,bindings);
+  const flow=item.edge.kind==='flow';
+  const id=edgeIndex++;
+  const x=width-24;
+  return `<path data-flow-edge="${id}" data-flow-kind="${esc(item.edge.kind)}" data-flow-column="${esc(column)}" d="M ${nodeW+16} ${y1} H ${x} V ${y2-2}"${flow?' marker-end="url(#pm-flow-arrow)"':''}></path><text data-flow-label="${id}" data-flow-lane="1" x="${labelX}" y="${((y1+y2)/2).toFixed(1)}">${flow?'flow':'connect'} · 未绑定</text>`;
  }).join('');
- const nodes=order.map((name,index)=>`<g class="pm-flow-node" data-flow-node="${esc(name)}" transform="translate(${(index+1)*slot-46} 108)"><rect width="92" height="36" rx="8"></rect><text x="46" y="23">${esc(name)}</text></g>`).join('');
- return `<svg class="pm-flow" viewBox="0 0 ${width} ${height}" role="img" aria-label="信号与连接流向"><defs><marker id="pm-flow-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="currentColor"></path></marker></defs>${paths}${nodes}</svg>`;
+ const nodes=order.map(name=>`<g class="pm-flow-node" data-flow-node="${esc(name)}" transform="translate(16 ${nodeY.get(name)})"><rect width="${nodeW}" height="${nodeH}" rx="8"></rect><text x="${nodeW/2}" y="23">${esc(name)}</text></g>`).join('');
+ return `<div class="pm-flow-frame"><svg class="pm-flow" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="信号与连接流向"><defs><marker id="pm-flow-arrow" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9 Z"></path></marker></defs>${shafts.join('')}${rail}${nodes}</svg></div>`;
 }
 
 export function stageInput(ui={}){
@@ -168,7 +220,7 @@ export function renderSimulationStage(input){
   return `<article class="pm-signal-card" data-signal="${esc(signal.name)}"><header><strong>${esc(signal.name)}</strong>${status?`<span class="pm-signal-status" data-status="${esc(status)}">${esc(status)}</span>`:''}</header>${sparkline(signal.spark)}<dl><div><dt>当前</dt><dd data-signal-now="${esc(signal.name)}">${esc(formatSample(signal.last))}</dd></div><div><dt>终值</dt><dd>${esc(formatSample(signal.last))}</dd></div><div><dt>最小</dt><dd>${esc(formatSample(signal.min))}</dd></div><div><dt>最大</dt><dd>${esc(formatSample(signal.max))}</dd></div><div><dt>变化</dt><dd>${esc(formatSample(signal.delta))}</dd></div></dl>${signal.verdict?`<p class="pm-verdict">${esc(signal.verdict)}</p>`:''}</article>`;
  }).join('');
  const last=Math.max(0,summary.rows.length-1);
- return `<section class="pm-stage" data-pm-stage>${banner}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><label>时间<input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"></label><output data-pm-sample-label></output></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div><div data-pm-physical></div><div data-pm-geometry></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings)}</div></div></section>`;
+ return `<section class="pm-stage" data-pm-stage>${banner}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><label>时间<input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"></label><output data-pm-sample-label></output></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings)}</div></div><div class="pm-physical-block"><h3>实物</h3><div data-pm-physical></div><div data-pm-geometry></div></div></section>`;
 }
 
 function columnValue(summary,name,index){
@@ -229,7 +281,7 @@ export function applySimulationFrame(root,input,{preview}={}){
   const scale=signal&&finite(value)?Math.min(1,Math.abs(value)/Math.max(Math.abs(signal.min),Math.abs(signal.max),1e-9)):0;
   edge.setAttribute('stroke-width',signal? (1.4+scale*4.6).toFixed(2):'1.4');
   const text=root.querySelector(`[data-flow-label="${edge.dataset.flowEdge}"]`);
-  if(text)text.textContent=`${edge.dataset.flowKind==='flow'?'flow':'connect'} · ${signal&&finite(value)?signal.name+' '+formatSample(value):'未绑定'}`;
+  if(text)text.textContent=`${edge.dataset.flowKind==='flow'?'flow':'connect'} · ${signal&&finite(value)?formatSample(value):'未绑定'}`;
  });
  const active=bindings.find(binding=>levels.has(binding.name));
  const part=preview&&active?input.parts?.find(item=>item.label===active.name||ident(item.label)===active.name||item.path?.endsWith('/'+active.name)):null;
