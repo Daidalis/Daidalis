@@ -1,5 +1,7 @@
 import {Marked, Renderer} from './vendor/marked/marked.esm.js';
 import {isGeoJSON,renderGeoJSONMap} from './geojson-viewer.mjs';
+import {buildPhysicalModel} from './physical-model.mjs';
+import {mountPhysicalPreview} from './physical-preview-3d.mjs';
 
 // All document text is untrusted. Markdown HTML is escaped, and only our own
 // renderer may introduce links or images. No document scripts/SVG/HTML execute.
@@ -227,11 +229,14 @@ export function normalizeSemanticGraph(model, {path = ''} = {}) {
   const raw = rawGraph(model);
   if (!raw) return {nodes:[], rows:[], edges:[], truncated:false};
   const nodes = [], rows = [], ids = new Set();
+  let truncated = raw.nodes.length > MAX_GRAPH || raw.edges.length > MAX_GRAPH * 4;
   for (const item of raw.nodes.slice(0, MAX_GRAPH)) {
     if (!item || typeof item.id !== 'string' || ids.has(item.id)) continue;
     ids.add(item.id);
     const node = {id:item.id, kind:label(item.kind || 'node'), label:label(item.label || item.qname || item.id), fullLabel:text(item.label), metaclass:label(item.metaclass || item.stereo || 'Element'), stereo:label(item.stereo || item.metaclass || 'element'), nodeKind:label(item.nodeKind), parent:typeof item.parent === 'string' ? item.parent : null, qname:label(item.qname || item.label), file:item.file || path, line:Number.isInteger(item.line) && item.line > 0 ? item.line : null, col:Number.isInteger(item.col) && item.col > 0 ? item.col : null, rows:[]};
-    for (const member of (Array.isArray(item.rows) ? item.rows : []).slice(0, 200)) {
+    const members = Array.isArray(item.rows) ? item.rows : [];
+    if (members.length > 200) truncated = true;
+    for (const member of members.slice(0, 200)) {
       if (typeof member?.id !== 'string') continue;
       const row = {id:member.id, label:label(member.label), fullLabel:text(member.label), qname:label(member.qname), metaclass:label(member.section || 'member'), stereo:label(member.section || 'member'), parent:node.id, file:member.file || node.file, line:Number.isInteger(member.line) && member.line > 0 ? member.line : null, col:member.col || null, member:true};
       node.rows.push(row); rows.push(row);
@@ -239,7 +244,7 @@ export function normalizeSemanticGraph(model, {path = ''} = {}) {
     nodes.push(node);
   }
   const edges = raw.edges.slice(0, MAX_GRAPH * 4).filter(edge => edge && ids.has(edge.source) && ids.has(edge.target)).map(edge => ({source:edge.source,target:edge.target,kind:label(edge.kind || 'relationship'),composite:edge.composite}));
-  return {nodes, rows, edges, truncated:raw.nodes.length > MAX_GRAPH, source:'SysML semantic backend'};
+  return {nodes, rows, edges, truncated, source:'SysML semantic backend'};
 }
 
 const structural = node => /Part|Port|Interface|Connection|Flow|Item|Action|State|Transition/i.test(node.metaclass);
@@ -356,10 +361,56 @@ function elementDetails(node, graph, file) {
   return `<div class="semantic-details-content"><span class="semantic-kind">${esc(node.stereo)}</span><h3>${esc(node.label)}</h3><p class="semantic-qualified-name">${esc(node.qname)}</p><dl><dt>类型</dt><dd>${esc(node.metaclass)}</dd>${node.line ? `<dt>位置</dt><dd><button type="button" data-document-source-line="${node.line}">${esc(file.path || node.file)}:${node.line}${node.col ? ':' + node.col : ''}</button></dd>` : ''}</dl>${members}${relationships}<details><summary>元素标识</summary><code>${esc(node.id)}</code></details></div>`;
 }
 
-export function renderDocumentViewer({file = {},model,verification,tab,filter = 'structure',resolveImage,dataState = {},parsedData} = {}) {
+function renderPhysicalBody(physical, model) {
+  if (model?.available === false || model?.backend?.available === false)
+    return '<div class="document-empty">语义后端不可用。可在「诊断」中查看原因，或打开源码。</div>';
+  if (model?.valid === false)
+    return '<div class="document-empty">模型未通过语义检查。请打开「诊断」查看原因。</div>';
+  const issues = physical.issues.length ? `<details class="document-scope" ${physical.parts.length ? '' : 'open'}><summary>几何信息提示（${physical.issues.length}）</summary><ul>${physical.issues.map(issue => `<li>${esc(issue)}</li>`).join('')}</ul></details>` : '';
+  if (!physical.parts.length)
+    return `<div class="document-empty"><strong>当前模型没有可绘制的实体几何</strong><p>实物预览需要形状和尺寸。多个零件组成的物品还需要装配位置。</p>${issues}</div>`;
+  return `<div class="physical-preview-host" data-physical-preview></div>
+    ${issues}<div class="semantic-legend"><span>拖动旋转 · Shift + 拖动平移 · 滚轮缩放</span><span>${physical.parts.length} 个实体 · mm</span></div>`;
+}
+
+const shapeName = {box:'长方体', cylinder:'圆柱体', cone:'圆锥体', sphere:'球体'};
+const formatLengths = (values, separator = ' × ') => values.map(value => Number(value.toPrecision(8))).join(separator) + ' mm';
+
+function physicalDetails(parts, selected, graph, file) {
+  if (!selected) {
+    const extents = [0,1,2].map(axis => {
+      let min = Infinity, max = -Infinity;
+      for (const {position,size} of parts) {
+        min = Math.min(min, position[axis] - size[axis] / 2);
+        max = Math.max(max, position[axis] + size[axis] / 2);
+      }
+      return max - min;
+    });
+    return `<div class="semantic-details-content"><h3>整体尺寸</h3><p>${formatLengths(extents)}</p><p class="document-scope">已绘制实体的 X × Y × Z 外包尺寸。点选零件可查看几何依据。</p></div>`;
+  }
+  const sourceIds = [...new Set([selected.nodeId,selected.shapeNodeId,selected.ownerNodeId].filter(Boolean))];
+  const sourceLinks = sourceIds.map(id => {
+    const node = graph.nodes.find(n => n.id === id);
+    return node?.line ? `<button type="button" class="semantic-member" data-document-source-line="${node.line}"><span>${esc(node.qname || node.label)}</span><small>${esc(file.path || node.file)} · L${node.line}</small></button>` : '';
+  }).join('');
+  return `<div class="semantic-details-content"><span class="semantic-kind">${esc(shapeName[selected.shape])}</span><h3>${esc(selected.label)}</h3>
+    <h4>尺寸（X × Y × Z）</h4><p>${formatLengths(selected.size)}</p>
+    <h4>中心坐标（X, Y, Z）</h4><p>${formatLengths(selected.position, ', ')}</p>
+    ${sourceLinks ? '<h4>SysML 源码</h4>' + sourceLinks : ''}</div>`;
+}
+
+export function renderDocumentViewer({file = {},model,verification,tab,filter = 'structure',resolveImage,dataState = {},parsedData,physicalModel} = {}) {
   const kind = documentKind(file), isData = ['json','jsonl','csv'].includes(kind), parsed = parsedData || (isData ? parseDataDocument(file) : null), isMap = kind === 'json' && isGeoJSON(parsed?.root), isModel = kind === 'sysml', graph = normalizeSemanticGraph(model,{path:file.path}), selectedTab = tab || (isModel ? 'diagram' : isMap ? 'map' : 'preview');
-  const tabs = isModel ? [['diagram','模型图'],['outline','大纲'],['source','源码'],['diagnostics','诊断'],['constraints','约束']] : kind === 'markdown' ? [['preview','阅读'],['source','源码']] : isMap ? [['map','地图'],['preview','数据'],['source','原始数据']] : isData ? [['preview','数据'],['source','原始数据']] : [['preview','内容']];
+  const modelTabs = [['diagram','模型图']];
+  if (/\.sysml$/i.test(file.path || file.name)) modelTabs.push(['preview3d','实物预览']);
+  modelTabs.push(['outline','大纲'],['source','源码'],['diagnostics','诊断'],['constraints','约束']);
+  const tabs = isModel ? modelTabs : kind === 'markdown' ? [['preview','阅读'],['source','源码']] : isMap ? [['map','地图'],['preview','数据'],['source','原始数据']] : isData ? [['preview','数据'],['source','原始数据']] : [['preview','内容']];
   const effectiveTab = tabs.some(([key]) => key === selectedTab) ? selectedTab : tabs[0][0];
+  const isDiagram = isModel && effectiveTab === 'diagram';
+  const isPhysical = isModel && effectiveTab === 'preview3d';
+  const physical = isPhysical ? physicalModel || buildPhysicalModel(graph,file.content || '') : null;
+  const hasPhysicalParts = isPhysical && physical.parts.length > 0 && model?.available !== false && model?.backend?.available !== false && model?.valid !== false;
+  const diagramTools = isDiagram || hasPhysicalParts;
   let body;
   if (kind === 'image') {
     const imageURL = projectRasterURL(file.path || file.name,resolveImage);
@@ -368,26 +419,53 @@ export function renderDocumentViewer({file = {},model,verification,tab,filter = 
   else if (kind === 'unsupported') body = '<div class="document-empty">此文件格式暂不支持应用内预览。请在文件列表中选择文档、SysML 模型或图片。</div>';
   else if (isModel && effectiveTab === 'diagram') body = graph.nodes.length ? renderDiagram(graph,filter) : `<div class="document-empty">${model?.valid === false ? '模型存在诊断，暂时无法生成语义图。请查看诊断或源码。' : '尚未加载 SysML 语义模型。请稍后重试或查看源码。'}</div>`;
   else if (isModel && effectiveTab === 'outline') body = renderOutline(graph);
+  else if (isPhysical) body = renderPhysicalBody(physical,model);
   else if (isModel && effectiveTab === 'diagnostics') body = renderDiagnostics(model);
   else if (isModel && effectiveTab === 'constraints') body = renderConstraints(graph,verification,model);
   else if (isMap && effectiveTab === 'map') body = renderGeoJSONMap(parsed.root);
   else if (isData && effectiveTab !== 'source') body = renderDataPreview(file,dataState,parsed);
   else if (effectiveTab === 'source' || kind !== 'markdown') body = renderSource(file.content || '',kind);
   else body = `<article class="document-markdown">${renderMarkdown(file.content || '',{path:file.path,resolveImage})}</article>`;
-  return `<section class="document-viewer" data-document-kind="${kind}" data-document-tab="${effectiveTab}"><header class="document-toolbar"><nav class="document-tabs" aria-label="文件视图">${tabs.map(([key,name]) => `<button type="button" data-document-tab="${key}" class="${effectiveTab === key ? 'active' : ''}" aria-pressed="${effectiveTab === key}">${name}${key === 'diagnostics' && model?.findings?.length ? ` <span>${model.findings.length}</span>` : ''}</button>`).join('')}</nav>${isModel && effectiveTab === 'diagram' ? `<div class="document-diagram-tools"><select aria-label="模型元素筛选" data-document-filter><option value="structure"${filter === 'structure' ? ' selected' : ''}>系统结构</option><option value="requirements"${filter === 'requirements' ? ' selected' : ''}>需求与约束</option><option value="all"${filter === 'all' ? ' selected' : ''}>全部元素</option></select><button type="button" data-document-zoom="out" title="缩小" aria-label="缩小">−</button><button type="button" data-document-zoom="in" title="放大" aria-label="放大">+</button><button type="button" data-document-fit>适合窗口</button></div>` : isModel && effectiveTab === 'outline' ? '<input type="search" class="document-outline-search" data-document-search placeholder="查找模型元素" aria-label="查找模型元素">' : ''}</header><div class="document-viewer-body${isModel && effectiveTab === 'diagram' ? ' has-model-details' : ''}"><div class="document-main">${body}</div>${isModel && effectiveTab === 'diagram' ? `<aside class="semantic-details" aria-label="元素详情">${elementDetails(null,graph,file)}</aside>` : ''}</div>${isModel ? `<footer class="document-model-meta"><span>SysML v2${model?.backend?.version ? ' · ' + esc(model.backend.version) : ''}</span><span>${graph.nodes.length} 个语义元素${graph.truncated ? '（展示已截断）' : ''}</span>${model?.model?.sha256 || file.sha256 ? `<span title="${attr(model?.model?.sha256 || file.sha256)}">SHA ${esc((model?.model?.sha256 || file.sha256).slice(0,12))}</span>` : ''}</footer>` : isData && /^[a-f0-9]{64}$/i.test(file.sha256||'') ? `<footer class="document-model-meta"><span>项目文件 · ${esc(file.path||file.name||'')}</span><span title="${attr(file.sha256)}">SHA-256 ${esc(file.sha256.slice(0,12))}</span></footer>` : ''}</section>`;
+  const selector = hasPhysicalParts
+    ? `<select aria-label="选择实体零件" data-physical-part><option value="">整件物品</option>${physical.parts.map(p => `<option value="${attr(p.id)}">${esc(p.label)}</option>`).join('')}</select>`
+    : `<select aria-label="模型元素筛选" data-document-filter><option value="structure"${filter === 'structure' ? ' selected' : ''}>系统结构</option><option value="requirements"${filter === 'requirements' ? ' selected' : ''}>需求与约束</option><option value="all"${filter === 'all' ? ' selected' : ''}>全部元素</option></select>`;
+  const details = hasPhysicalParts ? physicalDetails(physical.parts,null,graph,file) : isDiagram ? elementDetails(null,graph,file) : '';
+  return `<section class="document-viewer" data-document-kind="${kind}" data-document-tab="${effectiveTab}"><header class="document-toolbar"><nav class="document-tabs" aria-label="文件视图">${tabs.map(([key,name]) => `<button type="button" data-document-tab="${key}" class="${effectiveTab === key ? 'active' : ''}" aria-pressed="${effectiveTab === key}">${name}${key === 'diagnostics' && model?.findings?.length ? ` <span>${model.findings.length}</span>` : ''}</button>`).join('')}</nav>${diagramTools ? `<div class="document-diagram-tools">${selector}<button type="button" data-document-zoom="out" title="缩小" aria-label="缩小">−</button><button type="button" data-document-zoom="in" title="放大" aria-label="放大">+</button><button type="button" data-document-fit>适合窗口</button></div>` : isModel && effectiveTab === 'outline' ? '<input type="search" class="document-outline-search" data-document-search placeholder="查找模型元素" aria-label="查找模型元素">' : ''}</header><div class="document-viewer-body${diagramTools ? ' has-model-details' : ''}"><div class="document-main">${body}</div>${diagramTools ? `<aside class="semantic-details" aria-label="元素详情">${details}</aside>` : ''}</div>${isModel ? `<footer class="document-model-meta"><span>SysML v2${model?.backend?.version ? ' · ' + esc(model.backend.version) : ''}</span><span>${graph.nodes.length} 个语义元素${graph.truncated ? '（展示已截断）' : ''}</span>${model?.model?.sha256 || file.sha256 ? `<span title="${attr(model?.model?.sha256 || file.sha256)}">SHA ${esc((model?.model?.sha256 || file.sha256).slice(0,12))}</span>` : ''}</footer>` : isData && /^[a-f0-9]{64}$/i.test(file.sha256||'') ? `<footer class="document-model-meta"><span>项目文件 · ${esc(file.path||file.name||'')}</span><span title="${attr(file.sha256)}">SHA-256 ${esc(file.sha256.slice(0,12))}</span></footer>` : ''}</section>`;
 }
 
 export function mountDocumentViewer(container, options = {}) {
   if (!container || typeof container.addEventListener !== 'function') throw new TypeError('Document viewer container required');
   let current = {...options,dataState:{...options.dataState}}, parsedFile = null, parsedData = null, destroyed = false, drag = null, viewBox, initialBox, cleanupCanvas, defaultViewport = true;
+  let spatialPreview = null, physical = null;
   const getGraph = () => normalizeSemanticGraph(current.model,{path:current.file?.path});
+  const selectPart = id => {
+    if (!physical) return;
+    const selected = physical.parts.find(part => part.id === id);
+    spatialPreview?.select(selected?.id);
+    const selector = container.querySelector('[data-physical-part]');
+    if (selector) selector.value = selected?.id || '';
+    const details = container.querySelector('.semantic-details');
+    if (details) details.innerHTML = physicalDetails(physical.parts,selected,getGraph(),current.file);
+  };
   const draw = () => {
-    cleanupCanvas?.();if(parsedFile!==current.file){parsedFile=current.file;parsedData=['json','jsonl','csv'].includes(documentKind(current.file))?parseDataDocument(current.file):null;}container.innerHTML = renderDocumentViewer({...current,parsedData});setupCanvas();
+    cleanupCanvas?.();
+    cleanupCanvas = null;
+    spatialPreview?.destroy();
+    spatialPreview = null;
+    if(parsedFile!==current.file){parsedFile=current.file;parsedData=['json','jsonl','csv'].includes(documentKind(current.file))?parseDataDocument(current.file):null;}
+    physical = current.tab === 'preview3d' ? buildPhysicalModel(getGraph(),current.file?.content || '') : null;
+    container.innerHTML = renderDocumentViewer({...current,parsedData,physicalModel:physical});
+    setupCanvas();
+    const host = container.querySelector('[data-physical-preview]');
+    if (host) {
+      spatialPreview = mountPhysicalPreview(host,{parts:physical.parts,onSelect:selectPart});
+    }
   };
   const selectTab = tab => { if (destroyed) return;current.tab = tab;draw();current.onTabChange?.(tab); };
   const setBox = box => { viewBox = box;container.querySelector('.semantic-svg')?.setAttribute('viewBox',`${box.x} ${box.y} ${box.w} ${box.h}`); };
-  const fit = () => {defaultViewport = false;if(initialBox)setBox({...initialBox});};
+  const fit = () => {if (spatialPreview) return spatialPreview.fit();defaultViewport = false;if(initialBox)setBox({...initialBox});};
   const zoom = (factor, clientX, clientY) => {
+    if (spatialPreview) return spatialPreview.zoom(factor);
     if (!viewBox || !initialBox) return;
     defaultViewport = false;
     const canvas = container.querySelector('.semantic-canvas'), rect = canvas?.getBoundingClientRect();
@@ -442,6 +520,7 @@ export function mountDocumentViewer(container, options = {}) {
     }
   };
   const onInput = event => {
+    if (event.type === 'change' && event.target.matches('[data-physical-part]')) {selectPart(event.target.value);return;}
     if(event.type==='change'&&event.target.matches('select[data-document-data]')){const action=event.target.dataset.documentData,value=event.target.value;current.dataState=action==='dataset'?{datasetId:value}:action==='x'?{...current.dataState,xKey:value}:action==='y'?{...current.dataState,yKey:value}:current.dataState;draw();return;}
     if(event.type === 'input' && event.target.matches('[data-document-search]'))container.querySelector('.document-main').innerHTML = renderOutline(getGraph(),event.target.value);
     if(event.type === 'change' && event.target.matches('[data-document-filter]')) {current.filter = event.target.value;draw();}
@@ -449,5 +528,5 @@ export function mountDocumentViewer(container, options = {}) {
   const onDataHover = event => {const point=event.target.closest?.('[data-data-point]');if(!point)return;const parsed=parsedData||parseDataDocument(current.file),selected=selectedDataSet(parsed,current.dataState),plot=dataPlot(selected,current.dataState),record=plot.points[Number(point.dataset.dataPoint)],out=container.querySelector('.document-data-tooltip');if(record&&out)out.textContent='记录 '+(record.index+1)+' · '+(plot.xKey==='$index'?'序号':plot.xKey)+' = '+record.x+' · '+plot.yKey+' = '+record.y;};
   const onKey = event => {if((event.key === 'Enter' || event.key === ' ') && event.target.matches('g[data-document-element]')) {event.preventDefault();selectElement(event.target.dataset.documentElement);}};
   container.addEventListener('click',onClick);container.addEventListener('input',onInput);container.addEventListener('change',onInput);container.addEventListener('keydown',onKey);container.addEventListener('pointerover',onDataHover);draw();if(current.sourceLine)sourceLine(current.sourceLine);
-  return {selectTab,fit,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
+  return {selectTab,fit,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
 }

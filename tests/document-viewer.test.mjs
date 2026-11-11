@@ -56,6 +56,24 @@ test('model diagram maps the real SysML kernel graph, includes typed members and
   const html = renderDocumentViewer({file:{path:'models/example.sysml',content:source},model:semantic});
   assert.match(html,/class="semantic-svg"/);assert.match(html,/«part def»/);assert.match(html,/data-document-element=/);
   assert.match(html,/typing/);assert.doesNotMatch(html,/Manta trace|JSON 追溯/);
+  const preview = renderDocumentViewer({file:{path:'models/example.sysml'},model:semantic,tab:'preview3d',filter:'requirements'});
+  assert.match(preview,/没有可绘制的实体几何/);
+  assert.doesNotMatch(preview,/data-physical-preview|data-physical-part|data-document-filter/);
+});
+
+test('physical preview keeps diagnostics accessible for models without renderable solids', () => {
+  const options = {file:{path:'models/empty.sysml'},tab:'preview3d'};
+  for (const [model,message] of [
+    [{available:false},'语义后端不可用'],
+    [{valid:false},'模型未通过语义检查'],
+    [{valid:true,data:{nodes:[],edges:[]}},'没有可绘制的实体几何'],
+  ]) {
+    const html = renderDocumentViewer({...options,model});
+    assert.ok(html.includes(message));
+    assert.doesNotMatch(html,/data-physical-preview/);
+    assert.match(html,/data-document-tab="source"/);
+  }
+  assert.doesNotMatch(renderDocumentViewer({file:{path:'source.kerml'}}),/实物预览/);
 });
 
 test('constraints display kernel evaluation results and do not invent satisfaction',() => {

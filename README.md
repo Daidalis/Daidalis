@@ -73,6 +73,8 @@ The source includes the following adapters and viewers. Availability is project-
 | **External MCP** | Project-scoped stdio and Streamable HTTP connections | A gateway; each professional integration still needs its own setup and validation |
 | **Documents & evidence** | Markdown, source, CSV/JSON plots and tables, bounded GeoJSON preview | Protected job evidence remains read-only |
 
+To try the physical preview, open [the table model](examples/physical-preview/table.sysml) in the project Library and select **实物预览**. The solid dimensions come from SysML shape attributes. This viewer uses `centerX`, `centerY` and `centerZ` as local centre offsets with Z up. Click a solid to inspect its dimensions in millimetres and jump to its SysML declaration. Models containing only interfaces or requirements show a missing-geometry message.
+
 Capella, Cameo, MATLAB/Simulink, FEM, RF, PCB, and hardware platforms should not be assumed to be integrated. A tool name or an MCP connection does not establish a validated engineering workflow.
 
 ## Get started

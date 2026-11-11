@@ -25,7 +25,7 @@ Source locator: https://github.com/nasa-itc/generic_adcs/tree/09a604fc10c8c79981
 
 npm dependencies are obtained by npm ci and are not bundled into this Git source distribution. Their package-local terms apply, including when distributing a runnable bundle. package-lock.json fixes the versions and records package license metadata; it is not a substitute for their license texts.
 
-The current direct packages declare Apache-2.0 (openai, @anthropic-ai/sdk, playwright), MIT (@openai/agents, @modelcontextprotocol/sdk, zod), or their own README terms (@anthropic-ai/claude-agent-sdk: SEE LICENSE IN README.md). Claude Agent SDK's README refers to Anthropic's commercial terms. Native Codex, Claude Code, model services and external solvers remain subject to their own terms; the Manta license does not relicense or supply them.
+The current direct packages declare Apache-2.0 (openai, @anthropic-ai/sdk, playwright), MIT (@openai/agents, @modelcontextprotocol/sdk, three, zod), or their own README terms (@anthropic-ai/claude-agent-sdk: SEE LICENSE IN README.md). Claude Agent SDK's README refers to Anthropic's commercial terms. Native Codex, Claude Code, model services and external solvers remain subject to their own terms; the Manta license does not relicense or supply them.
 
 ## Website, examples and recorded numerical evidence
 

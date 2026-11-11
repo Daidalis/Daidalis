@@ -47,6 +47,7 @@ import {createBrokerNativeRuntime} from './broker-native.mjs';
 import {createBrokerProcess,createBrokerFlightRpc,createBrokerNumericalRunner} from './broker-adapters.mjs';
 
 const defaultRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const threeModules=new Set(['/vendor/three/three.module.min.js','/vendor/three/three.core.min.js']);
 const ORBIT_GROUND_WORKER_SHA256='c7edd7901307227f2e2bda4a928c7db84925d2f8de4d7ef66665d99fa3e5ec08';
 const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.ico':'image/x-icon'};
 class HttpError extends Error{constructor(status,message){super(message);this.status=status;}}
@@ -150,7 +151,19 @@ export async function createStudioServer(options={}) {
     const url=new URL(req.url,`http://${req.headers.host}`),parts=url.pathname.split('/').filter(Boolean).map(p=>decodeURIComponent(p));
     if(parts[0]!=='api') {
       if(req.method!=='GET'&&req.method!=='HEAD')throw new HttpError(405,'Method not allowed');
-      const sharedName={'/shared/run-presentation.mjs':'run-presentation.mjs','/shared/task-tree.mjs':'task-tree.mjs','/shared/mcp-network.mjs':'mcp-network.mjs'}[url.pathname],sharedModule=Boolean(sharedName);if(url.pathname.startsWith('/shared/')&&!sharedModule)throw new HttpError(404,'Shared module not found');const relative=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname).replace(/^\//,'');const file=sharedModule?safePath(path.join(root,'shared'),sharedName):safePath(path.join(root,'public'),relative);let stat;
+      const sharedName={'/shared/run-presentation.mjs':'run-presentation.mjs','/shared/task-tree.mjs':'task-tree.mjs','/shared/mcp-network.mjs':'mcp-network.mjs'}[url.pathname];
+      const relative=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname).replace(/^\//,'');
+      let file;
+      if(url.pathname.startsWith('/vendor/three/')){
+        if(!threeModules.has(url.pathname))throw new HttpError(404,'Three.js module not found');
+        file=safePath(root,path.join('node_modules','three','build',path.basename(url.pathname)));
+      }else if(url.pathname.startsWith('/shared/')){
+        if(!sharedName)throw new HttpError(404,'Shared module not found');
+        file=safePath(path.join(root,'shared'),sharedName);
+      }else{
+        file=safePath(path.join(root,'public'),relative);
+      }
+      let stat;
       try{stat=await fsp.stat(file);}catch{throw new HttpError(404,'File not found');}if(!stat.isFile())throw new HttpError(404,'File not found');
       res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','content-length':stat.size,'content-security-policy':`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors ${relative==='engineering.html'?"'self'":"'none'"}`});if(req.method==='HEAD')res.end();else fs.createReadStream(file).pipe(res);return;
     }

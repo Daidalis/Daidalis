@@ -64,6 +64,8 @@ Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以�
 | **外部 MCP** | 项目级 stdio 与 Streamable HTTP 连接 | 各专业工具仍需单独配置和验收 |
 | **文档与证据** | Markdown、源码、CSV/JSON 表格与曲线、有界 GeoJSON 预览 | 已登记的作业证据只读 |
 
+在项目 Library 打开[桌子示例模型](examples/physical-preview/table.sysml)，选择 **实物预览**。桌板和桌腿的尺寸来自 SysML 形状属性。预览器约定用 `centerX`、`centerY`、`centerZ` 表示局部中心偏移，Z 轴向上。点选实体可以查看毫米尺寸并跳到 SysML 声明。只有接口或需求的模型会提示缺少几何信息。
+
 Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 和硬件平台尚不能视为已集成。发现工具名称或连通 MCP，不足以证明专业工程流程已跑通。
 
 ## 开始使用
