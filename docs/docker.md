@@ -62,6 +62,43 @@ ssh -N -L 4319:127.0.0.1:4319 -L 6082:127.0.0.1:6082 USER@SERVER
 Then visit localhost in your own browser. Keep the API on loopback; it is not a
 multi-user authenticated service. Ports 8080 and 8081 are reserved internally.
 
+## API request and execution budgets
+
+The application image also includes the pinned Agent Reach public keyword
+search runtime. The API Agent can discover URLs with `web_search` and read them
+with `web_fetch`; see [public web search](web-search.md) for setup and limits.
+
+In **设置 → 模型与 API → 编辑**, API connections expose a per-request timeout
+(default 300 seconds, range 1–1800) and retry count (default 2, range 0–5).
+The client retries only the outstanding model request on timeouts, connection
+errors, HTTP 408/409/429 and 5xx, with exponential backoff or the server's
+`Retry-After`. Completed engineering tools are outside this retry boundary.
+Malformed retry headers fall back to exponential backoff; deferrals that exceed
+the timer range stop the request with its attempt and timeout details intact.
+Authentication, invalid requests and malformed tool arguments are not retried.
+Changing connection settings does not extend an already pending request.
+An application deadline stays active through response-body reading, including
+when the provider sends response headers before finishing its JSON body.
+
+Source and Docker startup both default to 32 model iterations per execution
+segment. Docker's existing `MANTA_MAX_TOOL_TURNS` variable (2–200) selects the
+deployment default; it counts model iterations, not individual tool calls.
+**项目设置 → Agent 运行预算** can override it using `resources.maxRunTurns`
+(2–200) and configure `resources.maxRunContinuations` (default 1, range 0–3).
+These settings apply to ordinary API Agent runs. Each continuation resumes the
+saved SDK history after recorded tool results; it does not replay the original
+task. Coordinator result-summary runs retain their separate automatic budget.
+
+The ordinary run still has a one-hour execution deadline, paused while waiting
+for professional jobs or dependencies. When the continuation allowance or time
+budget is exhausted, the run is interrupted and can be continued in the same
+thread. Exhausted model timeouts also have a distinct interruption reason.
+Cancelling a run aborts in-flight requests and backoff and never starts another
+automatic segment. Request-attempt timing, retries and segment continuations
+are retained in the run's events; the chat shows model iterations and allowance
+usage while running. API credentials remain memory-only unless supplied through
+the existing environment-variable mechanism.
+
 ## Opt-in rootless task isolation
 
 Broker mode is a separate, narrower deployment. It starts a fresh container for

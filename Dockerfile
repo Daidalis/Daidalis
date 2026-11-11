@@ -22,6 +22,11 @@ FROM base AS native-agents
 ARG CODEX_VERSION=0.164.0
 RUN npm install --global --prefix /opt/codex --no-audit --no-fund "@openai/codex@${CODEX_VERSION}" && npm cache clean --force
 
+FROM base AS agent-reach
+RUN apt-get update && apt-get install -y --no-install-recommends python3-venv && rm -rf /var/lib/apt/lists/*
+COPY scripts/install-agent-reach.py /opt/install-agent-reach.py
+RUN python3 /opt/install-agent-reach.py --prefix /opt/agent-reach
+
 FROM base AS orbit42-build
 ARG WITH_ORBIT42=1
 COPY deploy/docker/build-orbit42.py /opt/build-orbit42.py
@@ -45,11 +50,12 @@ ENV NODE_ENV=production PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund && npm cache clean --force
 COPY --from=native-agents /opt/codex /opt/codex
+COPY --from=agent-reach /opt/agent-reach /opt/agent-reach
 COPY --from=orbit42-build /opt/orbit42 /opt/orbit42
 COPY . ./
 RUN mkdir -p /data /projects /control /desktop-control /desktop-data /model-control /task-home && chown -R 1000:1000 /data /projects /control /desktop-control /desktop-data /model-control /task-home
 ENV HOME=/home/node MBSE_DATA_DIR=/data MBSE_PYTHON=/usr/bin/python3
-ENV PATH="/opt/codex/bin:${PATH}"
+ENV PATH="/opt/codex/bin:/opt/agent-reach/bin:${PATH}"
 USER 1000:1000
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "deploy/docker/entrypoint.mjs"]

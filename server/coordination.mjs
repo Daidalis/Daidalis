@@ -40,7 +40,7 @@ export function createTaskCoordination({store,active,emit,setPhase,pauseBudget,r
     if(owner)fail('This path is assigned to '+owner.title+' ('+owner.id+'). Wait for its result and review it; do not repeat or overwrite delegated work.');
   }
   function assertWorkOwnership(tool,ctx){
-    if(!['web_fetch','fetch_public_asset'].includes(tool))return;
+    if(!['web_search','web_fetch','fetch_public_asset'].includes(tool))return;
     const caller=store.get('threads',ctx.threadId);
     if(caller?.kind!=='coordinator')return;
     const owner=store.data.threads.find(t=>t.projectId===ctx.projectId&&t.parentThreadId===caller.id&&t.taskContract?.workKind==='public_sources'&&LIVE.has(latest(t.id)?.status));
