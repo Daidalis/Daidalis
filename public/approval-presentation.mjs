@@ -8,7 +8,7 @@ const TITLES = {
   update_model:'更新系统模型', create_artifact:'保存项目产物', update_project_memory:'更新项目记忆',
   save_professional_model:'保存原生模型',submit_professional_job:'运行专业求解',cancel_professional_job:'停止专业求解',prepare_professional_environment:'准备隔离求解环境',create_stf_case:'建立 STF 工程资产',
   run_engineering_model:'运行工程仿真', computer_use:'操作电脑', start_thread:'创建子线程',
-  delegate_task:'创建子线程', steer_thread:'向子线程发送指令', web_fetch:'读取网页',
+  delegate_task:'创建子线程', steer_thread:'向子线程发送指令', web_search:'搜索网页', web_fetch:'读取网页',
   read_file:'读取项目文件', read_thread:'读取子线程', search_files:'搜索项目文件',
 };
 const COMPUTER_TITLES = {

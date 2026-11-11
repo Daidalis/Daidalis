@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import {id} from './store.mjs';
 import {resolveCodexExecutable,CODEX_MISSING_MESSAGE} from './executable-paths.mjs';
+import {requestPolicy,validateRequestPolicy,withModelRequestPolicy} from './model-request-policy.mjs';
 
 export const CODEX_PATH=resolveCodexExecutable();
 export const PROVIDER_TYPES=['demo','openai-compatible','openai-responses','anthropic','ollama','codex-app-server','claude-agent','codex-cli'];
@@ -21,11 +22,11 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
   function sanitize(p){
     const native=NATIVE.has(p.type),codex=p.type==='codex-cli'||p.type==='codex-app-server';
     const available=codex?executableAvailable(codexPath):p.type==='claude-agent'?dependencyAvailable('@anthropic-ai/claude-agent-sdk'):true;
-    return {id:p.id,name:p.name,type:p.type,baseUrl:p.baseUrl||'',model:p.model||'',keyEnv:p.keyEnv||'',configured:p.type==='demo'||(native?(available&&(codex?(!codexRequiresApiKey||!!key(p)):!!key(p))):p.type==='ollama'||!!key(p)),dependencyAvailable:available,runtime:native?(codex?'codex-app-server':'claude-agent-sdk'):'openai-agents-sdk',sdk:native?(codex?'Codex app-server protocol':'@anthropic-ai/claude-agent-sdk'):p.type==='anthropic'?'@anthropic-ai/sdk + @openai/agents':(p.type||'').startsWith('openai')?'openai + @openai/agents':'@openai/agents custom model',capabilities:{nativeSession:native,persistentSession:true,tokenStreaming:native,officialAgentLoop:true,authenticationVerified:false},...(p.type==='demo'?{notice:'Deterministic offline example. Not live AI.'}:codex&&!available?{notice:CODEX_MISSING_MESSAGE}:codex&&codexRequiresApiKey&&!key(p)?{notice:'This isolated Codex runtime needs a project-local Responses API key; the host Codex login is intentionally unavailable.'}:native?{notice:'Runtime dependency detection only; authentication and a real native turn must be tested separately.'}:{})};
+    return {id:p.id,name:p.name,type:p.type,baseUrl:p.baseUrl||'',model:p.model||'',keyEnv:p.keyEnv||'',...(!native&&p.type!=='demo'?requestPolicy(p):{}),configured:p.type==='demo'||(native?(available&&(codex?(!codexRequiresApiKey||!!key(p)):!!key(p))):p.type==='ollama'||!!key(p)),dependencyAvailable:available,runtime:native?(codex?'codex-app-server':'claude-agent-sdk'):'openai-agents-sdk',sdk:native?(codex?'Codex app-server protocol':'@anthropic-ai/claude-agent-sdk'):p.type==='anthropic'?'@anthropic-ai/sdk + @openai/agents':(p.type||'').startsWith('openai')?'openai + @openai/agents':'@openai/agents custom model',capabilities:{nativeSession:native,persistentSession:true,tokenStreaming:native,officialAgentLoop:true,authenticationVerified:false},...(p.type==='demo'?{notice:'Deterministic offline example. Not live AI.'}:codex&&!available?{notice:CODEX_MISSING_MESSAGE}:codex&&codexRequiresApiKey&&!key(p)?{notice:'This isolated Codex runtime needs a project-local Responses API key; the host Codex login is intentionally unavailable.'}:native?{notice:'Runtime dependency detection only; authentication and a real native turn must be tested separately.'}:{})};
   }
   function getConfig(providerId){const p=store.get('providers',providerId);if(!p)throw new Error('Provider not found');return {...structuredClone(p),apiKey:key(p),...(NATIVE.has(p.type)?{runtime:p.type==='claude-agent'?'claude-agent-sdk':'codex-app-server',codexPath}:{})};}
 
-  function validateInput(input){if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Provider must be an object');for(const field of Object.keys(input))if(!['name','type','baseUrl','model','keyEnv','apiKey','clearApiKey'].includes(field))throw Error('Unknown provider field: '+field);for(const field of ['name','type','baseUrl','model','keyEnv'])if(Object.hasOwn(input,field)&&typeof input[field]!=='string')throw Error('Invalid provider field: '+field);if(input.model?.length>200)throw Error('Invalid model name');if(input.apiKey!==undefined&&typeof input.apiKey!=='string')throw Error('Invalid API key');if(input.clearApiKey!==undefined&&typeof input.clearApiKey!=='boolean')throw Error('clearApiKey must be boolean');if(input.clearApiKey&&input.apiKey)throw Error('Cannot set and clear an API key together');}
+  function validateInput(input){if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Provider must be an object');for(const field of Object.keys(input))if(!['name','type','baseUrl','model','keyEnv','apiKey','clearApiKey','requestTimeoutMs','maxRetries'].includes(field))throw Error('Unknown provider field: '+field);for(const field of ['name','type','baseUrl','model','keyEnv'])if(Object.hasOwn(input,field)&&typeof input[field]!=='string')throw Error('Invalid provider field: '+field);if(input.model?.length>200)throw Error('Invalid model name');if(input.apiKey!==undefined&&typeof input.apiKey!=='string')throw Error('Invalid API key');if(input.clearApiKey!==undefined&&typeof input.clearApiKey!=='boolean')throw Error('clearApiKey must be boolean');if(input.clearApiKey&&input.apiKey)throw Error('Cannot set and clear an API key together');validateRequestPolicy(input);}
   function create(input) {
     validateInput(input);
     if(!PROVIDER_TYPES.includes(input.type)) throw new Error('Unsupported provider type');
@@ -33,7 +34,7 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
     if(input.keyEnv && !/^[A-Za-z_][A-Za-z0-9_]{0,100}$/.test(input.keyEnv))throw new Error('Invalid environment variable name');
     let baseUrl=input.baseUrl||({ 'openai-compatible':'https://api.openai.com/v1','openai-responses':'https://api.openai.com/v1',anthropic:'https://api.anthropic.com/v1',ollama:'http://127.0.0.1:11434'}[input.type]||'');
     if(baseUrl){const u=new URL(baseUrl);if(!['https:','http:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new Error('Provider URL must be HTTP(S), without credentials, query or fragment');baseUrl=u.href.replace(/\/$/,'');}
-    const p={id:id('provider'),name:input.name.trim(),type:input.type,baseUrl,model:String(input.model||'').slice(0,200),keyEnv:input.keyEnv||''};
+    const p={id:id('provider'),name:input.name.trim(),type:input.type,baseUrl,model:String(input.model||'').slice(0,200),keyEnv:input.keyEnv||'',...(!NATIVE.has(input.type)&&input.type!=='demo'?requestPolicy(input):{})};
     if(!['demo',...NATIVE].includes(p.type)&&!p.model)throw new Error('A model name is required');
     if(input.apiKey){if(typeof input.apiKey!=='string'||input.apiKey.length>10000)throw new Error('Invalid API key');secrets.set(p.id,input.apiKey);}
     store.add('providers',p);return sanitize(p);
@@ -41,7 +42,7 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
   function update(providerId,input){
     const previous=store.get('providers',providerId);if(!previous)throw Error('Provider not found');validateInput(input);
     const next={...previous};
-    for(const field of ['name','type','baseUrl','model','keyEnv'])if(Object.hasOwn(input,field))next[field]=input[field];
+    for(const field of ['name','type','baseUrl','model','keyEnv','requestTimeoutMs','maxRetries'])if(Object.hasOwn(input,field))next[field]=input[field];
     if(!PROVIDER_TYPES.includes(next.type))throw Error('Unsupported provider type');
     if(typeof next.name!=='string'||!next.name.trim()||next.name.length>120)throw Error('Provider name is required (max 120 characters)');next.name=next.name.trim();
     if(typeof next.model!=='string'||next.model.length>200)throw Error('Invalid model name');
@@ -56,22 +57,22 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
     return sanitize(next);
   }
   async function post(p,route,body,{signal,headers={}}={}) {
-    const timeout=AbortSignal.timeout(120000), merged=signal?AbortSignal.any([signal,timeout]):timeout;
+    const timeout=AbortSignal.timeout(requestPolicy(p).requestTimeoutMs), merged=signal?AbortSignal.any([signal,timeout]):timeout;
     let res;
     try {res=await fetchImpl(endpoint(p.baseUrl,route),{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify(body),signal:merged});}
-    catch(e){throw new Error(redact(e.name==='TimeoutError'?'Model request timed out':e.name==='AbortError'?'Cancelled':`Model connection failed: ${e.message}`));}
+    catch(e){const error=new Error(redact(e.name==='TimeoutError'?'Model request timed out':e.name==='AbortError'?'Cancelled':`Model connection failed: ${e.message}`));if(e.name!=='AbortError')error.code='MODEL_CONNECTION_FAILED';throw error;}
     let text='';if(res.body?.getReader){const reader=res.body.getReader();let bytes=0;const decoder=new TextDecoder();try{for(;;){const{done,value}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>2000000){await reader.cancel();throw new Error('Model response exceeded 2 MB');}text+=decoder.decode(value,{stream:true});}text+=decoder.decode();}finally{reader.releaseLock();}}else{text=await res.text();if(text.length>2000000)throw new Error('Model response exceeded 2 MB');}
-    if(!res.ok){let message='';try{const err=JSON.parse(text);message=err.error?.message||err.error||err.message||'';}catch{}throw new Error(redact(`Provider HTTP ${res.status}${message?`: ${String(message).slice(0,400)}`:''}`));}
+    if(!res.ok){let message='';try{const err=JSON.parse(text);message=err.error?.message||err.error||err.message||'';}catch{}const error=new Error(redact(`Provider HTTP ${res.status}${message?`: ${String(message).slice(0,400)}`:''}`));error.status=res.status;error.headers=res.headers;throw error;}
     try{return JSON.parse(text);}catch{throw new Error('Provider returned invalid JSON');}
   }
-  async function requestComplete(providerId,{messages,tools=[],signal,workspace,onEvent,model,baseUrl,apiKey}={}) {
+  async function requestComplete(providerId,{messages,tools=[],signal,workspace,onEvent,model,baseUrl,apiKey}={},policy) {
     const stored=store.get('providers',providerId);if(!stored)throw new Error('Provider not found');
-    const p={...stored,...(model?{model}:{}),...(baseUrl?{baseUrl}:{})};const resolvedKey=apiKey||key(stored);
+    const p={...stored,...policy,...(model?{model}:{}),...(baseUrl?{baseUrl}:{})};const resolvedKey=apiKey||key(stored);
     if(p.type==='demo')return demo(messages);
     if(NATIVE.has(p.type))throw new Error('Native profiles require the Codex app-server or Claude Agent runtime; complete() never invokes exec JSON.');
     if(p.type!=='ollama'&&!resolvedKey)throw new Error(`Provider is not configured. Set ${p.keyEnv||'an API key in Settings'}.`);
     if(p.type==='openai-compatible') {
-      const response=await new OpenAI({apiKey:resolvedKey,organization:null,project:null,baseURL:p.baseUrl,fetch:fetchImpl,maxRetries:0,timeout:120000}).chat.completions.create({model:p.model,messages:messages.flatMap(m=>[toChat(m),...(m.images?.length?[{role:'user',content:[{type:'text',text:'Actual screenshot returned by the preceding computer tool.'},...m.images.map(i=>({type:'image_url',image_url:{url:`data:${i.mediaType};base64,${i.data}`}}))]}]:[])]),...(tools.length?{tools:tools.map(t=>({type:'function',function:{name:t.name,description:t.description,parameters:t.parameters}})),tool_choice:'auto'}:{})},{signal});
+      const response=await new OpenAI({apiKey:resolvedKey,organization:null,project:null,baseURL:p.baseUrl,fetch:fetchImpl,maxRetries:0,timeout:requestPolicy(p).requestTimeoutMs}).chat.completions.create({model:p.model,messages:messages.flatMap(m=>[toChat(m),...(m.images?.length?[{role:'user',content:[{type:'text',text:'Actual screenshot returned by the preceding computer tool.'},...m.images.map(i=>({type:'image_url',image_url:{url:`data:${i.mediaType};base64,${i.data}`}}))]}]:[])]),...(tools.length?{tools:tools.map(t=>({type:'function',function:{name:t.name,description:t.description,parameters:t.parameters}})),tool_choice:'auto'}:{})},{signal});
       const message=response.choices?.[0]?.message;if(!message)throw new Error('Provider returned no assistant message');
       return {content:typeof message.content==='string'?redact(message.content):'',toolCalls:callsChat(message),...(response.usage?{usage:{inputTokens:response.usage.prompt_tokens,outputTokens:response.usage.completion_tokens,totalTokens:response.usage.total_tokens}}:{})};
     }
@@ -83,7 +84,7 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
         if(m.role==='assistant'&&m.tool_calls?.length)return [...(m.content?[{role:'assistant',content:m.content}]:[]),...m.tool_calls.map(c=>({type:'function_call',call_id:c.id,name:c.function.name,arguments:c.function.arguments}))];
         return [{role:m.role,content:m.content}];
       });
-      const response=await new OpenAI({apiKey:resolvedKey,organization:null,project:null,baseURL:p.baseUrl,fetch:fetchImpl,maxRetries:0,timeout:120000}).responses.create({model:p.model,instructions,input,store:false,include:['reasoning.encrypted_content'],...(tools.length?{tools:tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.parameters,strict:false}))}:{})},{signal});
+      const response=await new OpenAI({apiKey:resolvedKey,organization:null,project:null,baseURL:p.baseUrl,fetch:fetchImpl,maxRetries:0,timeout:requestPolicy(p).requestTimeoutMs}).responses.create({model:p.model,instructions,input,store:false,include:['reasoning.encrypted_content'],...(tools.length?{tools:tools.map(t=>({type:'function',name:t.name,description:t.description,parameters:t.parameters,strict:false}))}:{})},{signal});
       const output=response.output||[];
       return {content:redact(output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('\n')),toolCalls:output.filter(x=>x.type==='function_call').map(c=>({id:c.call_id||c.id,name:c.name,args:parseArgs(c.arguments)})),responseItems:output,...(response.usage?{usage:response.usage}:{})};
     }
@@ -96,7 +97,7 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
         else content=[{type:'text',text:m.content}];
         const previous=am.at(-1);if(previous?.role===role)previous.content.push(...content);else am.push({role,content});
       }
-      const response=await new Anthropic({apiKey:resolvedKey,openTelemetry:false,baseURL:p.baseUrl.replace(/\/v1\/?$/,''),fetch:fetchImpl,maxRetries:0,timeout:120000,defaultHeaders:{'anthropic-version':'2023-06-01','x-api-key':resolvedKey,authorization:null}}).messages.create({model:p.model,max_tokens:4096,system:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n'),messages:am,...(tools.length?{tools:tools.map(t=>({name:t.name,description:t.description,input_schema:t.parameters}))}:{})},{signal});
+      const response=await new Anthropic({apiKey:resolvedKey,openTelemetry:false,baseURL:p.baseUrl.replace(/\/v1\/?$/,''),fetch:fetchImpl,maxRetries:0,timeout:requestPolicy(p).requestTimeoutMs,defaultHeaders:{'anthropic-version':'2023-06-01','x-api-key':resolvedKey,authorization:null}}).messages.create({model:p.model,max_tokens:4096,system:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n'),messages:am,...(tools.length?{tools:tools.map(t=>({name:t.name,description:t.description,input_schema:t.parameters}))}:{})},{signal});
       return {content:redact((response.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n')),toolCalls:(response.content||[]).filter(c=>c.type==='tool_use').map(c=>({id:c.id,name:c.name,args:c.input})),...(response.usage?{usage:{inputTokens:response.usage.input_tokens,outputTokens:response.usage.output_tokens,totalTokens:(response.usage.input_tokens||0)+(response.usage.output_tokens||0)}}:{})};
     }
     if(p.type==='ollama') {
@@ -105,7 +106,7 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
     }
     throw new Error('Unsupported provider type');
   }
-  async function complete(...args){try{return await requestComplete(...args);}catch(error){const safe=new Error(redact(error.message||'Provider request failed'));safe.name=error.name||'Error';if(Number.isInteger(error.status))safe.status=error.status;throw safe;}}
+  async function complete(providerId,options={}){try{const stored=store.get('providers',providerId);if(!stored)throw Error('Provider not found');if(stored.type==='demo'||NATIVE.has(stored.type))return await requestComplete(providerId,options);const policy=requestPolicy(stored);return await withModelRequestPolicy(attemptSignal=>requestComplete(providerId,{...options,signal:attemptSignal},policy),{policy,signal:options.signal,onEvent:options.onEvent,providerId});}catch(error){const safe=new Error(redact(error.message||'Provider request failed'));safe.name=error.name||'Error';for(const field of ['status','attempts','requestTimeoutMs'])if(Number.isInteger(error[field]))safe[field]=error[field];if(error.code)safe.code=error.code;throw safe;}}
   async function test(providerId,options={}) {
     const p=store.get('providers',providerId);if(!p)throw new Error('Provider not found');
     if(p.type==='demo')return {ok:true,message:'离线确定性示例可用；这不是实时 AI 连接。'};

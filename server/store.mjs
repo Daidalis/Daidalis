@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 
 export const now = () => new Date().toISOString();
 export const id = (prefix = 'id') => `${prefix}_${randomUUID()}`;
-export const DEFAULT_RESOURCES = Object.freeze({maxConcurrentAgents:4,maxTasksPerRun:16,maxAutoResumes:2,maxAutoTurns:4,maxAutoRunMs:300000,maxAutoContinuations:24});
+export const DEFAULT_RESOURCES = Object.freeze({maxConcurrentAgents:4,maxTasksPerRun:16,maxAutoResumes:2,maxAutoTurns:4,maxAutoRunMs:300000,maxAutoContinuations:24,maxRunContinuations:1});
 const collections = ['projects','threads','messages','runs','agents','artifacts','approvals','events','providers','knowledge','models','evaluations','steerings'];
 const contains=(parent,child)=>child===parent||child.startsWith(parent+path.sep);
 function existingDirectory(value){if(typeof value!=='string'||!value||value.includes('\0')||value.length>4096||!path.isAbsolute(value))throw new Error('项目文件夹必须是已存在目录的绝对路径。');let folder;try{folder=fs.realpathSync(value);if(!fs.statSync(folder).isDirectory())throw Error();}catch{throw new Error('项目文件夹不存在或不是目录，请先创建或选择工程文件夹。');}return folder;}

@@ -7,7 +7,7 @@ const TOOL_LABELS = {
   get_engineering_state:'读取工程记录',record_engineering_object:'记录工程对象',capture_configuration:'捕获观察快照',propose_engineering_change:'记录工程变更',record_engineering_evidence:'登记工程证据',
   list_external_tools:'发现项目 MCP 工具',call_external_tool:'调用外部 MCP 工具',model_backend_catalog:'检查模型后端',import_system_model:'导入 SysML 模型',prepare_nos3_model:'建立 NOS3 接口模型',query_system_model:'查询 SysML 模型',validate_system_model:'检查 SysML 语义',export_system_model:'导出 SysML 模型',verify_system_model:'求值模型约束',bind_nos3_results:'回填 NOS3 验证结果',inspect_nos3:'检查 NOS3 环境',submit_nos3_job:'提交 NOS3 作业',get_nos3_job:'读取 NOS3 结果',wait_nos3_job:'等待 NOS3 作业',cancel_nos3_job:'停止 NOS3 作业',
   read_file:'读取项目文件', write_file:'写入项目文件', list_files:'查看项目文件',
-  search_files:'搜索项目文件', search_knowledge:'检索项目资料', web_fetch:'读取公开资料',
+  search_files:'搜索项目文件', search_knowledge:'检索项目资料', web_search:'搜索公开资料', web_fetch:'读取公开资料',
   run_command:'执行已审批命令', get_model:'读取系统模型', update_model:'更新系统模型',
   create_artifact:'保存工件', read_project_memory:'读取项目记忆', update_project_memory:'更新项目记忆',
   engineering_catalog:'检查工程工具', run_engineering_model:'运行工程分析', get_engineering_run:'读取工程分析结果',

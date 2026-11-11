@@ -6,7 +6,7 @@ const PROFESSIONAL_NAMES={openmodelica:'OpenModelica / OMEdit',omsimulator:'OMSi
 
 /** Presentation contract built only from trusted service snapshots. It never
  * connects to software, imports native extensions, or interprets tool output as UI. */
-export function buildEngineeringRegistry({projectId,engineering={},modelBackend={},nos3={},connectors=[],computer={},professional={},geospatial=null,orbit42=null,orbitGround=null}={}){
+export function buildEngineeringRegistry({projectId,engineering={},modelBackend={},nos3={},connectors=[],computer={},professional={},geospatial=null,orbit42=null,orbitGround=null,webSearch=null}={}){
   const selected=typeof projectId==='string'&&!!projectId;
   const entry=value=>({operations:[],views:[],limitations:[],nextStep:'',...value});
   const backend=modelBackend?.backend||{},sysmlReady=backend.available===true&&!hasError(modelBackend);
@@ -35,6 +35,7 @@ export function buildEngineeringRegistry({projectId,engineering={},modelBackend=
     entry({id:'computer',name:'Computer Use',stages:['integration'],integrated:true,ready:computerReady,status:computerStatus,reason:computerReady?'已有可操作的浏览器或经过权限确认的桌面会话。':hasError(computer)?'无法读取 Computer 状态。':browser.available?'浏览器组件可用，尚未启动并验证会话。':desktop.available?'桌面桥可用，仍需授予系统权限。':'当前没有可用的浏览器组件或桌面桥。',operations:['computer_use'],views:['隔离浏览器截图与操作','macOS 桌面截图与操作'],limitations:['操作能力不代表工程软件已安装或许可证可用。','没有嵌入专业软件原生界面，macOS 桌面仍需系统授权。'],action:'open-computer',nextStep:'在 Computer 中打开操作会话。'}),
     entry({id:'external-mcp',name:'外部 MCP',stages:['integration'],integrated:true,ready:connected.length>0,status:hasError(connectors)?'blocked':connected.length?'ready':rows.length?'configured':'unverified',reason:hasError(connectors)?'无法读取项目 MCP 配置。':connected.length?'已有通过连接检查的服务；具体操作按工具结果确认。':rows.length?'项目已配置 MCP 服务，尚无可确认的连接。':'当前项目尚未配置外部 MCP 服务。',operations:['list_external_tools','call_external_tool'],views:['连接与工具说明','结构化工具结果'],limitations:['仅接入 tools/list 与 tools/call；不承诺第三方原生界面或 MCP Apps。'],action:'open-integrations',nextStep:'配置已有的 stdio 或 HTTP MCP 服务，再测试连接。'}),
   ];
+  if(webSearch)entries.push(entry({id:'web-search',name:'网页搜索 · Agent Reach',stages:['requirements','architecture'],integrated:true,ready:webSearch.ready===true,status:webSearch.ready?'ready':webSearch.status==='unavailable'||webSearch.status==='blocked'?'blocked':'configured',reason:webSearch.ready?'最近一次关键词搜索成功；结果可用于查找公开来源。':webSearch.lastErrorCode==='WEB_SEARCH_RATE_LIMITED'?'最近一次搜索被公共服务限流，请稍后重试。':webSearch.lastErrorCode==='WEB_SEARCH_NO_PUBLIC_RESULTS'?'最近一次搜索未返回可用的公开网页链接，可调整关键词再试。':webSearch.lastErrorCode?'最近一次网页搜索失败；请检查搜索运行环境和网络。':webSearch.installed?'搜索依赖已安装；服务状态以实际搜索结果为准。':'网页搜索依赖尚未安装。',operations:['web_search','web_fetch'],views:['搜索标题、链接与摘要','原始网页与来源核对'],limitations:['搜索关键词发送给 Agent Reach 使用的 Exa 服务。','搜索摘要未核实，引用规格前须读取原始网页；公共服务可能限流。'],nextStep:webSearch.installed?'在聊天中描述要查找的公开资料。':'运行 python3 scripts/install-agent-reach.py；Docker 镜像已包含固定版本。'}));
   const modelica=list(professional?.tools).find(tool=>tool.id==='openmodelica');
   if(modelica){const environment=modelica.environment||{},ready=environment.ready===true||environment.state==='ready';entries.push(entry({id:'openmodelica',name:'OpenModelica',stages:STAGES.openmodelica,integrated:true,ready,status:ready?'ready':environment.state==='failed'?'blocked':'configured',reason:ready?(modelica.isolation==='shared-container'?'共享容器中的原生编译与求解工具已就绪；不提供任务级隔离。':'隔离 Linux 原生编译与求解环境已就绪。'):environment.message||'已接入原生模型与执行适配器；准备隔离环境后运行。',operations:['professional_catalog','prepare_professional_environment','read_professional_model','save_professional_model','submit_professional_job','wait_professional_job','get_professional_job','cancel_professional_job'],views:['原生源码编辑与版本检查','参数、仿真、求解诊断与曲线'],limitations:['数值模型需要按用途审查和标定；求解成功不代表完整系统已验证。'],action:'open-professional',nextStep:'打开项目 .mo 模型，校验、修改参数并运行。'}));}
   if(geospatial){
@@ -68,7 +69,7 @@ export function buildEngineeringRegistry({projectId,engineering={},modelBackend=
 /** Read each source once; one failed source cannot erase other capabilities.
  * recheck applies only to the explicit numerical runtime probe. No connector
  * is connected/tested and no GUI, VM, package manager or simulation is started. */
-export async function collectEngineeringCatalog({projectId,engineering,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,modelBackend,nos3,connectors,computer,recheck=false,signal}={}){
+export async function collectEngineeringCatalog({projectId,engineering,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,modelBackend,nos3,connectors,computer,webSearch,recheck=false,signal}={}){
   if(signal?.aborted)throw Error('Cancelled');
   const sources={
     professional:()=>professionalModels?.catalog?professionalModels.catalog({projectId}):({}),
@@ -77,6 +78,7 @@ export async function collectEngineeringCatalog({projectId,engineering,professio
     nos3:()=>projectId&&nos3?.inspect?nos3.inspect({projectId},{signal}):({error:!!projectId}),
     connectors:()=>projectId&&connectors?.list?connectors.list(projectId):[],
     computer:()=>computer?.status?computer.status():({error:true}),
+    ...(webSearch?{webSearch:()=>webSearch.catalog()}:{}),
     ...(geospatialJobs?{geospatial:()=>geospatialJobs.catalog({projectId})}:{}),
     ...(orbit42Jobs?{orbit42:()=>orbit42Jobs.catalog({projectId})}:{}),
     ...(orbitGroundJobs?{orbitGround:()=>orbitGroundJobs.catalog({projectId})}:{}),

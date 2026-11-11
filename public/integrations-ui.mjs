@@ -14,6 +14,12 @@ function backendCard(data) {
   const catalog=data?.modelBackend||{},backend=catalog.backend||{};
   return `<section class="settings-group"><h3>模型后端</h3><div class="settings-card"><div class="settings-row"><div><strong>${esc(backend.name||'SysML v2')}</strong><p>${backend.version?'版本 '+esc(backend.version):'版本未返回'}${backend.isolated?' · 独立运行环境':''}</p></div><span class="integration-status ${backend.available?'ready':'error'}">${backend.available?'可用':'未就绪'}</span></div>${catalog.error||backend.error?`<p class="integration-error">${esc(catalog.error||backend.error)}</p>`:''}<div class="settings-card-note">用于导入、查询、校验和导出 SysML v2 模型。工程行为由相应仿真工具执行。</div></div></section>`;
 }
+function webSearchCard(data) {
+  const entry=data?.registry?.entries?.find(item=>item.id==='web-search');
+  if(!entry)return '';
+  const label=entry.ready?'可用':entry.status==='blocked'?'未就绪':'已配置';
+  return `<section class="settings-group" data-capability="web-search"><h3>网页搜索</h3><div class="settings-card"><div class="settings-row"><div><strong>${esc(entry.name)}</strong><p>${esc(entry.reason)}</p></div><span class="integration-status ${entry.ready?'ready':entry.status==='blocked'?'error':''}">${label}</span></div><div class="settings-card-note">在聊天中描述要查找的公开资料。搜索摘要需要通过原始网页核实；公共搜索服务可能限流。刷新此页只读取状态。</div></div></section>`;
+}
 function connectorCards(data,{compact=false}={}) {
   const rows=Array.isArray(data?.connectors)?data.connectors:[];
   return `<section class="settings-group"><div class="integration-section-heading"><h3>外部 MCP</h3>${button('add-mcp-connector','添加连接')}</div>${data?.connectors?.error?`<p class="integration-error">${esc(data.connectors.error)}</p>`:rows.length?`<div class="integration-connections">${rows.map(row=>`<article class="settings-card integration-connector"><div class="integration-connection-heading"><div><strong>${esc(row.name)}</strong><p class="integration-address">${esc(row.transport==='stdio'?row.command:row.url)}</p></div>${status(row.enabled===false?'disabled':row.status||'configured')}</div>${row.error?`<p class="integration-error">${esc(row.error)}</p>`:''}<div class="integration-actions">${button('edit-mcp-connector','编辑',row.id)}${button('test-mcp-connector','测试连接',row.id,row.enabled?'':'disabled')}${button('discover-mcp-tools','查看工具',row.id,row.enabled?'':'disabled')}${button('delete-mcp-connector','移除',row.id)}</div></article>`).join('')}</div>`:'<p class="integration-empty">尚未添加 MCP 连接。</p>'}</section>`;
@@ -33,7 +39,7 @@ export function renderIntegrations(model,{compact=false}={}) {
   const {project,projects=[],data}=model;
   const heading=compact?'<div class="pane-heading"><h2>工程连接</h2>':'<div class="settings-page-header"><h2 class="settings-heading">工具连接</h2>';
   const scope=compact?`<p class="integration-project-scope">当前项目：${esc(project?.name||'未选择项目')}</p>`:`<label class="integration-project-picker" for="integration-project-select"><span>项目</span><select id="integration-project-select" aria-label="工具连接所属项目"><option value="" ${!project?'selected':''} disabled>选择项目</option>${projects.map(item=>`<option value="${esc(item.id)}" ${item.id===project?.id?'selected':''}>${esc(item.name)}</option>`).join('')}</select><small>连接仅用于所选项目。</small></label>`;
-  return `${heading}${button('refresh-integrations','刷新')}</div>${scope}${contentState(model)||(backendCard(data)+connectorCards(data,{compact})+workerCard(data)+jobsCard(data))}`;
+  return `${heading}${button('refresh-integrations','刷新')}</div>${scope}${contentState(model)||(webSearchCard(data)+backendCard(data)+connectorCards(data,{compact})+workerCard(data)+jobsCard(data))}`;
 }
 export function renderConnectorForm(config={},projectId='') {
   const transport=config.transport||'http';

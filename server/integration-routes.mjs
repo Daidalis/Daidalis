@@ -1,6 +1,6 @@
 import {buildEngineeringRegistry} from './tool-registry.mjs';
 import {submitValidatedNos3Job} from './integration-tools.mjs';
-export function createIntegrationRoutes({connectors,nos3,modelBackend,engineering,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,computer,jsonBody,send,emit}){
+export function createIntegrationRoutes({connectors,nos3,modelBackend,engineering,professionalModels,geospatialJobs,orbit42Jobs,orbitGroundJobs,computer,webSearch,jsonBody,send,emit}){
   return async function route({req,res,parts,project}){
     const method=req.method,projectId=project.id,resource=parts[3];
     if(!['integrations','connectors','nos3','model-backend'].includes(resource))return false;
@@ -11,7 +11,7 @@ export function createIntegrationRoutes({connectors,nos3,modelBackend,engineerin
       const value=i=>results[i].status==='fulfilled'?results[i].value:{available:false,error:results[i].reason.message};
       const native=i=>results[i].status==='fulfilled'?results[i].value:{error:true};
       const data={projectId,connectors:value(0)||[],modelBackend:value(1)||{available:false},nos3:value(2)||{available:false},jobs:value(3)||[]};
-      return finish(200,{...data,registry:buildEngineeringRegistry({...data,engineering:value(4),computer:value(5),professional:value(6),geospatial:native(7),orbit42:native(8),orbitGround:orbitGroundJobs?native(9):null})});
+      return finish(200,{...data,registry:buildEngineeringRegistry({...data,engineering:value(4),computer:value(5),professional:value(6),geospatial:native(7),orbit42:native(8),orbitGround:orbitGroundJobs?native(9):null,webSearch:webSearch?.catalog()})});
     }
     if(resource==='connectors'){
       const service=need(connectors,'MCP');

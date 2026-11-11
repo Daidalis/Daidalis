@@ -256,3 +256,21 @@ test('turn-budget exhaustion preserves a resumable session and reports interrupt
  await completed(h,{providerId:'api-profile',content:'Continue'});
  assert.equal(h.calls.at(-1).options.sessionId,session);
 });
+
+test('ordinary API execution snapshots project budgets and defaults to 32 turns',async t=>{
+ const h=await fixture(t,async()=>({content:'Budget checked'}));
+ const first=await completed(h,{providerId:'api-profile'});
+ assert.equal(h.calls.at(-1).options.maxTurns,32);assert.equal(first.run.executionPolicy.maxContinuations,1);
+ h.project.resources.maxRunTurns=7;h.project.resources.maxRunContinuations=2;
+ const next=await completed(h,{providerId:'api-profile'});
+ assert.equal(h.calls.at(-1).options.maxTurns,7);assert.equal(h.calls.at(-1).options.maxContinuations,2);
+ assert.equal(first.run.executionPolicy.maxTurns,32);assert.equal(next.run.executionPolicy.maxTurns,7);
+});
+
+test('exhausted model timeouts are resumable interruptions with attempt details',async t=>{
+ const h=await fixture(t,async()=>{throw Object.assign(Error('Request timed out.'),{code:'MODEL_REQUEST_TIMEOUT',attempts:3,requestTimeoutMs:1000});});
+ const {run}=h.engine.start({threadId:h.thread.id,providerId:'api-profile',content:'Slow model',permissionMode:'auto'});
+ await eventually(()=>!h.engine.active.has(run.id));
+ assert.equal(run.status,'interrupted');assert.equal(run.stopReason,'model-request-timeout');assert.match(run.error,/已尝试 3 次/);assert.match(run.error,/每次请求时限 1 秒/);
+ assert.ok(h.thread.runtimeSessions['api-profile'].sessionId);
+});
