@@ -98,7 +98,7 @@ HTTP：`GET/POST /api/projects/:id/engineering-plan`。POST 使用同一版本�
 
 ## 专业执行与边界
 
-当前已接入的首批原生后端包括 SysML 语义检查、OpenModelica、ngspice、OpenSCAD，以及选定的 NOS3/cFS/42/EPS/LC/SC 联试；确切版本和项目可用性以 `professional_catalog`、`engineering_catalog`、工程连接和当次回执为准。数字工具接通不意味着完整 STF 所需工具已全部完成，也不意味着 Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 或硬件平台已自动可用。
+当前已接入的数字后端包括 SysML 语义检查、SysML 驱动的 FMI 分析、OpenModelica、ngspice、OpenSCAD，以及选定的 NOS3/cFS/42/EPS/LC/SC 联试；确切版本和项目可用性以 `professional_catalog`、`engineering_catalog`、工程连接和当次回执为准。SysML FMI 是独立的 Docker task-container 后端：OpenSysML 对 SysML analysis 做判定，FMPy 生成轨迹 CSV；二者均不证明物理正确。数字工具接通不意味着完整 STF 所需工具已全部完成，也不意味着 Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 或硬件平台已自动可用。
 
 实际原生编译/数值依赖继续在隔离 Linux VM/runner 执行，项目源码与大产物位于 NAS。不改本机全局配置，不从 NAS 自动加载本机数值扩展。工具选型、缺依赖时的独立准备和替代分析边界见 `server/engineering-guidance.mjs`。
 

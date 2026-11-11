@@ -126,7 +126,7 @@ test('graceful stop records interrupted work and never automatically replays it 
 
 test('SysML native drafts use existing semantic backend with exact revision guard and no Modelica behavior claim',async t=>{
  const calls=[],f=await fixture(t,{sysmlBackend:{validate:async(args)=>{calls.push(args);return {valid:true,findings:[],backend:{id:'sysml-wasm',version:'0.10.10'}};}}}),model=await f.service.saveModel({projectId:f.projectId,path:'models/system.sysml',content:'package Satellite {}'});
- const result=await f.run({path:model.path,expectedHash:model.sha256,operation:'check',modelName:undefined});assert.equal(result.status,'completed');assert.equal(calls[0].expectedHash,model.sha256);assert.match(calls[0].path,/engineering\/professional\/professional_[a-f0-9]+\/sources\/0-system.sysml$/);assert.equal(result.tool.id,'sysml-wasm');await assert.rejects(f.service.submit({...f.args,path:model.path,expectedHash:model.sha256,operation:'simulate'}),/behavior simulation is unavailable/);
+ const result=await f.run({path:model.path,expectedHash:model.sha256,operation:'check',modelName:undefined});assert.equal(result.status,'completed');assert.equal(calls[0].expectedHash,model.sha256);assert.match(calls[0].path,/engineering\/professional\/professional_[a-f0-9]+\/sources\/0-system.sysml$/);assert.equal(result.tool.id,'sysml-wasm');await assert.rejects(f.service.submit({...f.args,path:model.path,expectedHash:model.sha256,operation:'simulate'}),/requires fmu/);
 });
 
 test('parameters and criteria reject model command injection and unsupported settings before runner',async t=>{

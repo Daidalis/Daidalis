@@ -161,7 +161,18 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
       }
       if (native.truncated) found.nativeIndexLimited = true;
     }
-    if (nos3?.list) found.simulations = (await nos3.list({projectId})).slice(0,100);
+    if (professionalModels?.list) {
+      const jobs = await professionalModels.list({projectId});
+      const fmiJobs=[];
+      for(const job of jobs.filter(item=>item.toolId==='sysml-fmi').slice(0,100)){
+        const result=await professionalModels.result({projectId,jobId:job.id});
+        if(!result.ready||result.integrity?.verified!==true)continue;
+        fmiJobs.push({...job,kind:'professional',title:'SysML FMI · '+(job.model?.path||job.modelName||'仿真作业'),scope:'SysML v2 / FMI',updatedAt:job.finishedAt||job.createdAt});
+      }
+      found.simulations.push(...fmiJobs);
+    }
+    if (nos3?.list) found.simulations = [...found.simulations,...(await nos3.list({projectId})).slice(0,100)];
+    found.simulations=found.simulations.slice(0,100);
     found.limited = scanned >= 2200 || directories >= 40;
     return found;
   }
@@ -278,6 +289,17 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
     },
     async simulation({projectId,jobId} = {}) {
       workspace(projectId);
+      if(typeof jobId==='string'&&/^professional_[a-f0-9]{32}$/.test(jobId)){
+        if(!professionalModels?.result)throw fail('Professional simulation service unavailable',503);
+        const result=await professionalModels.result({projectId,jobId});
+        const response={projectId,jobId,id:jobId,title:'SysML FMI 仿真',scope:'SysML v2 / FMI',status:result.status,job:null,result,checks:result.verification?.checks||[],unverified:[],model:result.model,source:{revision:result.model?.sha256,hash:result.inputHash},evidence:[],cases:[],integrity:result.integrity||{verified:false},limitations:result.limitations||['数字模型仿真不证明物理正确、HIL 验证或系统接受。']};
+        if(!result.ready)return response;
+        if(result.integrity?.verified!==true)throw fail('Recorded FMI simulation result integrity check failed',409);
+        response.job=await professionalModels.status({projectId,jobId});
+        response.evidence=(result.artifacts||[]).filter(item=>/^engineering\/professional\/professional_[a-f0-9]{32}\//.test(item.path||'')).map(item=>({path:item.path,label:item.name||path.basename(item.path),sha256:item.sha256}));
+        response.model={...(result.model||{}),path:result.model?.path,hash:result.model?.sha256};
+        return response;
+      }
       if (!nos3?.status || !nos3?.result) throw fail('NOS3 service unavailable',503);
       if (typeof jobId !== 'string' || !/^nos3_[a-f0-9]{32}$/.test(jobId)) throw fail('Invalid NOS3 job identifier');
       // The service enforces protected project ownership, even for shared folders.

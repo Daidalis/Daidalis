@@ -74,7 +74,11 @@ export function createProfessionalRunner({vmRoot,execute=executeLocalVm,hostPlat
   function normalize(args){
     if(!args||!JOB.test(args.jobId||''))throw Error('Invalid professional job identifier');
     if(!['check','simulate'].includes(args.operation))throw Error('Invalid Modelica operation');
-    const toolId=args.toolId||'openmodelica';if(!['openmodelica','ngspice','openscad'].includes(toolId))throw Error('Unsupported professional tool');
+    const toolId=args.toolId||'openmodelica';
+    // The SysML FMI backend ships only in the Docker image; this managed-VM
+    // runner has no OpenSysML or FMPy, so say so instead of a generic refusal.
+    if(toolId==='sysml-fmi')throw Error('SysML FMI simulation requires the Docker deployment with the sysmlsim tool group; the managed Linux VM does not provide OpenSysML or FMPy');
+    if(!['openmodelica','ngspice','openscad'].includes(toolId))throw Error('Unsupported professional tool');
     if(toolId==='openmodelica'&&(typeof args.modelName!=='string'||!IDENT.test(args.modelName)))throw Error('Model name must be a dotted Modelica identifier');
     if(!HASH.test(args.inputHash||''))throw Error('A pinned input hash is required');
     const entries=args.sourceFiles||args.modelFiles?.map(f=>({...f,path:f.name}));

@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 import re
 import signal
 import subprocess
+import sys
 import time
 import tempfile
 
@@ -72,7 +73,7 @@ def collect(only=None):
     return files
 
 
-def run(argv, timeout, stdin=None):
+def run(argv, timeout, stdin=None, env=None):
     # Regular files bound output growth; the shared-container caller also bounds time and output.
     import resource
     def limits():
@@ -80,7 +81,7 @@ def run(argv, timeout, stdin=None):
         resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         process = subprocess.Popen(argv, cwd=WORK, stdin=subprocess.PIPE, stdout=out, stderr=err,
-                                   start_new_session=True, preexec_fn=limits)
+                                   start_new_session=True, preexec_fn=limits, env=env or None)
         previous=signal.getsignal(signal.SIGTERM)
         def cancel(*args):
             try:os.killpg(process.pid, signal.SIGKILL)
@@ -108,11 +109,48 @@ def run(argv, timeout, stdin=None):
 def version(tool):
     commands = {'ngspice':['ngspice','--version'], 'openscad':['openscad','--version'],
                 'openmodelica':['omc','--version'], 'gis':['gdalinfo','--version']}
+    if tool == 'sysml-fmi':
+        return sysml_fmi_version()
     try:
         p = subprocess.run(commands[tool], capture_output=True, text=True, timeout=10)
         return {'ready':p.returncode == 0, 'version':(p.stdout + p.stderr).strip()[:2000]}
     except FileNotFoundError:
         return {'ready':False, 'reason':'Toolchain not installed in this image'}
+
+
+def sysml_fmi_version():
+    """Probe the OpenSysML service binary and the Python client libraries together.
+
+    Readiness is a live check, never a file that merely exists: a missing
+    sysml-grpc or an unimportable fmpy both make the backend unusable.
+    """
+    binary = Path(os.environ.get('SYML_FMI_HOME') or '/opt/opensysml') / 'bin' / 'sysml-grpc'
+    python = Path(os.environ.get('SYML_FMI_HOME') or '/opt/opensysml') / 'venv' / 'bin' / 'python'
+    if not binary.is_file() or not python.is_file():
+        return {'ready':False, 'reason':'OpenSysML FMI toolchain is not installed in this image'}
+    # FMPy prints a logger-proxy warning on import when its bundled logging.so
+    # does not match the platform, so the probe redirects stdout to stderr and
+    # writes its answer last.
+    probe_script = (
+        'import contextlib, sys\n'
+        'with contextlib.redirect_stdout(sys.stderr):\n'
+        '    import opensysml, fmpy\n'
+        'print(opensysml.__version__, fmpy.__version__)\n'
+    )
+    try:
+        probe = subprocess.run(
+            [str(python), '-c', probe_script],
+            capture_output=True, text=True, timeout=60,
+            env={**os.environ, 'OPENSYSML_BINARY': str(binary)},
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        return {'ready':False, 'reason':'OpenSysML probe failed: %s' % error}
+    if probe.returncode != 0:
+        return {'ready':False, 'reason':(probe.stderr or probe.stdout).strip()[:1000]}
+    version = probe.stdout.strip().splitlines()[-1] if probe.stdout.strip() else ''
+    if not version:
+        return {'ready':False, 'reason':'OpenSysML probe printed no version'}
+    return {'ready':True, 'version':'sysml-grpc + opensysml/fmpy %s' % version}
 
 
 def spice_csv(raw):
@@ -139,8 +177,38 @@ def spice_csv(raw):
         writer=csv.writer(f);writer.writerow(names);writer.writerows(rows)
 
 
+def sysml_fmi_job(request):
+    """Run the OpenSysML/FMPy native code in a bounded child process.
+
+    OpenSysML starts sysml-grpc, and FMPy loads native FMU binaries; keeping the
+    runtime in its own process lets the standard worker limits and cancellation
+    kill the complete process group on timeout or abort.
+    """
+    import base64
+    import sysml_fmi as runner
+    payload=dict(request)
+    payload['_workdir']=str(WORK)
+    payload['sourceFiles']=[{
+        'path':item['path'],
+        'sha256':item['sha256'],
+        'contentBase64':base64.b64encode(item['content'].encode('utf-8')).decode('ascii'),
+    } for item in request.get('sourceFiles',[])]
+    payload['_workdir']=str(WORK)
+    response=runner.execute_child(payload, run, timeout=min(request.get('timeoutMs',600000)/1000,600))
+    if response.get('exitCode') != 0:
+        return response
+    # Native imports and the solver ran in a child so timeouts/cancellation can
+    # kill OpenSysML, FMPy and the FMU process together. Read the child artifacts
+    # and return their bytes through the regular worker collection contract.
+    files=collect(['trajectory.csv','verdicts.json','execution-receipt.json'])
+    response['files']=files
+    return response
+
+
 def professional(request):
     tool = request.get('toolId')
+    if tool == 'sysml-fmi':
+        return sysml_fmi_job(request)
     if tool not in ('ngspice','openscad','openmodelica'):
         raise ValueError('Unsupported professional tool')
     state = version(tool)
@@ -243,7 +311,7 @@ def professional(request):
 
 def main(request):
     if request['kind']=='probe':
-        return {'ready':True,'tools':{tool:version(tool) for tool in ['ngspice','openscad','openmodelica','gis']}}
+        return {'ready':True,'tools':{tool:version(tool) for tool in ['ngspice','openscad','openmodelica','gis','sysml-fmi']}}
     if request['kind']=='professional':
         return professional(request)
     raise ValueError('Invalid engineering request kind')

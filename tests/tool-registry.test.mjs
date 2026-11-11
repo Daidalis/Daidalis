@@ -5,6 +5,14 @@ import {createIntegrationRoutes} from '../server/integration-routes.mjs';
 const item=(catalog,id)=>catalog.entries.find(entry=>entry.id===id);
 const base={projectId:'project_test',engineering:{tools:[{id:'scipy',available:false,status:'unverified'},{id:'matlab',detected:true,installed:true,available:true,integrated:true},{id:'sysml-v2',available:false}]},modelBackend:{backend:{available:true,version:'0.10.10'}},nos3:{revision:'a'.repeat(40),worker:{configured:true,type:'local-linux-vm'},environment:{workerReady:true}},connectors:[],computer:{browser:{available:true,status:'ready'},desktop:{available:true,status:'enabled-permissions-not-verified'}}};
 
+test('SysML FMI capability is available only for a verified isolated rootless task runner',()=>{
+ const result=buildEngineeringRegistry({projectId:'p',professional:{tools:[{id:'sysml-fmi',name:'SysML v2 · FMI 连续仿真',environment:{ready:true,isolated:true,brokerIsolation:{kind:'rootless-task-container'}}}]}});
+ const entry=result.entries.find(value=>value.id==='sysml-fmi');
+ assert.ok(entry);assert.equal(entry.ready,true);assert.equal(entry.action,'open-professional');
+ const shared=buildEngineeringRegistry({projectId:'p',professional:{tools:[{id:'sysml-fmi',name:'SysML v2 · FMI 连续仿真',environment:{ready:true,isolated:false}}]}}).entries.find(value=>value.id==='sysml-fmi');
+ assert.equal(shared.ready,false);assert.match(shared.reason,/rootless broker/);
+});
+
 test('installed software never becomes integrated and semantic views do not imply graphical editing or behavior execution',()=>{
   const result=buildEngineeringRegistry(base);
   assert.equal(item(result,'traceability'),undefined);

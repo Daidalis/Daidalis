@@ -67,7 +67,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
     if(listError)return nav+`<div class="workbench-error" role="alert"><p>${esc(listError)}</p>${button('refresh','重试')}</div>`;
     if(section==='simulations'){
       const jobs=discovered.simulations||[];
-      return nav+`<div class="workbench-job-list">${jobs.map(j=>`<button data-workspace-action="job" data-job="${esc(j.id||j.jobId)}"><span><strong>${esc(j.name||({component:'组件验证',build:'工程构建',integration:'NOS3 集成仿真'}[j.scope]||'仿真作业'))}</strong><small>${esc(j.id||j.jobId)}</small><small>${esc((j.completedAt||j.updatedAt||j.createdAt||'').replace('T',' ').slice(0,19))}</small></span><span class="workbench-job-status">${esc(labelStatus(j.status))} ›</span></button>`).join('')||'<p class="workbench-empty">此项目尚无仿真作业。</p>'}</div>`;
+      return nav+`<div class="workbench-job-list">${jobs.map(j=>`<button data-workspace-action="job" data-kind="${esc(j.kind||'nos3')}" data-job="${esc(j.id||j.jobId)}"><span><strong>${esc(j.name||({component:'组件验证',build:'工程构建',integration:'NOS3 集成仿真'}[j.scope]||'仿真作业'))}</strong><small>${esc(j.id||j.jobId)}</small><small>${esc((j.completedAt||j.updatedAt||j.createdAt||'').replace('T',' ').slice(0,19))}</small></span><span class="workbench-job-status">${esc(labelStatus(j.status))} ›</span></button>`).join('')||'<p class="workbench-empty">此项目尚无仿真作业。</p>'}</div>`;
     }
     if(section==='registered'){
       const artifacts=getArtifacts().filter(a=>a.projectId===projectId),knowledge=getKnowledge();
@@ -116,9 +116,18 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
   }
   async function openJob(jobId,{caseId}={}){
     ensureProject();let tab=tabs.find(t=>t.kind==='simulation'&&t.jobId===jobId);
-    if(!tab){tab={id:'job:'+jobId,kind:'simulation',jobId,title:'仿真 · '+jobId.slice(-8)};tabs.push(tab);}
+    if(!tab){tab={id:'job:'+jobId,kind:'simulation',simulationKind:'nos3',jobId,title:'仿真 · '+jobId.slice(-8)};tabs.push(tab);}
     if(caseId)tab.caseId=caseId;
     active=tab.id;if(!tab.simulation&&!tab.loading)await loadTab(tab);else draw();
+  }
+  async function openProfessionalJob(jobId){
+    ensureProject();
+    if(typeof jobId!=='string'||!/^professional_[a-f0-9]{32}$/.test(jobId))throw Error('无效的专业仿真作业 ID');
+    await onProfessionalJob(jobId);
+  }
+  async function openSimulationJob(jobId,kind='nos3'){
+    if(kind==='professional')return openProfessionalJob(jobId);
+    return openJob(jobId);
   }
   function inlineFile({id,name,path,content,type}){
     ensureProject();let tab=tabs.find(t=>t.id===id);
@@ -153,7 +162,11 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
   }
   function cancelEdit(){const tab=current();if(!tab?.edit||tab.edit.saving)return;drafts.delete(draftKey(tab));tab.edit=null;draw();}
   async function openHistory(){const tab=current(),pid=projectId;if(!tab?.file?.revision?.id)return;const file=await api(base()+'/file-history?editId='+encodeURIComponent(tab.file.revision.id));if(pid!==projectId)return;inlineFile({id:'history:'+file.editId,name:file.name,content:file.content,type:file.type});}
-  async function stopJob(tab){await api('/api/projects/'+encodeURIComponent(projectId)+'/nos3/jobs/'+encodeURIComponent(tab.jobId)+'/cancel',{method:'POST',body:'{}'});await loadTab(tab);}
+  async function stopJob(tab){
+    const resource=tab.simulationKind==='professional'?'professional':'nos3';
+    await api('/api/projects/'+encodeURIComponent(projectId)+'/'+resource+'/jobs/'+encodeURIComponent(tab.jobId)+'/cancel',{method:'POST',body:'{}'});
+    if(resource==='nos3')await loadTab(tab);else await onProfessionalJob(tab.jobId);
+  }
   async function act(event){
     const el=event.target.closest('[data-workspace-action]');if(!el||!host?.contains(el))return;event.preventDefault();
     try{switch(el.dataset.workspaceAction){
@@ -166,7 +179,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
       case 'section':section=el.dataset.section;filter='';active='browser';draw();if(!listing)await loadList();break;
       case 'folder':folder=el.dataset.path;filter='';listing=null;await loadList();break;
       case 'file':if(/(?:\.(mo|cir|scad)|\.stf\.json)$/i.test(el.dataset.path))await onEditModel(el.dataset.path);else await openPath(el.dataset.path);break;
-      case 'job':await openJob(el.dataset.job);break;
+      case 'job':await openSimulationJob(el.dataset.job,el.dataset.kind);break;
       case 'artifact':await openArtifact(el.dataset.id);break;
       case 'knowledge':openKnowledge(el.dataset.id);break;
       case 'tab':active=el.dataset.tab;draw();break;
@@ -182,7 +195,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
   function input(event){if(event.target.matches('[data-workspace-editor]')){setEditContent(event.target.value);const status=host?.querySelector('.workbench-editor-state');if(status)status.textContent=current()?.edit?.content===current()?.edit?.originalContent?'编辑文件':'有未保存的修改';return;}if(!event.target.matches('[data-workspace-filter]'))return;filter=event.target.value;const start=event.target.selectionStart;draw();const next=host.querySelector('[data-workspace-filter]');next?.focus();if(next?.type!=='search')next?.setSelectionRange(start,start);}
   const controller={
     mount(container){const previous=projectId;ensureProject();if(host!==container){host?.removeEventListener('click',act);host?.removeEventListener('input',input);destroyViewer();host=container;host.addEventListener('click',act);host.addEventListener('input',input);}if(previous!==projectId||!shell?.isConnected||!host.contains(shell))draw();const signature=JSON.stringify([projectId,getArtifacts().filter(a=>a.projectId===projectId).map(a=>[a.id,a.updatedAt]),getKnowledge().map(f=>f.id)]);if(signature!==contentSignature){contentSignature=signature;listing=null;rootDiscovery=null;}if(!listing&&!listBusy)loadList();},
-    openPath,openJob,openArtifact,openKnowledge,openResult,beginEdit,setEditContent,saveEdit,cancelEdit,openHistory,editState(){ensureProject();const tab=current();return tab?.edit?{path:tab.path,...tab.edit}:null;},
+    openPath,openJob,openSimulationJob,openProfessionalJob,openArtifact,openKnowledge,openResult,beginEdit,setEditContent,saveEdit,cancelEdit,openHistory,editState(){ensureProject();const tab=current();return tab?.edit?{path:tab.path,...tab.edit}:null;},
     showSection(value='files'){ensureProject();section=value;active='browser';draw();if(!listing)loadList();},
     detach(){destroyViewer();host?.removeEventListener('click',act);host?.removeEventListener('input',input);host=null;shell=null;},
     destroy(){revision++;destroyViewer();host?.removeEventListener('click',act);host?.removeEventListener('input',input);host=null;},

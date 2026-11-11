@@ -8,18 +8,19 @@ start=true
 modelica=0
 orbit42=0
 nos3=0
+sysmlsim=0
 for arg in "$@"; do
   case "$arg" in
     --preset=full) preset=full ;;
     --preset=minimal) preset=minimal ;;
     --tools=*) tools=${arg#--tools=}; custom=true; preset=custom ;;
     --no-start) start=false ;;
-    --help) echo 'Usage: sh install.sh [--preset=full|minimal | --tools=scipy,ngspice,openscad,browser,desktop,modelica,gis,freecad,scilab,orbit42,nos3] [--no-start]'; exit 0 ;;
+    --help) echo 'Usage: sh install.sh [--preset=full|minimal | --tools=scipy,ngspice,openscad,browser,desktop,modelica,sysmlsim,gis,freecad,scilab,orbit42,nos3] [--no-start]'; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
 done
 if [ "$custom" = false ]; then
-  case "$preset" in full) tools=scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab,modelica,orbit42,nos3 ;; minimal) tools= ;; esac
+  case "$preset" in full) tools=scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab,modelica,sysmlsim,orbit42,nos3 ;; minimal) tools= ;; esac
 fi
 case ",$tools," in *,,*) if [ -n "$tools" ]; then echo 'Empty tool group' >&2; exit 2; fi ;; esac
 oldIFS=$IFS; IFS=,
@@ -27,10 +28,11 @@ for group in $tools; do
   case "$group" in modelica) modelica=1 ;;
     orbit42) orbit42=1 ;;
     nos3) nos3=1 ;;
+    sysmlsim) sysmlsim=1 ;;
     scipy|ngspice|openscad|browser|desktop|gis|freecad|scilab) ;; *) echo "Unsupported tool: $group" >&2; exit 2 ;; esac
 done
 IFS=$oldIFS
-tools=$(printf ",%s," "$tools" | sed 's/,modelica,/,/g; s/,orbit42,/,/g; s/,nos3,/,/g; s/^,//; s/,$//')
+tools=$(printf ",%s," "$tools" | sed 's/,modelica,/,/g; s/,orbit42,/,/g; s/,nos3,/,/g; s/,sysmlsim,/,/g; s/^,//; s/,$//')
 docker info >/dev/null
 docker compose version
 mkdir -p deploy/local
@@ -43,7 +45,7 @@ done
 if [ "${MANTA_PORT:-4317}" = "${MANTA_DESKTOP_PORT:-6080}" ]; then echo 'Web and desktop ports must differ.' >&2; exit 2; fi
 project_name=${COMPOSE_PROJECT_NAME:-manta}
 case "$project_name" in ''|*[!a-z0-9_-]*|[_-]*) echo 'Invalid Compose project name.' >&2; exit 2 ;; esac
-printf 'MANTA_TOOLS=%s\nMANTA_TAG=%s\nMANTA_MODELICA=%s\n' "$tools" "$preset" "$modelica" > deploy/local/install.env
+printf 'MANTA_TOOLS=%s\nMANTA_TAG=%s\nMANTA_MODELICA=%s\nMANTA_SYML_SIM=%s\n' "$tools" "$preset" "$modelica" "$sysmlsim" > deploy/local/install.env
 printf 'MANTA_ORBIT42=%s\n' "$orbit42" >> deploy/local/install.env
 printf 'COMPOSE_PROJECT_NAME=%s\n' "$project_name" >> deploy/local/install.env
 model_env=${MANTA_ENV_FILE:-}

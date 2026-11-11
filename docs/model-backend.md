@@ -91,8 +91,14 @@ MCP wrappers call the same service.
 - `exportModel`: `sysml`, `compact-json`, `full-json`, or `plantuml`. PlantUML is
   emitted text only: no Java/PlantUML installation or rendering is performed.
 - `verify`: static constraint evaluation and interval propagation in the kernel.
-  Verdicts include satisfied, violated and undecided. It does not execute SysML
-  behavior, simulate a spacecraft, invoke Z3, or imply hardware compliance.
+  Verdicts include satisfied, violated and undecided. The semantic kernel itself
+  does not execute SysML behavior, simulate a spacecraft, invoke Z3, or imply
+  hardware compliance. For continuous dynamics, an explicitly submitted
+  `sysml-fmi` professional job is a separate execution path: OpenSysML runs the
+  model's FMI-backed analysis, FMPy produces a trajectory CSV, and the receipt
+  binds the exact SysML source, FMU bytes, experiment and tool versions. That
+  separate path does not turn the WASM kernel into a dynamic behavior engine or
+  claim physical correctness.
 
 Successful imports, checks and verification reports are saved under the selected
 project's `.manta/model-evidence/` and appear as normal project artifacts. Source
@@ -103,6 +109,28 @@ Currently each operation receives one textual `.sysml` compilation unit. Put
 related packages into that file; arbitrary project-wide multi-file discovery,
 server-based collaborative transactions, graphical editing and SysON/Capella
 interchange are not claimed.
+
+## Continuous SysML FMI professional jobs
+
+The pinned WASM backend remains a semantic checker; it does not interpret
+`metadata ToolExecution` or execute continuous dynamics. In Docker broker mode,
+the separate `sysml-fmi` professional backend accepts one `.sysml` source and a
+project `.fmu` dependency with its current SHA-256. The source selects an
+`analysis def` (or `calc def`) by qualified `modelName`; the FMU URI is rebound
+to the exact staged archive before evaluation. Model defaults under
+`fmi:startTime`, `fmi:stopTime`, `fmi:stepSize` and `fmi:tolerance` are honored;
+explicit `simulation` fields override the corresponding values in both OpenSysML
+and FMPy.
+
+OpenSysML evaluates the requested analysis and its assertions. FMPy runs the
+same FMU and experiment to produce `trajectory.csv`, which the professional
+result viewer renders through the existing CSV chart. A versioned execution
+receipt binds the SysML hash, FMU hash/platform, experiment, OpenSysML and FMPy
+versions, output trajectory and comparison between the analysis return and the
+trajectory's final sample. The Library simulation tab opens these jobs in the
+professional result view; it does not use the NOS3 quaternion telemetry viewer.
+
+Native FMU binaries are executable inputs, so FMI jobs use the configured Docker task runner. The FMU platform must match the task image architecture. This evidence establishes only digital execution and the declared analysis verdict; it does not establish physical correctness, HIL validation or system acceptance.
 
 ## Validation boundaries
 

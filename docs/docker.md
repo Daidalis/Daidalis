@@ -102,7 +102,7 @@ the existing environment-variable mechanism.
 ## Opt-in rootless task isolation
 
 Broker mode is a separate, narrower deployment. It starts a fresh container for
-`run_command` and each ngspice/OpenSCAD/OpenModelica job. Commands mount only one
+`run_command` and each ngspice/OpenSCAD/OpenModelica/SysML FMI job. Commands mount only one
 managed project at `/work`; professional jobs receive source snapshots and return
 bounded artifacts. Tasks have no network, Docker socket, application state or
 application credentials. Git state, executable permissions and project-local
@@ -120,7 +120,8 @@ See the [Docker rootless prerequisites](https://docs.docker.com/engine/security/
 export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
 sh deploy/docker/install-broker.sh
 # Optional: MANTA_ENV_FILE=/absolute/path/to/.env
-# Optional tool selection: MANTA_TOOLS=ngspice MANTA_MODELICA=0 MANTA_ORBIT42=0
+# Optional tool selection: MANTA_TOOLS=ngspice,sysmlsim MANTA_MODELICA=0 MANTA_ORBIT42=0
+# Optional OpenSysML + FMPy backend: MANTA_SYML_SIM=1 (default; set 0 to omit)
 # Optional isolated NOS3 component/build/integration: MANTA_BROKER_FLIGHT=1
 # --no-start builds and saves configuration without starting the application.
 ```
@@ -555,6 +556,27 @@ actual execution succeeds while critical shutdown and rearming checks fail.
 A failed engineering criterion remains failed in the UI. Reproducing a historical
 modified template requires its actual source tables; the recorded website
 manifest alone does not contain those sources.
+
+## SysML FMI continuous simulation
+
+The **full** `sh install.sh` preset includes the `sysmlsim` tool group; custom
+shared-container builds may use `--tools=sysmlsim` to add the verified packages.
+For the rootless broker deployment, `sh deploy/docker/install-broker.sh` enables
+the same toolchain by default through `MANTA_SYML_SIM=1`. Set the flag to `0`
+before building to omit it; without the backend the application reports FMI
+simulation unavailable. The toolchain is installed in a dedicated Python virtual environment and
+uses a version-pinned, checksum-verified `sysml-grpc` binary. It makes no host
+Python changes and the task has no network access at runtime.
+
+Submit a `.sysml` source plus one project-relative `.fmu` path and its current
+SHA-256 through `submit_professional_job`. The SysML source names the FMI calc
+with `metadata ToolExecution` and an analysis case; Manta snapshots the source
+and FMU together, then runs OpenSysML for assertions and FMPy for the full
+trajectory. The exact input hash, FMU platform, experiment and tool versions are
+recorded. The result CSV uses the existing professional-workbench chart, and
+Library → 仿真 lists the job. Native FMU code runs in the configured task
+container; the FMU's `binaries/` platform must match the task image architecture.
+This is digital-model evidence, not physical, HIL or system-level acceptance.
 
 Repeat app-level flight acceptance (downloads the public NOS3 checkout into a
 new managed project; the two scenarios take several minutes):

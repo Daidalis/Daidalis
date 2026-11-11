@@ -15,7 +15,7 @@ const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
 const MAX_MODEL=500000;
 const LIMITATIONS=[
   'Checks use the Open-MBEE toolkit supported syntax, resolution and semantic rule inventory; this is not complete OMG conformance certification.',
-  'The kernel does not execute SysML behaviors or NOS3 simulation. Constraint evaluation is separate from physical or integration verification.',
+  'The semantic kernel does not execute SysML behaviors or NOS3 simulation. Continuous FMI execution is a separate professional job: OpenSysML evaluates the SysML analysis verdict, FMPy supplies the plotted FMU trajectory, and neither establishes physical correctness.',
   'Unresolved referential findings fail the Manta acceptance gate even when the upstream toolkit labels them warnings.'
 ];
 function requireModelPath(value){if(typeof value!=='string'||!value.endsWith('.sysml'))throw Error('Use a project-relative .sysml model path');return value;}
