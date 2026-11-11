@@ -516,7 +516,7 @@ function renderConstraints(graph, verification, model) {
 }
 
 function elementDetails(node, graph, file) {
-  if (!node) return '<div class="document-empty">选择图中的元素查看属性和源码位置。</div>';
+  if (!node) return '<div class="document-empty"></div>';
   const edges = graph.edges.filter(edge => edge.source === node.id || edge.target === node.id), byId = new Map(graph.nodes.map(item => [item.id,item]));
   const members = node.rows?.length ? '<h4>成员</h4>' + node.rows.map(row => `<button type="button" class="semantic-member" data-document-element="${attr(row.id)}"><span>${esc(row.label)}</span><small>${esc(row.metaclass)}</small></button>`).join('') : '';
   const relationships = edges.length ? '<h4>语义关系</h4>' + edges.map(edge => {
