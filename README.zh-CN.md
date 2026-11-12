@@ -64,7 +64,7 @@ Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以�
 | **外部 MCP** | 项目级 stdio 与 Streamable HTTP 连接 | 各专业工具仍需单独配置和验收 |
 | **文档与证据** | Markdown、源码、CSV/JSON 表格与曲线、有界 GeoJSON 预览 | 已登记的作业证据只读 |
 
-在项目 Library 打开[新能源汽车](examples/physical-preview/electric-vehicle.sysml)，选择 **实物预览**。这是一辆电动轿车的外形示例，车长 4,720 mm，轴距 2,875 mm，配备 18 英寸车轮。[车身尺寸参考](https://www.tesla.com/ownersmanual/model3/en_us/GUID-56562137-FC31-4110-A13C-9A9FC6657BF0.html) · [轮毂和轮胎规格参考](https://www.tesla.com/ownersmanual/model3/en_us/GUID-FDDB10EF-FFA9-46EB-B8CC-03614AE92B6B.html)
+在项目 Library 打开[新能源汽车](examples/physical-preview/electric-vehicle.sysml)，选择 **实物预览**。这是一辆电动轿车的外形示例，车长 4,720 mm，轴距 2,875 mm，配备 18 英寸车轮。车内 `battery`、`inverter`、`motor` 与同目录记录轨迹的列名相同，可在结果页对照 60 秒起步曲线。同目录还有载荷舱的结构与热轨迹。[车身尺寸参考](https://www.tesla.com/ownersmanual/model3/en_us/GUID-56562137-FC31-4110-A13C-9A9FC6657BF0.html) · [轮毂和轮胎规格参考](https://www.tesla.com/ownersmanual/model3/en_us/GUID-FDDB10EF-FFA9-46EB-B8CC-03614AE92B6B.html)
 
 点选零件可查看毫米尺寸并跳到 SysML 声明。预览器用 `centerX/Y/Z` 定位零件，Z 轴向上。`shape = "loft"` 表示沿 X 轴连接一组截面，每个截面给出上下缘的宽度和高度，可再声明横向偏移和肩线。车轮定义用 `axis = "Y"` 指定车轴方向。修改模型并刷新文件即可更新整车外形。
 

@@ -53,7 +53,7 @@ test('a verified job table renders cards without calling the result a recording'
 });
 
 test('parallel flow edges keep separate labels at a readable size',()=>{
- const source=readFileSync(new URL('../examples/payload-bay/PayloadBay.sysml',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../examples/physical-preview/PayloadBay.sysml',import.meta.url),'utf8');
  const html=renderSimulationStage({table:{columns:['time','sensor','controller'],rows:[[0,263,263],[1,287,294]],rowCount:2},source,checks:[]});
  const labels=[...html.matchAll(/<text data-flow-label="\d+" data-flow-lane="(\d+)" x="([\d.]+)" y="([\d.]+)">/g)].map(match=>[match[1],match[2],match[3]]);
  assert.equal(labels.length,4);

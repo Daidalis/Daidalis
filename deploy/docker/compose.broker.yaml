@@ -24,6 +24,7 @@ services:
     build:
       context: .
       target: broker
+      entitlements: [network.host]
     user: "1000:1000"
     # Socket group as seen INSIDE the rootless user namespace. The installer
     # detects this without chmod/chown of the socket or adding host groups.
