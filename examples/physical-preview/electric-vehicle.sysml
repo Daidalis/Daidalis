@@ -18,8 +18,8 @@ package ElectricVehicleExterior {
            battery, inverter and motor sit inside that envelope. Their names
            match the outputs of the sibling electric-vehicle.fmu, built from
            VehicleDrive.mo. PullAwayCheck runs that 60 s pull-away and checks
-           motor, the road speed in km/h. electric-vehicle-drive.csv is a
-           recorded copy of the same trajectory. */
+           motor, the road speed in km/h. electric-vehicle-drive.csv is the
+           FMPy co-simulation of that FMU: 121 samples at 0.5 s. */
 
 
     item def RoadTyre :> ShapeItems::RightCircularCylinder {
