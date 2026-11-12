@@ -120,6 +120,16 @@ export function flowEdgesFromGraph(graph){
 export function recordedBanner(provenance){
  return provenance==='fmu-run'?'留存证据 · 非本次运行':'示例数据';
 }
+export function signalUnits(units){
+ const out={};
+ if(!units||typeof units!=='object'||Array.isArray(units))return out;
+ for(const [name,unit] of Object.entries(units)){
+  if(!/^[A-Za-z_]\w*$/.test(name)||typeof unit!=='string')continue;
+  const text=unit.trim();
+  if(text&&text.length<=16&&!/[\r\n<>]/.test(text))out[name]=text;
+ }
+ return out;
+}
 
 function sparkline(samples){
  const width=168,height=46,pad=3;
@@ -208,7 +218,7 @@ function flowDiagram(edges,bindings){
 }
 
 export function stageInput(ui={}){
- if(ui.recordedView?.table?.rows?.length)return {recorded:true,provenance:ui.recordedView.provenance==='fmu-run'?'fmu-run':'example',note:ui.recordedView.note||'',table:ui.recordedView.table,checks:ui.recordedView.checks||[],receipt:ui.recordedView.receipt||null,source:ui.draft||ui.model?.content||'',graph:ui.semanticGraph||null};
+ if(ui.recordedView?.table?.rows?.length)return {recorded:true,provenance:ui.recordedView.provenance==='fmu-run'?'fmu-run':'example',note:ui.recordedView.note||'',units:signalUnits(ui.recordedView.units),table:ui.recordedView.table,checks:ui.recordedView.checks||[],receipt:ui.recordedView.receipt||null,source:ui.draft||ui.model?.content||'',graph:ui.semanticGraph||null};
  if(ui.result?.integrity?.verified===true&&ui.result.table?.rows?.length)return {recorded:false,table:ui.result.table,checks:ui.result.verification?.checks||[],receipt:ui.result.receipt||null,source:ui.draft||ui.model?.content||'',graph:ui.semanticGraph||null};
  return null;
 }
@@ -222,9 +232,12 @@ export function renderSimulationStage(input){
  const elements=structure.elements.concat(elementsFromGraph(input.graph));
  const bindings=matchSignals(summary.signals.map(signal=>signal.name),elements);
  const banner=input.recorded?`<p class="pm-recorded" data-recorded-provenance="${esc(input.provenance)}">${esc(recordedBanner(input.provenance))}${input.provenance==='fmu-run'&&input.note?` · ${esc(input.note)}`:''}</p>`:'';
+ const units=signalUnits(input.units);
  const cards=summary.signals.map(signal=>{
   const status=signal.checks.length?signal.checks.map(check=>check.passed===true?'通过':check.passed===false?'未通过':'未判定').join('、'):'';
-  return `<article class="pm-signal-card" data-signal="${esc(signal.name)}"><header><strong>${esc(signal.name)}</strong>${status?`<span class="pm-signal-status" data-status="${esc(status)}">${esc(status)}</span>`:''}</header>${sparkline(signal.spark)}<dl><div><dt>当前</dt><dd data-signal-now="${esc(signal.name)}">${esc(formatSample(signal.last))}</dd></div><div><dt>终值</dt><dd>${esc(formatSample(signal.last))}</dd></div><div><dt>最小</dt><dd>${esc(formatSample(signal.min))}</dd></div><div><dt>最大</dt><dd>${esc(formatSample(signal.max))}</dd></div><div><dt>变化</dt><dd>${esc(formatSample(signal.delta))}</dd></div></dl>${signal.verdict?`<p class="pm-verdict">${esc(signal.verdict)}</p>`:''}</article>`;
+  const unit=units[signal.name]||'';
+  const figure=(value,live)=>`<dd>${live?`<span data-signal-now="${esc(signal.name)}">${esc(formatSample(value))}</span>`:esc(formatSample(value))}${unit?`<span class="pm-signal-unit">${esc(unit)}</span>`:''}</dd>`;
+  return `<article class="pm-signal-card" data-signal="${esc(signal.name)}"><header><strong>${esc(signal.name)}</strong>${unit?`<span class="pm-signal-unit">${esc(unit)}</span>`:''}${status?`<span class="pm-signal-status" data-status="${esc(status)}">${esc(status)}</span>`:''}</header>${sparkline(signal.spark)}<dl><div><dt>当前</dt>${figure(signal.last,true)}</div><div><dt>终值</dt>${figure(signal.last)}</div><div><dt>最小</dt>${figure(signal.min)}</div><div><dt>最大</dt>${figure(signal.max)}</div><div><dt>变化</dt>${figure(signal.delta)}</div></dl>${signal.verdict?`<p class="pm-verdict">${esc(signal.verdict)}</p>`:''}</article>`;
  }).join('');
  const last=Math.max(0,summary.rows.length-1);
  return `<section class="pm-stage" data-pm-stage>${banner}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div></section>`;
@@ -299,9 +312,10 @@ export function applySimulationFrame(root,input,{preview}={}){
   seenParts.add(binding.name);
   const value=columnValue(summary,binding.column,index);
   const part=input.parts?.find(item=>item.label===binding.name||ident(item.label)===binding.name||item.label?.split('/').at(-1)===binding.name||item.path?.endsWith('/'+binding.name));
-  emphasis.push({id:part?.id,level:levels.get(binding.name),name:binding.name,value,drive:binding.name==='motor'||binding.column==='motor'});
+  const unit=signalUnits(input.units)[binding.column]||'';
+  emphasis.push({id:part?.id,level:levels.get(binding.name),name:binding.name,value,unit,drive:binding.name==='motor'||binding.column==='motor'});
  }
  preview?.emphasize?.(emphasis.filter(item=>item.id));
  const readout=root.querySelector('[data-pm-scene-readout]');
- if(readout)readout.innerHTML=emphasis.slice(0,4).map(item=>`<span style="--level:${item.level}"><b>${esc(item.name)}</b><em>${esc(formatSample(item.value))}</em></span>`).join('');
+ if(readout)readout.innerHTML=emphasis.slice(0,4).map(item=>`<span style="--level:${item.level}"><b>${esc(item.name)}</b><em>${esc(formatSample(item.value))}</em>${item.unit?`<i>${esc(item.unit)}</i>`:''}</span>`).join('');
 }

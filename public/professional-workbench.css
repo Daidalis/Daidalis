@@ -14,8 +14,11 @@
 .pm-transport output{margin:0;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:pre}
 .pm-physical-stage{position:relative}
 .pm-scene-readout{position:absolute;left:10px;bottom:10px;z-index:2;display:grid;gap:4px;width:max-content;max-width:calc(100% - 20px);margin:0;pointer-events:none}
-.pm-scene-readout span{display:grid;grid-template-columns:8ch 8ch;column-gap:8px;align-items:baseline;padding:3px 8px;border-radius:7px;background:color-mix(in srgb,#6c8856 calc(var(--level,0) * 70%),rgb(255 255 255 / .92));font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+.pm-scene-readout span{display:grid;grid-template-columns:7.5ch 8ch max-content;column-gap:8px;align-items:baseline;padding:3px 8px;border-radius:7px;background:color-mix(in srgb,#6c8856 calc(var(--level,0) * 70%),rgb(255 255 255 / .92));font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
 .pm-scene-readout em{text-align:right}
+.pm-scene-readout i,.pm-signal-unit{font-style:normal;color:#5d6e52}
+.pm-signal-card dd{display:flex;align-items:baseline;gap:4px;white-space:nowrap}
+.pm-signal-unit{font-size:10px}
 .pm-scene-readout b{font-weight:550}
 .pm-scene-readout em{font-style:normal}
 .pm-flow-node.is-signaled rect,.semantic-node.is-signaled>rect{fill:color-mix(in srgb,#6c8856 calc(18% + var(--level,0) * 72%),#fff);stroke-width:2.4px}

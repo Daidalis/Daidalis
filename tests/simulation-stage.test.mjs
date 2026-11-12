@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {bucketMinMax,formatClock,matchSignals,recordedBanner,renderSimulationStage,stageInput,structureFromSource,tableFromCsv} from '../public/simulation-stage.mjs';
+import {bucketMinMax,formatClock,matchSignals,recordedBanner,renderSimulationStage,signalUnits,stageInput,structureFromSource,tableFromCsv} from '../public/simulation-stage.mjs';
 
 const source=readFileSync(new URL('./fixtures/model-visualization/connected-demo.sysml',import.meta.url),'utf8');
 
@@ -65,6 +65,14 @@ test('parallel flow edges keep separate labels at a readable size',()=>{
  const flow=html.match(/data-flow-kind="flow"[^>]*d="M [\d.]+ (\d+) V (\d+)" marker-end="url\(#pm-flow-arrow\)"/);
  assert.ok(flow);
  assert.ok(Number(flow[2])-Number(flow[1])>24);
+});
+
+test('recorded quantities keep their declared units',()=>{
+ assert.deepEqual(signalUnits({battery:' % ',inverter:'kW',motor:'km/h',bad:'<s>',time:'seconds and more than sixteen'}),{battery:'%',inverter:'kW',motor:'km/h'});
+ const html=renderSimulationStage({table:{columns:['time','battery','inverter','motor'],rows:[[0,78,0,0],[60,67,12,50]],rowCount:2},source:'part battery {} part inverter {} part motor {}',units:{battery:'%',inverter:'kW',motor:'km/h'},recorded:true,provenance:'example'});
+ assert.match(html,/data-signal="battery"[\s\S]*?<span class="pm-signal-unit">%/);
+ assert.match(html,/data-signal="inverter"[\s\S]*?<span class="pm-signal-unit">kW/);
+ assert.match(html,/data-signal="motor"[\s\S]*?<span class="pm-signal-unit">km\/h/);
 });
 
 test('playback clock stays the same width from the first sample to the last',()=>{
