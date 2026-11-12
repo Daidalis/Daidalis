@@ -18,6 +18,7 @@ services:
     build:
       context: .
       target: application
+      entitlements: [network.host]
       args: {TOOLCHAINS: "${MANTA_TOOLS-scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab}", WITH_MODELICA: "${MANTA_MODELICA:-1}", WITH_ORBIT42: "${MANTA_ORBIT42:-1}", WITH_SYML_SIM: "${MANTA_SYML_SIM:-1}"}
     user: "1000:1000"
     env_file:

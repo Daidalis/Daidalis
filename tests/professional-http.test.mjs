@@ -48,10 +48,10 @@ test('professional workbench identifies real source parameters and escapes sourc
  const source='package STF\n model Mission\n parameter Real solarPower(unit="W")=24;\n parameter Integer count=4;\nend Mission; end STF;';
  assert.equal(inferModelName(source),'STF.Mission');assert.deepEqual(numericModelParameters(source),[{name:'solarPower',value:24},{name:'count',value:4}]);
  const html=renderProfessionalWorkbench({draft:'</textarea><img src=x onerror=alert(1)>',path:'models/A.mo',catalog:{tools:[{id:'openmodelica',environment:{ready:true,state:'ready'}}]}});
- assert.doesNotMatch(html,/<img src=x/);assert.match(html,/&lt;\/textarea&gt;/);assert.match(html,/运行仿真/);assert.match(html,/隔离求解环境 · 可用/);
+ assert.doesNotMatch(html,/<img src=x/);assert.match(html,/&lt;\/textarea&gt;/);assert.match(html,/运行仿真/);assert.match(html,/准备 \/ 连接环境/);assert.doesNotMatch(html,/隔离求解环境/);
 });
 
-test('native workbench time controls and output filters apply only to appropriate tools',()=>{assert.deepEqual(parseOutputSignals('a[1,2].x, temperature\nq[1]'),['a[1,2].x','temperature','q[1]']);const c=renderProfessionalWorkbench({path:'models/EPS.cir',catalog:{environment:{status:'ready'}}});assert.doesNotMatch(c,/name="stopTime"|name="signals"/);assert.match(c,/隔离求解环境 · 可用/);const s=renderProfessionalWorkbench({path:'models/System.sysml'});assert.match(s,/value="simulate"/);assert.match(s,/name="fmuPath"/);assert.match(renderProfessionalWorkbench({path:'models/Cube.scad'}),/生成几何/);});
+test('native workbench time controls and output filters apply only to appropriate tools',()=>{assert.deepEqual(parseOutputSignals('a[1,2].x, temperature\nq[1]'),['a[1,2].x','temperature','q[1]']);const c=renderProfessionalWorkbench({path:'models/EPS.cir',catalog:{environment:{status:'ready'}}});assert.doesNotMatch(c,/name="stopTime"|name="signals"/);assert.match(c,/准备 \/ 连接环境/);assert.doesNotMatch(c,/隔离求解环境/);const s=renderProfessionalWorkbench({path:'models/System.sysml'});assert.match(s,/value="simulate"/);assert.match(s,/name="fmuPath"/);assert.match(renderProfessionalWorkbench({path:'models/Cube.scad'}),/生成几何/);});
 
 test('invalid new-file hash fails before requesting approval',async()=>{
  let approvals=0;

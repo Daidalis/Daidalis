@@ -21,6 +21,12 @@
   outline-offset: -2px;
 }
 
+.physical-preview-3d {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
 .physical-preview-3d canvas {
   position: absolute;
   inset: 0;
