@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 APP_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-APP_DATA=${MBSE_DATA_DIR:-"$APP_ROOT/data"}
+. "$APP_ROOT/scripts/legacy-env.sh"
+APP_DATA=${DAIDALIS_DATA_DIR:-"$APP_ROOT/data"}
 PID_FILE="$APP_DATA/server.pid"
 if [ -f "$PID_FILE" ]; then
   APP_PID=$(cat "$PID_FILE")

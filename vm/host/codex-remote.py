@@ -8,19 +8,22 @@ import sys
 import json
 import threading
 import signal
+from name_compat import profile, ssh_command
 
 base=pathlib.Path(__file__).resolve().parent.parent
 state=base/'state'
-slug=os.environ.get('MANTA_REMOTE_PROJECT_SLUG','')
+names=profile(state)
+slug=os.environ.get('DAIDALIS_REMOTE_PROJECT_SLUG','')
 if not re.fullmatch(r'[A-Za-z0-9_-]{8,100}',slug):raise SystemExit('Missing isolated project identifier')
 if sys.argv[1:2]!=['app-server']:raise SystemExit('Only the native Codex app-server transport is supported')
 socket=subprocess.check_output(['/usr/bin/python3',str(base/'host/vm-runtime.py'),str(state)],text=True).strip()
-options=['-F','/dev/null','-T','-i',str(state/'id_ed25519'),'-o',f'ProxyCommand=/usr/bin/nc -U {socket}','-o',f'UserKnownHostsFile={state}/known_hosts','-o','GlobalKnownHostsFile=/dev/null','-o','HostKeyAlias=manta-nos3-local-vm','-o','StrictHostKeyChecking=yes','-o','IdentitiesOnly=yes','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','ServerAliveInterval=10','-o','ServerAliveCountMax=3']
+options=['-F','/dev/null','-T','-i',str(state/'id_ed25519'),'-o',f'ProxyCommand=/usr/bin/nc -U {socket}','-o',f'UserKnownHostsFile={state}/known_hosts','-o','GlobalKnownHostsFile=/dev/null','-o','HostKeyAlias='+names['alias'],'-o','StrictHostKeyChecking=yes','-o','IdentitiesOnly=yes','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','ServerAliveInterval=10','-o','ServerAliveCountMax=3']
 env={'PATH':'/usr/bin:/bin:/usr/sbin:/sbin','LANG':'en_US.UTF-8','HOME':os.path.expanduser('~')}
-keys=[(name,value) for name,value in os.environ.items() if re.fullmatch(r'SYSPILOT_CODEX_KEY_[A-F0-9]{32}',name)]
+keys=[(name,value) for name,value in os.environ.items() if re.fullmatch(r'DAIDALIS_CODEX_KEY_[A-F0-9]{32}',name)]
 if len(keys)>1:raise SystemExit('Only one native model key may be sent per turn')
 handshake={'keyName':keys[0][0],'keyValue':keys[0][1]} if keys else {}
-child=subprocess.Popen(['/usr/bin/ssh',*options,'manta@localhost',f'python3 /mnt/manta-transfer/worker/codex-remote-launch.py {slug}'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
+command=ssh_command(f'python3 /mnt/daidalis-transfer/worker/codex-remote-launch.py {slug}',names)
+child=subprocess.Popen(['/usr/bin/ssh',*options,names['user']+'@localhost',command],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env)
 def relay(source,target,close=False):
  try:
   while True:

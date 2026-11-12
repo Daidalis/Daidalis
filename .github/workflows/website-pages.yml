@@ -50,13 +50,13 @@ jobs:
         env:
           PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
         run: |
-          node website/scripts/prepare-pages.mjs --output "$RUNNER_TEMP/manta-pages" --base-url "$PAGES_BASE_URL"
-          node website/scripts/check.mjs --root "$RUNNER_TEMP/manta-pages"
+          node website/scripts/prepare-pages.mjs --output "$RUNNER_TEMP/daidalis-pages" --base-url "$PAGES_BASE_URL"
+          node website/scripts/check.mjs --root "$RUNNER_TEMP/daidalis-pages"
 
       - name: Upload static website only
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
-          path: ${{ runner.temp }}/manta-pages
+          path: ${{ runner.temp }}/daidalis-pages
           retention-days: 1
 
   deploy:

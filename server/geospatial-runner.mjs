@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -31,8 +32,8 @@ export function createGeospatialRunner({vmRoot,execute=executeLocalVm,hostPlatfo
   }
   async function stageScript(name,{signal}={}){
     const bytes=await sourceScript(name);
-    const digest=sha(bytes),target='/srv/manta/geospatial-worker/'+name,temporary=target+'.next-'+crypto.randomUUID().replaceAll('-','');
-    const script=`sudo install -d -o manta -g manta -m 0700 /srv/manta/geospatial-worker && umask 077 && cat > ${temporary} && test "$(sha256sum ${temporary} | cut -d ' ' -f 1)" = ${digest} && mv ${temporary} ${target} && test "$(sha256sum ${target} | cut -d ' ' -f 1)" = ${digest} && printf '%s' ${digest}`;
+    const digest=sha(bytes),target='/srv/daidalis/geospatial-worker/'+name,temporary=target+'.next-'+crypto.randomUUID().replaceAll('-','');
+    const script=`sudo install -d -o daidalis -g daidalis -m 0700 /srv/daidalis/geospatial-worker && umask 077 && cat > ${temporary} && test "$(sha256sum ${temporary} | cut -d ' ' -f 1)" = ${digest} && mv ${temporary} ${target} && test "$(sha256sum ${target} | cut -d ' ' -f 1)" = ${digest} && printf '%s' ${digest}`;
     const staged=await command(script,{input:bytes,signal,timeoutMs:30000});
     if(staged.code!==0||staged.stdout.trim()!==digest)throw Error('Guest-local GIS script staging or digest verification failed: '+String(staged.stderr||staged.stdout).slice(-1500));
     return digest;
@@ -44,7 +45,7 @@ export function createGeospatialRunner({vmRoot,execute=executeLocalVm,hostPlatfo
       if(runtime.state!=='running')return {ready:false,status:'not-prepared',reason:'Managed Linux VM is not running',isolated:true,hostGlobalChanges:false};
       const expected=sha(await sourceScript('geospatial-run.py'));
       const statusHash=sha(await sourceScript('geospatial-status.py'));
-      const probe=parsed(await command('if test ! -f /srv/manta/geospatial-worker/geospatial-status.py; then printf \'{"ready":false,"reason":"Geospatial status script absent"}\'; elif test "$(sha256sum /srv/manta/geospatial-worker/geospatial-status.py | cut -d " " -f 1)" != '+statusHash+'; then if test ! -f /srv/manta/receipts/geospatial-ready.json; then printf \'{"ready":false,"reason":"Geospatial status script update available before readiness receipt"}\'; else printf \'{"ready":false,"reason":"Managed geospatial status script hash mismatch"}\'; fi; else python3 /srv/manta/geospatial-worker/geospatial-status.py '+expected+'; fi',{timeoutMs:25000}),'GIS status');
+      const probe=parsed(await command('if test ! -f /srv/daidalis/geospatial-worker/geospatial-status.py; then printf \'{"ready":false,"reason":"Geospatial status script absent"}\'; elif test "$(sha256sum /srv/daidalis/geospatial-worker/geospatial-status.py | cut -d " " -f 1)" != '+statusHash+'; then if test ! -f /srv/daidalis/receipts/geospatial-ready.json; then printf \'{"ready":false,"reason":"Geospatial status script update available before readiness receipt"}\'; else printf \'{"ready":false,"reason":"Managed geospatial status script hash mismatch"}\'; fi; else python3 /srv/daidalis/geospatial-worker/geospatial-status.py '+expected+'; fi',{timeoutMs:25000}),'GIS status');
       const state=probe.ready?'ready':/absent/.test(probe.reason||'')?'not-prepared':['Reviewed managed worker update available','Geospatial status script update available before readiness receipt'].includes(probe.reason)?'update-available':'blocked';
       return {...probe,status:state,isolated:true,hostGlobalChanges:false};
     }catch(error){return {ready:false,status:'not-prepared',reason:String(error.message).slice(-2000),isolated:true,hostGlobalChanges:false};}
@@ -55,7 +56,7 @@ export function createGeospatialRunner({vmRoot,execute=executeLocalVm,hostPlatfo
     if(!preparing){preparing=(async()=>{
       const runtime=parsed(await helper('vm-status.sh',[],{signal,timeoutMs:15000}),'VM status');
       if(runtime.state!=='running'){
-        onLog('Preparing Manta isolated Linux VM for GDAL/PROJ.\n');
+        onLog('Preparing Daidalis isolated Linux VM for GDAL/PROJ.\n');
         for(const [name,timeoutMs] of [['vm-prepare.sh',1800000],['vm-start.sh',240000]]){
           const result=await helper(name,[],{signal,timeoutMs,onLog});if(result.code!==0)throw Error(('Isolated VM preparation failed: '+(result.stderr||result.stdout)).slice(-3000));
         }
@@ -66,7 +67,7 @@ export function createGeospatialRunner({vmRoot,execute=executeLocalVm,hostPlatfo
       await stageScript('geospatial-status.py',{signal});
       await stageScript('prepare-geospatial.sh',{signal});
       onLog('Installing exact GDAL/PROJ packages inside the isolated Linux VM.\n');
-      const installed=await command('bash /srv/manta/geospatial-worker/prepare-geospatial.sh',{signal,timeoutMs:1800000,onLog});
+      const installed=await command('bash /srv/daidalis/geospatial-worker/prepare-geospatial.sh',{signal,timeoutMs:1800000,onLog});
       if(installed.code!==0)throw Error(('Isolated GIS preparation failed: '+(installed.stderr||installed.stdout)).slice(-4000));
       const ready=await status();if(!ready.ready)throw Error('GDAL/PROJ readiness failed: '+ready.reason);return ready;
     })().finally(()=>{preparing=null;});preparing.catch(()=>{});}
@@ -80,10 +81,10 @@ export function createGeospatialRunner({vmRoot,execute=executeLocalVm,hostPlatfo
     readiness=await status();if(!readiness.ready)throw Error('GIS tool changed before execution: '+readiness.reason);
     const controller=new AbortController();controllers.add(controller);const abort=()=>controller.abort(signal?.reason||cancelled());signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
     try{
-      const input=JSON.stringify({schema:'manta-geospatial-job-v1',...request,sourceBytes:request.sourceBytes.length,sourceBase64:request.sourceBytes.toString('base64')});
-      const cmd='test "$(sha256sum /srv/manta/geospatial-worker/geospatial-run.py | cut -d " " -f 1)" = '+readiness.workerSha256+' && bwrap --unshare-all --die-with-parent --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /bin /bin --ro-bind /etc /etc --ro-bind /srv/manta/geospatial-worker /srv/manta/geospatial-worker --dev /dev --proc /proc --tmpfs /tmp --chdir /tmp /usr/bin/python3 /srv/manta/geospatial-worker/geospatial-run.py';
+      const input=JSON.stringify({schema:'daidalis-geospatial-job-v1',...request,sourceBytes:request.sourceBytes.length,sourceBase64:request.sourceBytes.toString('base64')});
+      const cmd='test "$(sha256sum /srv/daidalis/geospatial-worker/geospatial-run.py | cut -d " " -f 1)" = '+readiness.workerSha256+' && bwrap --unshare-all --die-with-parent --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /bin /bin --ro-bind /etc /etc --ro-bind /srv/daidalis/geospatial-worker /srv/daidalis/geospatial-worker --dev /dev --proc /proc --tmpfs /tmp --chdir /tmp /usr/bin/python3 /srv/daidalis/geospatial-worker/geospatial-run.py';
       const output=parsed(await command(cmd,{input,signal:controller.signal,timeoutMs:180000,maxOutputBytes:5*1024*1024,maxTotalBytes:8*1024*1024}),'Isolated GIS worker');
-      if(output.schema!=='manta-geospatial-runner-result-v1'||!Number.isInteger(output.exitCode)||typeof output.success!=='boolean'||!Array.isArray(output.files))throw Error('Malformed GIS worker result');
+      if(!productSchemaMatches(output.schema,'daidalis-geospatial-runner-result-v1')||!Number.isInteger(output.exitCode)||typeof output.success!=='boolean'||!Array.isArray(output.files))throw Error('Malformed GIS worker result');
       if(output.success){
         if(output.receipt?.inputHash!==request.inputHash||output.receipt.sourceSha256!==request.sourceHash||output.receipt.workerSha256!==readiness.workerSha256||output.receipt.toolVersions?.gdal!==readiness.versions?.gdal||output.receipt.toolVersions?.proj!==readiness.versions?.proj)throw Error('GIS worker receipt differs from pinned inputs or toolchain');
       }

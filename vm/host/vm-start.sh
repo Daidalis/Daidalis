@@ -4,6 +4,8 @@ export PYTHONDONTWRITEBYTECODE=1
 umask 077
 base=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 state="$base/state"
+/usr/bin/python3 "$base/host/name_compat.py" "$state" --save-profile
+eval "$(/usr/bin/python3 "$base/host/name_compat.py" "$state" --shell)"
 mkdir -p "$state"
 chmod 700 "$state"
 if [ -f "$state/vm.pid" ] && kill -0 "$(cat "$state/vm.pid")" 2>/dev/null; then
@@ -30,12 +32,12 @@ while [ "$attempt" -lt 90 ]; do
     cat "$state/host.log" >&2
     exit 1
   fi
-  if "$base/host/vm-exec.sh" 'test -e /var/lib/cloud/instance/boot-finished && test -d /mnt/manta-transfer' >/dev/null 2>&1; then
-    /usr/bin/python3 - "$state/runtime.json" <<'PY'
+  if "$base/host/vm-exec.sh" 'test -e /var/lib/cloud/instance/boot-finished && test -d /mnt/daidalis-transfer' >/dev/null 2>&1; then
+    /usr/bin/python3 - "$state/runtime.json" "$DAIDALIS_VM_USER" <<'PY'
 import json, sys, datetime
 from pathlib import Path
 path=Path(sys.argv[1]); data=json.loads(path.read_text())
-data.update(guestReady=True,guestBootState='ready',guestUser='manta',guestArchitecture='aarch64',guestDistribution='Ubuntu 22.04',updatedAt=datetime.datetime.now(datetime.timezone.utc).isoformat())
+data.update(guestReady=True,guestBootState='ready',guestUser=sys.argv[2],guestArchitecture='aarch64',guestDistribution='Ubuntu 22.04',updatedAt=datetime.datetime.now(datetime.timezone.utc).isoformat())
 path.write_text(json.dumps(data,indent=2)+'\n')
 PY
     cat "$state/runtime.json"

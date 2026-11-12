@@ -10,14 +10,14 @@ import {createStore} from '../server/store.mjs';
 const legacyHosts=['raw.githubusercontent.com','github.com','nos3.org','nasa.gov','www.nasa.gov','science.nasa.gov','ntrs.nasa.gov','nodis3.gsfc.nasa.gov','nos3.readthedocs.io','www.census.gov','www2.census.gov','www.usgs.gov'];
 
 function fixture(t){
-  const base=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'manta-stf-resume-')));
+  const base=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'daidalis-stf-resume-')));
   t.after(()=>fs.rmSync(base,{recursive:true,force:true}));
   const root=path.join(base,'studio'),vm=path.join(base,'linux-vm'),evalRoot=path.join(base,'eval');
-  const slug='stf0123456789abcdef01',workspace=path.join(vm,'handoff','eval-workspaces',slug),dataDir=path.join(evalRoot,'manta-data');
+  const slug='stf0123456789abcdef01',workspace=path.join(vm,'handoff','eval-workspaces',slug),dataDir=path.join(evalRoot,'daidalis-data');
   for(const dir of [root,workspace,dataDir])fs.mkdirSync(dir,{recursive:true});
   fs.writeFileSync(path.join(dataDir,'state.json'),'{}');
   const manifestPath=path.join(evalRoot,'boundary.json');
-  const manifest={schema:'manta-requirements-first-eval-v1',projectId:'project_01234567',coordinatorThreadId:'thread_01234567',workspace,guestWorkspace:'/work',guestSessionPath:`/srv/manta/agent-eval/sessions/${slug}`,dataDir,sourceRoot:root,vmRoot:vm,port:4319,initialWorkspaceEntries:[],disabledAgentTools:['run_command','list_external_tools','call_external_tool','prepare_nos3_model','bind_nos3_results','inspect_nos3','prepare_nos3_environment','submit_nos3_job','get_nos3_job','wait_nos3_job','cancel_nos3_job','computer_use'],referenceImportDisabled:true,externalMcpDisabled:true,computerDisabled:true,nos3Disabled:true,professionalRunnerMode:'generic-only',nativeRuntime:'codex-app-server in Linux Bubblewrap',nativeReadIsolation:'guest default-deny mount namespace; one project bind'};
+  const manifest={schema:'daidalis-requirements-first-eval-v1',projectId:'project_01234567',coordinatorThreadId:'thread_01234567',workspace,guestWorkspace:'/work',guestSessionPath:`/srv/daidalis/agent-eval/sessions/${slug}`,dataDir,sourceRoot:root,vmRoot:vm,port:4319,initialWorkspaceEntries:[],disabledAgentTools:['run_command','list_external_tools','call_external_tool','prepare_nos3_model','bind_nos3_results','inspect_nos3','prepare_nos3_environment','submit_nos3_job','get_nos3_job','wait_nos3_job','cancel_nos3_job','computer_use'],referenceImportDisabled:true,externalMcpDisabled:true,computerDisabled:true,nos3Disabled:true,professionalRunnerMode:'generic-only',nativeRuntime:'codex-app-server in Linux Bubblewrap',nativeReadIsolation:'guest default-deny mount namespace; one project bind'};
   fs.writeFileSync(manifestPath,JSON.stringify(manifest));
   const state={projects:[{id:manifest.projectId,coordinatorThreadId:manifest.coordinatorThreadId,folderPath:workspace}],threads:[{id:manifest.coordinatorThreadId,projectId:manifest.projectId,kind:'coordinator'}],runs:[],providers:[{id:'codex-local',type:'codex-app-server',keyEnv:''}]};
   return {root,vm,evalRoot,workspace,manifestPath,manifest,state};
@@ -67,12 +67,12 @@ test('legacy null and omitted host fields retain the original pinned defaults',t
   }
 });
 
-test('the actual frozen STF boundary shape creates a valid v2 only in a temporary read-only fixture', {skip:!fs.existsSync((process.env.MANTA_TEST_STF_BOUNDARY||''))}, t=>{
-  const livePath=(process.env.MANTA_TEST_STF_BOUNDARY||'');
+test('the actual frozen STF boundary shape creates a valid v2 only in a temporary read-only fixture', {skip:!fs.existsSync((process.env.DAIDALIS_TEST_STF_BOUNDARY||''))}, t=>{
+  const livePath=(process.env.DAIDALIS_TEST_STF_BOUNDARY||'');
   const liveBytes=fs.readFileSync(livePath),liveHash=createHash('sha256').update(liveBytes).digest('hex');
   assert.equal(liveHash,'74f5be0c38d49f247652dc0570e45b33d70f1a36eef2edd8cd90805b5b519c4f');
   const f=fixture(t),original=JSON.parse(liveBytes.toString('utf8'));
-  const copy={...original,sourceRoot:f.root,vmRoot:f.vm,dataDir:path.join(f.evalRoot,'manta-data'),workspace:f.workspace,guestSessionPath:f.manifest.guestSessionPath};
+  const copy={...original,sourceRoot:f.root,vmRoot:f.vm,dataDir:path.join(f.evalRoot,'daidalis-data'),workspace:f.workspace,guestSessionPath:f.manifest.guestSessionPath};
   fs.writeFileSync(f.manifestPath,JSON.stringify(copy,null,2)+'\n');
   assert.equal(copy.proxyMappedPublicHosts,undefined);
   const change=createSourceBoundaryAmendment(f.manifestPath,{rationale:'Pin official NOS3 commit metadata from the GitHub API.',root:f.root,vm:f.vm});
@@ -218,7 +218,7 @@ test('explicit v4 switch updates future Agent selection without rewriting histor
 });
 
 test('isolated Claude bootstrap does not re-add a deleted Codex provider',t=>{
-  const f=fixture(t),dataDir=path.join(f.evalRoot,'manta-data');
+  const f=fixture(t),dataDir=path.join(f.evalRoot,'daidalis-data');
   const store=createStore({dataDir,root:f.root,seed:false,addDefaultCodexProvider:false});
   assert.deepEqual(store.data.providers.map(provider=>provider.id),['demo','claude-local']);
   const ordinary=createStore({dataDir,root:f.root,seed:false});
@@ -277,9 +277,9 @@ test('v5 pins only isolated orbit-ground tools and a 24-turn native worker budge
 });
 
 test('the actual isolated STF v4 bytes still match the previously recorded SHA-256',{
-  skip:!fs.existsSync((process.env.MANTA_TEST_STF_BOUNDARY_V4||''))
+  skip:!fs.existsSync((process.env.DAIDALIS_TEST_STF_BOUNDARY_V4||''))
 },()=>{
-  const livePath=(process.env.MANTA_TEST_STF_BOUNDARY_V4||'');
+  const livePath=(process.env.DAIDALIS_TEST_STF_BOUNDARY_V4||'');
   const bytes=fs.readFileSync(livePath);
   assert.equal(createHash('sha256').update(bytes).digest('hex'),'06c4a4c62e4325d098959c6569852f77464f869cd46454c61eb88acd6fc7c9f0');
   assert.equal(validateResumeBoundary(JSON.parse(bytes),livePath).workspace.includes('/eval-workspaces/stf'),true);

@@ -13,8 +13,8 @@ function gate(){let open;const promise=new Promise(resolve=>{open=resolve;});ret
 async function waitForGate(control,signal){if(signal?.aborted)return;let abort;try{await Promise.race([control.promise,new Promise(resolve=>{abort=resolve;signal?.addEventListener('abort',abort,{once:true});})]);}finally{signal?.removeEventListener('abort',abort);}}
 
 async function fixture(t,options={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-settings-http-')),dataDir=path.join(root,'data'),folders=[];
-  await fs.mkdir(path.join(root,'public'));await fs.writeFile(path.join(root,'public/index.html'),'<html>Manta</html>');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-settings-http-')),dataDir=path.join(root,'data'),folders=[];
+  await fs.mkdir(path.join(root,'public'));await fs.writeFile(path.join(root,'public/index.html'),'<html>Daidalis</html>');
   let app,base;
   t.after(async()=>{if(app)await app.close();await fs.rm(root,{recursive:true,force:true});for(const folder of folders)await fs.rm(folder,{recursive:true,force:true});});
   const f={
@@ -24,7 +24,7 @@ async function fixture(t,options={}){
     async restart(){await app.close();return f.boot();},
     async api(route,method='GET',body,headers={}){const response=await fetch(base+route,{method,headers:{...(body===undefined?{}:{'content-type':'application/json'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,data:await response.json()};},
     async forgedHost(){return new Promise((resolve,reject)=>{http.get(base+'/api/settings',{headers:{host:'evil.example'}},response=>{response.resume();resolve(response.statusCode);}).on('error',reject);});},
-    async project(name){const folder=await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-settings-project-'));folders.push(folder);const result=await f.api('/api/projects','POST',{name,folderPath:folder,resources:{maxAutoResumes:0}});assert.equal(result.status,201);return result.data;},
+    async project(name){const folder=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-settings-project-'));folders.push(folder);const result=await f.api('/api/projects','POST',{name,folderPath:folder,resources:{maxAutoResumes:0}});assert.equal(result.status,201);return result.data;},
     async send(project,permissionMode){const result=await f.api(`/api/threads/${project.coordinatorThreadId}/messages`,'POST',{content:'Inspect the stated assumptions.',providerId:'demo',...(permissionMode===undefined?{}:{permissionMode})});assert.equal(result.status,202);return result.data;},
     async complete(run){await eventually(()=>!f.app.engine.active.has(run.id),20000);const result=f.app.store.get('runs',run.id);assert.equal(result.status,'completed',result.error||`Run ${run.id} did not complete`);return result;},
   };

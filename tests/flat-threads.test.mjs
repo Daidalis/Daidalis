@@ -6,7 +6,7 @@ import path from 'node:path';
 import {createStore,id,now} from '../server/store.mjs';
 
 test('new conversations have exactly Coordinator and one thread level',async t=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-flat-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-flat-'));
   t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const store=createStore({dataDir:path.join(root,'data'),seed:false});
   const project=store.createProject({name:'Flat engineering project'});
@@ -18,7 +18,7 @@ test('new conversations have exactly Coordinator and one thread level',async t=>
 });
 
 test('historical nested threads become Coordinator peers without losing their chat or delivery',async t=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-flat-legacy-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-flat-legacy-'));
   t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const dataDir=path.join(root,'data'),store=createStore({dataDir,seed:false});
   const project=store.createProject({name:'Existing engineering project'});

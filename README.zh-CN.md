@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/readme-cover.svg" alt="Manta — 用对话推进系统工程。从目标到模型、仿真与证据。" width="100%">
+  <img src="docs/assets/readme-cover.svg" alt="Daidalis — 用对话推进系统工程。从目标到模型、仿真与证据。" width="100%">
 </p>
 
 <p align="center">
@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://mingxiye.github.io/Manta/">产品网站与交互演示</a> ·
+  <a href="docs/github-pages.md">产品网站与演示说明</a> ·
   <a href="#开始使用">开始使用</a> ·
   <a href="docs/demo.md">STF 演示指南</a> ·
   <a href="README.md">English</a>
@@ -16,16 +16,16 @@
 
 ---
 
-Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以从一个工程目标、现有模型或失败测试开始，与 **Coordinator 和一层并列任务 thread** 交流，再从对话中打开模型、文档、仿真和证据。
+Daidalis 希望把与编程 Agent 协作的方式带到系统工程中。你可以从一个工程目标、现有模型或失败测试开始，与 **Coordinator 和一层并列任务 thread** 交流，再从对话中打开模型、文档、仿真和证据。
 
 产品的目标是让复杂工程可以通过语言来推进。专业工具、可追溯的决定和有效证据仍然是工程工作的基础。
 
 > [!NOTE]
-> Manta 当前是研究原型。部分工具链与工程增量已实际执行，完整 STF 任务开发和验收尚未完成。网站演示回放已保存的执行结果，不会启动实时 Agent 或求解器。产品网站现为公开静态展示，不是托管 Agent 服务。
+> Daidalis 当前是研究原型。部分工具链与工程增量已实际执行，完整 STF 任务开发和验收尚未完成。网站演示回放已保存的执行结果，不会启动实时 Agent 或求解器。产品网站现为公开静态展示，不是托管 Agent 服务。
 
 ## 先看看它如何工作
 
-**[打开 STF 交互演示 →](https://mingxiye.github.io/Manta/#demo)**
+**[预览 STF 交互演示 →](website/README.md#preview-and-validate-locally)**
 
 网站改用 GitHub Pages；维护者启用 Pages 后此地址才会可用。[配置说明](docs/github-pages.md)。
 
@@ -45,7 +45,7 @@ Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以�
 
 **工具随着任务出现。** 模型、代码、电路、几何和仿真结果都是可以打开检查的产物。中间调用与日志按需展开，重要结论和产物入口留在对话中；失败结果与修订后的结果一起保留。
 
-**选择熟悉的 Agent，配置自己的模型。** Manta 复用 **Codex app-server** 和 **Claude Agent SDK** 的原生运行时。模型名、endpoint 和 API key 是连接配置；自定义提供方需实际测试，API 兼容不意味着所有 Agent 功能都兼容。
+**选择熟悉的 Agent，配置自己的模型。** Daidalis 复用 **Codex app-server** 和 **Claude Agent SDK** 的原生运行时。模型名、endpoint 和 API key 是连接配置；自定义提供方需实际测试，API 兼容不意味着所有 Agent 功能都兼容。
 
 **接着已有项目继续。** 选择工程文件夹后，可以要求调查故障、修改需求、比较方案或准备评审。流程允许迭代返工，各部分不必处于相同阶段。V 模型表达设计与验证的对应关系，不是强制单向前进的向导。
 
@@ -53,7 +53,7 @@ Manta 希望把与编程 Agent 协作的方式带到系统工程中。你可以�
 
 下面列出源码中的适配器与工作面。可用性取决于项目配置；安装 Node 应用不会自动配齐全部求解器。
 
-| 接入 | Manta 中可做的工作 | 当前范围 |
+| 接入 | Daidalis 中可做的工作 | 当前范围 |
 | --- | --- | --- |
 | **SysML v2 / KerML** | 源码编辑、语义检查、查询、结构图、大纲与诊断 | 固定 Open-MBEE 内核；Docker task runner 可执行 FMI 连续分析并保存判定与轨迹；内核本身不执行 SysML 动态行为 |
 | **OpenModelica** | 模型与参数编辑、原生作业、曲线及 CSV 导出 | 需要配置执行环境 |
@@ -79,8 +79,8 @@ Capella、Cameo、MATLAB/Simulink、FEM、RF、PCB 和硬件平台尚不能视�
 都安装在镜像里，不需要在宿主机安装工程工具链。
 
 ```sh
-git clone https://github.com/MingxiYe/Manta.git
-cd Manta
+git clone https://github.com/Daidalis/Daidalis.git
+cd Daidalis
 sh install.sh                    # 全部支持的工具组，包含 NOS3
 # 或：sh install.sh --preset=minimal
 # 或：sh install.sh --tools=scipy,ngspice,modelica
@@ -142,7 +142,7 @@ npm start
 
 这段需求描述的是**从需求开始的目标案例**，不承诺完整任务已经开发或验收通过。现有候选设计文档是评测参考，不应偷偷预装为从零测试的输入。网站中的已记录演示是范围更小、单独验收的工程增量。
 
-## Manta 如何组织工作
+## Daidalis 如何组织工作
 
 ```mermaid
 flowchart LR
@@ -156,15 +156,15 @@ flowchart LR
   E --> C
 ```
 
-Manta 管理项目上下文、任务协调、权限桥、产物导航和证据交接；Codex 与 Claude 提供原生 Agent 运行时。专业执行使用配置好的工具和 runner。任务完成、求解成功、判据通过和系统被接受，各有各的依据。
+Daidalis 管理项目上下文、任务协调、权限桥、产物导航和证据交接；Codex 与 Claude 提供原生 Agent 运行时。专业执行使用配置好的工具和 runner。任务完成、求解成功、判据通过和系统被接受，各有各的依据。
 
 ## 正在推进的目标
 
-**先完整 STF，再 Apollo。** Manta 的目标是支持任务需求、设计、实现、集成、验证、确认及后续变更等真实系统工程工作。
+**先完整 STF，再 Apollo。** Daidalis 的目标是支持任务需求、设计、实现、集成、验证、确认及后续变更等真实系统工程工作。
 
 当前里程碑包括有限范围的模型校验、数值分析与选定软件集成。完整任务覆盖、数据交付、更全面的详细设计、硬件/HIL、环境与寿命试验，以及独立评审仍有未完成项。适用要求会保持开放，直到有效证据或有权者的决定将其闭合。
 
-长期体验是“说出想开发的复杂系统，再通过对话把它做出来”。Manta 尚未完成 Model 3、Apollo 飞船或完整验收通过的 STF 任务。
+长期体验是“说出想开发的复杂系统，再通过对话把它做出来”。Daidalis 尚未完成 Model 3、Apollo 飞船或完整验收通过的 STF 任务。
 
 ## 开发与深入阅读
 
@@ -174,6 +174,6 @@ Manta 管理项目上下文、任务协调、权限桥、产物导航和证据�
 
 仓库不包含密钥、运行聊天、虚拟机磁盘、下载的第三方工程及完整工程证据工作区。网站仅收录经整理的已记录示例，详见 [REPOSITORY_SCOPE.md](REPOSITORY_SCOPE.md)。
 
-**许可证：** Manta 自有代码与原创文档采用 [Apache 2.0](LICENSE)，版权署名为 Copyright 2026 MingxiYe。详见 [NOTICE](NOTICE) 和[第三方声明](THIRD_PARTY_NOTICES.md)；随附组件与上游衍生内容保留各自许可。
+**许可证：** Daidalis 自有代码与原创文档采用 [Apache 2.0](LICENSE)，版权署名为 Copyright 2026 MingxiYe。详见 [NOTICE](NOTICE) 和[第三方声明](THIRD_PARTY_NOTICES.md)；随附组件与上游衍生内容保留各自许可。
 
 公开前检查、实际测试范围与未完成的发布条件见[公开源码审查](docs/public-readiness.md)。

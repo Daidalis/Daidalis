@@ -10,7 +10,7 @@ import {createModelBackendService} from '../server/model-backend.mjs';
 
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 async function fixture(t, extras={}) {
-  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'manta-viewer-'));
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-viewer-'));
   t.after(()=>fs.rm(directory,{recursive:true,force:true}));
   const store=createStore({dataDir:path.join(directory,'state'),seed:false});
   const project=store.createProject({name:'Viewer fixture'}), workspace=store.workspace(project.id);
@@ -60,7 +60,7 @@ test('file presentation is bounded, content hashed and never turns HTML, SVG or 
 test('project paths reject cross-project traversal, symbolic links, credentials and hidden configuration',async t=>{
   const f=await fixture(t), projectId=f.project.id;
   await fs.writeFile(path.join(f.directory,'private.md'),'PRIVATE');await fs.symlink(f.directory,path.join(f.workspace,'escape'));
-  for(const relative of ['../private.md','/etc/passwd','escape/private.md','.git/config','.ssh/id_ed25519','keys/client.pem','keys/service.json','api-key.json','secrets.json','.manta/worker.json','.Manta/worker.json','nested/.manta/worker.json','a/../private.md']) await assert.rejects(f.viewer.read({projectId,path:relative}),/path|workspace|configuration|Credential|Symbolic/i);
+  for(const relative of ['../private.md','/etc/passwd','escape/private.md','.git/config','.ssh/id_ed25519','keys/client.pem','keys/service.json','api-key.json','secrets.json','.daidalis/worker.json','.Daidalis/worker.json','nested/.daidalis/worker.json','a/../private.md']) await assert.rejects(f.viewer.read({projectId,path:relative}),/path|workspace|configuration|Credential|Symbolic/i);
   await assert.rejects(f.viewer.list({projectId:'project_00000000-0000-0000-0000-000000000000'}),/not found/);
   await assert.rejects(f.viewer.read({projectId,path:'.'}),/regular file/);
 });
@@ -332,9 +332,9 @@ test('native GIS and 42 previews require exact project job receipts and current 
 
 
 test('Library discovers nested native SysML through the bounded professional index while keeping viewer path restrictions', async t => {
-  const f=await fixture(t,{professionalModels:{async listModels(){return {models:[{path:'stf-engineering/models/STFSystem.sysml'},{path:'.manta/private.sysml'},{path:'../private.sysml'},{path:'models/missing.sysml'}],truncated:false};}}});
+  const f=await fixture(t,{professionalModels:{async listModels(){return {models:[{path:'stf-engineering/models/STFSystem.sysml'},{path:'.daidalis/private.sysml'},{path:'../private.sysml'},{path:'models/missing.sysml'}],truncated:false};}}});
   await f.put('stf-engineering/models/STFSystem.sysml','package STF {}');
-  await f.put('.manta/private.sysml','package Private {}');
+  await f.put('.daidalis/private.sysml','package Private {}');
   const result=await f.viewer.list({projectId:f.project.id});
   assert.deepEqual(result.discovered.models.map(item=>item.path),['stf-engineering/models/STFSystem.sysml']);
   assert.equal((await f.viewer.read({projectId:f.project.id,path:result.discovered.models[0].path})).type,'sysml');
@@ -354,7 +354,7 @@ test('human text saves use exact hashes, preserve old bytes and permissions, and
 });
 
 test('same physical folder saves serialize across projects and stale drafts cannot overwrite a newer revision',async t=>{
- const f=await fixture(t),folder=await fs.mkdtemp(path.join(os.tmpdir(),'manta-shared-document-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
+ const f=await fixture(t),folder=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-shared-document-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
  const one=f.store.createProject({name:'Shared one',folderPath:folder}),two=f.store.createProject({name:'Shared two',folderPath:folder});await fs.writeFile(path.join(folder,'report.md'),'before');
  const hash=sha('before'),results=await Promise.allSettled([f.viewer.save({projectId:one.id,path:'report.md',expectedSha256:hash,content:'first'}),f.viewer.save({projectId:two.id,path:'report.md',expectedSha256:hash,content:'second'})]);
  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(results.filter(r=>r.status==='rejected'&&r.reason.status===409).length,1);assert.equal(await fs.readFile(path.join(folder,'report.md'),'utf8'),'first');assert.equal(f.store.data.documentEdits.length,1);
@@ -363,7 +363,7 @@ test('same physical folder saves serialize across projects and stale drafts cann
 
 test('recorded engineering evidence, native models, hidden paths, symlinks and oversized text remain uneditable',async t=>{
  const f=await fixture(t),projectId=f.project.id;
- const protectedFiles=['engineering/nos3/nos3_'+ 'a'.repeat(32)+'/result.json','engineering/professional/professional_'+ 'b'.repeat(32)+'/report.md','engineering/eng_'+ 'c'.repeat(32)+'/series.csv','.manta/model-evidence/a.sysml','models/a.sysml','models/plant.mo','models/test.stf.json'];
+ const protectedFiles=['engineering/nos3/nos3_'+ 'a'.repeat(32)+'/result.json','engineering/professional/professional_'+ 'b'.repeat(32)+'/report.md','engineering/eng_'+ 'c'.repeat(32)+'/series.csv','.daidalis/model-evidence/a.sysml','models/a.sysml','models/plant.mo','models/test.stf.json'];
  for(const relative of protectedFiles){await f.put(relative,'{}');const file=await f.viewer.read({projectId,path:relative});assert.equal(file.editable,false,relative);await assert.rejects(f.viewer.save({projectId,path:relative,expectedSha256:sha('{}'),content:'tamper'}),e=>e.status===403);assert.equal(await fs.readFile(path.join(f.workspace,relative),'utf8'),'{}');}
  await f.put('report.md','safe');await f.put('.env','SECRET');await fs.symlink(f.directory,path.join(f.workspace,'escape'));await fs.symlink(path.join(f.workspace,'report.md'),path.join(f.workspace,'alias.md'));
  for(const relative of ['../outside.md','.env','escape/file.md','alias.md'])await assert.rejects(f.viewer.save({projectId,path:relative,expectedSha256:sha('safe'),content:'blocked'}),/path|workspace|configuration|Credential|Symbolic/i);

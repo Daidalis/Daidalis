@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
 """Receipts for real ARM64 guest binaries and fixed staged NOS3 inputs."""
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import datetime
 import hashlib
 import json
@@ -9,8 +24,8 @@ import shutil
 import struct
 import tarfile
 
-ROOT=Path('/srv/manta')
-STAGED=Path('/mnt/manta-transfer')
+ROOT=Path(_vm_name_path('/srv/daidalis'))
+STAGED=Path(_vm_name_path('/mnt/daidalis-transfer'))
 HERE=Path(__file__).resolve().parent
 RECEIPT=ROOT/'receipts/native-ready.json'
 BINARIES=[ROOT/'nos3/fsw/build/exe/cpu1/core-cpu1',ROOT/'42/42',ROOT/'nos3/sims/build/bin/nos3-single-simulator',Path('/usr/bin/nos_engine_server_standalone')]
@@ -72,7 +87,7 @@ def private_assets():
 def record():
     input_hash,snapshot=inputs()
     actual=binaries();checked_build_receipt(actual);asset_count=private_assets()
-    receipt={'schema':'manta-nos3-native-ready-v1','ready':True,'createdAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'architecture':'aarch64','inputHash':input_hash,'inputs':snapshot,'binaries':actual,'privateAssetCount':asset_count,'fullSimulationVerified':False}
+    receipt={'schema':'daidalis-nos3-native-ready-v1','ready':True,'createdAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'architecture':'aarch64','inputHash':input_hash,'inputs':snapshot,'binaries':actual,'privateAssetCount':asset_count,'fullSimulationVerified':False}
     RECEIPT.parent.mkdir(parents=True,exist_ok=True)
     temporary=RECEIPT.with_suffix('.tmp');temporary.write_text(json.dumps(receipt,indent=2)+'\n');temporary.chmod(0o644);temporary.replace(RECEIPT)
     return {'ready':True,'reused':False,'inputHash':input_hash,'binaryCount':len(actual),'fullSimulationVerified':False}
@@ -80,10 +95,12 @@ def record():
 def check():
     saved=json.loads(RECEIPT.read_text())
     input_hash,_=inputs()
-    if saved.get('schema')!='manta-nos3-native-ready-v1' or saved.get('inputHash')!=input_hash:raise RuntimeError('Native preparation receipt is stale')
     actual=binaries()
-    private_assets()
+    # A renamed recipe has a different input hash. Preserve an edited native
+    # build before deciding whether its readiness metadata needs refreshing.
     if saved.get('binaries')!=actual:raise RuntimeChanged('Native app/library binaries changed after their recorded validation; existing work was preserved')
+    if not _product_schema_matches(saved.get('schema'), 'daidalis-nos3-native-ready-v1') or saved.get('inputHash')!=input_hash:raise RuntimeError('Native preparation receipt is stale')
+    private_assets()
     return {'ready':True,'reused':True,'inputHash':input_hash,'binaryCount':len(actual),'fullSimulationVerified':False}
 
 def extract_source():
@@ -98,7 +115,7 @@ def extract_source():
             name=Path(member.name)
             if name.is_absolute() or '..' in name.parts or not name.parts or name.parts[0]!='nos3' or member.issym() or member.islnk() or member.isdev():raise RuntimeError('Unsafe entry in pinned NOS3 source archive')
         tar.extractall(ROOT)
-    (ROOT/'nos3/.manta-isolated-nos3').write_text('Private guest copy from checksum-verified pinned archive.\n')
+    (ROOT/'nos3/.daidalis-isolated-nos3').write_text('Private guest copy from checksum-verified pinned archive.\n')
     return {'sourcePrepared':True,'source':'pinned-local-archive'}
 
 # Use explicit switch parsing because the operation itself begins with --.

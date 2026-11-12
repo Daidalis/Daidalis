@@ -15,11 +15,12 @@ import {createClaudeRuntime} from '../server/runtimes/claude.mjs';
 import {createRuntimeManager} from '../server/runtimes/index.mjs';
 import {createStore} from '../server/store.mjs';
 import {createEngine} from '../server/engine.mjs';
+import {legacyToolNamespace} from '../shared/legacy-names.mjs';
 
 const require=createRequire(import.meta.url),SID='c118ab5d-0832-4819-9db7-f6ba834105c7';
 const success=(text='完成')=>({type:'result',subtype:'success',is_error:false,result:text,session_id:SID,uuid:'result-id',usage:{input_tokens:4,output_tokens:3},total_cost_usd:0});
 const assistant=(text='完成',id='msg-final')=>({type:'assistant',uuid:'assistant-uuid',session_id:SID,message:{id,content:[{type:'text',text}]}});
-async function workspace(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-claude-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
+async function workspace(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-claude-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
 function harness(run,runtimeOptions={}){const captures={queries:[],servers:[],messages:[],events:[],sessions:[],closed:0,interrupts:0};const sdk={...installedSdk,z,createSdkMcpServer(options){captures.servers.push(options);return installedSdk.createSdkMcpServer(options);},query(input){const index=captures.queries.length;captures.queries.push(input);const iterator=run(input,captures,index);iterator.close=()=>{captures.closed++;iterator.onClose?.();};iterator.interrupt=async()=>{captures.interrupts++;iterator.onInterrupt?.();};return iterator;}};return {captures,runtime:createClaudeRuntime({sdkLoader:async()=>sdk,...runtimeOptions}),options:{apiKey:'fixture-key-not-a-real-secret',input:'本地确定性测试，不调用模型。',tools:[],onMessage:m=>captures.messages.push(m),onEvent:e=>captures.events.push(e),onSession:id=>captures.sessions.push(id)}};}
 const simple=async function*(input){yield {type:'system',subtype:'init',session_id:SID};yield assistant();yield success();};
 async function promptText(query){const values=[];for await(const message of query.prompt)values.push(message.message.content);return values.join('\n');}
@@ -32,7 +33,7 @@ async function remoteFixture(t){
 test('remote Claude SDK keeps native options and sends only a separate stdin secret frame',async t=>{
  const fixture=await remoteFixture(t),writes=[],spawns=[],secret='fixture-key-not-a-real-secret';
  const h=harness(async function*(q){
-  assert.equal(q.options.cwd,'/work');assert.equal(q.options.env.HOME,'/home/manta');assert.equal(q.options.env.CLAUDE_CONFIG_DIR,'/home/manta/.claude');
+  assert.equal(q.options.cwd,'/work');assert.equal(q.options.env.HOME,'/home/daidalis');assert.equal(q.options.env.CLAUDE_CONFIG_DIR,'/home/daidalis/.claude');
   assert.equal(q.options.env.ANTHROPIC_API_KEY,undefined);assert.deepEqual(q.options.settingSources,[]);
   assert.deepEqual(q.options.settings,{apiKeyHelper:'/opt/claude/key-helper'});
   assert.deepEqual(q.options.disallowedTools,['Agent','Task','Bash','WebFetch','WebSearch']);
@@ -46,8 +47,8 @@ test('remote Claude SDK keeps native options and sends only a separate stdin sec
  },{remoteWorkspace:{hostRoot:fixture.hostRoot,transportPath:fixture.transportPath},spawnImpl:(file,args,options)=>{spawns.push({file,args,options});return {stdin:{write:value=>{writes.push(Buffer.from(value));return true;}}};}});
  await h.runtime.startTurn({...h.options,workspace:fixture.project,apiKey:secret,configDir:path.join(fixture.project,'host-only-config')}).completion;
  assert.equal(spawns.length,1);assert.equal(spawns[0].file,fixture.transportPath);assert.deepEqual(spawns[0].args,[]);
- assert.equal(spawns[0].options.cwd,fixture.project);assert.deepEqual(Object.keys(spawns[0].options.env).sort(),['HOME','LANG','MANTA_REMOTE_PROJECT_SLUG','PATH']);
- assert.equal(spawns[0].options.env.MANTA_REMOTE_PROJECT_SLUG,path.basename(fixture.project));
+ assert.equal(spawns[0].options.cwd,fixture.project);assert.deepEqual(Object.keys(spawns[0].options.env).sort(),['DAIDALIS_REMOTE_PROJECT_SLUG','HOME','LANG','PATH']);
+ assert.equal(spawns[0].options.env.DAIDALIS_REMOTE_PROJECT_SLUG,path.basename(fixture.project));
  assert.ok(!JSON.stringify(spawns).includes(secret));assert.ok(!JSON.stringify(spawns).includes('forged-key'));
  const wire=Buffer.concat(writes),headerEnd=wire.indexOf(10)+1,header=wire.subarray(0,headerEnd).toString('utf8'),config=JSON.parse(header);
  assert.ok(headerEnd>1);assert.ok(!header.includes(secret));assert.ok(!header.includes('forged-key'));
@@ -185,23 +186,23 @@ test('Auto reports native fallback and subsequent mode changes without silently 
  await assert.rejects(unavailable.runtime.startTurn({...unavailable.options,workspace:folder,permissionMode:'auto'}).completion,/Claude Auto 不可用.*切换 Manual/);
 });
 
-test('Auto guard still denies outside paths, live and dangling symlink escapes, external MCP and hidden Agent/Task',async t=>{const folder=await workspace(t),outside=await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-outside-'));t.after(()=>fs.rm(outside,{recursive:true,force:true}));await fs.symlink(outside,path.join(folder,'escape'));await fs.symlink(path.join(outside,'missing'),path.join(folder,'dangling'));let asked=0;const h=harness(async function*(q){for(const [name,args]of[['Read',{file_path:'/etc/hosts'}],['Write',{file_path:'escape/file.txt',content:'x'}],['Write',{file_path:'dangling',content:'x'}],['Glob',{pattern:'../**'}],['Bash',{command:'pwd',cwd:outside}],['mcp__external__read',{}],['Agent',{}],['Task',{}]]){const r=await q.options.hooks.PreToolUse[0].hooks[0]({tool_name:name,tool_input:args,tool_use_id:name},name,{signal:new AbortController().signal});assert.equal(r.hookSpecificOutput.permissionDecision,'deny');}yield assistant();yield success();});await h.runtime.startTurn({...h.options,workspace:folder,permissionMode:'auto',requestApproval:async()=>{asked++;return true;}}).completion;assert.equal(asked,0);});
+test('Auto guard still denies outside paths, live and dangling symlink escapes, external MCP and hidden Agent/Task',async t=>{const folder=await workspace(t),outside=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-outside-'));t.after(()=>fs.rm(outside,{recursive:true,force:true}));await fs.symlink(outside,path.join(folder,'escape'));await fs.symlink(path.join(outside,'missing'),path.join(folder,'dangling'));let asked=0;const h=harness(async function*(q){for(const [name,args]of[['Read',{file_path:'/etc/hosts'}],['Write',{file_path:'escape/file.txt',content:'x'}],['Write',{file_path:'dangling',content:'x'}],['Glob',{pattern:'../**'}],['Bash',{command:'pwd',cwd:outside}],['mcp__external__read',{}],['Agent',{}],['Task',{}]]){const r=await q.options.hooks.PreToolUse[0].hooks[0]({tool_name:name,tool_input:args,tool_use_id:name},name,{signal:new AbortController().signal});assert.equal(r.hookSpecificOutput.permissionDecision,'deny');}yield assistant();yield success();});await h.runtime.startTurn({...h.options,workspace:folder,permissionMode:'auto',requestApproval:async()=>{asked++;return true;}}).completion;assert.equal(asked,0);});
 
 test('Auto question callback preserves native options and returns actual user answers, never a default answer',async t=>{const folder=await workspace(t),questions=[{question:'选择方案',header:'方案',options:[{label:'A',description:'第一种'},{label:'B',description:'第二种'}],multiSelect:true}],seen=[];const h=harness(async function*(q){assert.deepEqual(await q.options.hooks.PreToolUse[0].hooks[0]({tool_name:'AskUserQuestion',tool_input:{questions}},'question'),{});const response=await q.options.canUseTool('AskUserQuestion',{questions},{signal:new AbortController().signal});assert.equal(response.behavior,'allow');assert.deepEqual(response.updatedInput.answers,{'选择方案':'B, 其他约束'});yield assistant();yield success();});await h.runtime.startTurn({...h.options,workspace:folder,permissionMode:'auto',requestUserInput:async q=>{seen.push(q);return {'选择方案':{answers:['B','其他约束']}};}}).completion;assert.deepEqual(seen,[questions]);const h2=harness(async function*(q){assert.equal((await q.options.canUseTool('AskUserQuestion',{questions},{signal:new AbortController().signal})).behavior,'deny');yield assistant();yield success();});await h2.runtime.startTurn({...h2.options,workspace:folder,permissionMode:'auto',requestUserInput:async()=>null}).completion;});
 
-test('real SDK in-process MCP transports dynamic JSON schema, exact execution and image output',async t=>{const folder=await workspace(t),calls=[];const h=harness(async function*(q,c){const server=q.options.mcpServers.syspilot,[clientTransport,serverTransport]=InMemoryTransport.createLinkedPair(),client=new Client({name:'syspilot-test',version:'1.0.0'});try{await server.instance.connect(serverTransport);await client.connect(clientTransport);const list=await client.listTools();assert.equal(list.tools[0].name,'run_scan');assert.ok(list.tools[0].inputSchema.required.includes('model'));assert.deepEqual(list.tools[0].inputSchema.properties.model.enum||[list.tools[0].inputSchema.properties.model.const],['thermal']);const r=await client.callTool({name:'run_scan',arguments:{model:'thermal',scan:{steps:2}}});assert.equal(r.isError,undefined);assert.equal(r.content[1].type,'image');assert.equal(r.content[1].mimeType,'image/png');assert.ok(!r.content[0].text.includes('iVBOR'));}finally{await client.close();await server.instance.close();}yield assistant();yield success();});await h.runtime.startTurn({...h.options,workspace:folder,tools:[{name:'run_scan',description:'Fixture engineering tool',parameters:{type:'object',properties:{model:{type:'string',enum:['thermal']},scan:{type:'object',properties:{steps:{type:'integer',minimum:1}},required:['steps']}},required:['model'],additionalProperties:false}}],executeTool:async(name,args)=>{calls.push({name,args});return {ok:true,_image:{mediaType:'image/png',data:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8p0AAAAASUVORK5CYII='}};}}).completion;assert.deepEqual(calls,[{name:'run_scan',args:{model:'thermal',scan:{steps:2}}}]);});
+test('real SDK in-process MCP transports dynamic JSON schema, exact execution and image output',async t=>{const folder=await workspace(t),calls=[];const h=harness(async function*(q,c){const server=q.options.mcpServers.daidalis,[clientTransport,serverTransport]=InMemoryTransport.createLinkedPair(),client=new Client({name:'daidalis-test',version:'1.0.0'});try{await server.instance.connect(serverTransport);await client.connect(clientTransport);const list=await client.listTools();assert.equal(list.tools[0].name,'run_scan');assert.ok(list.tools[0].inputSchema.required.includes('model'));assert.deepEqual(list.tools[0].inputSchema.properties.model.enum||[list.tools[0].inputSchema.properties.model.const],['thermal']);const r=await client.callTool({name:'run_scan',arguments:{model:'thermal',scan:{steps:2}}});assert.equal(r.isError,undefined);assert.equal(r.content[1].type,'image');assert.equal(r.content[1].mimeType,'image/png');assert.ok(!r.content[0].text.includes('iVBOR'));}finally{await client.close();await server.instance.close();}yield assistant();yield success();});await h.runtime.startTurn({...h.options,workspace:folder,tools:[{name:'run_scan',description:'Fixture engineering tool',parameters:{type:'object',properties:{model:{type:'string',enum:['thermal']},scan:{type:'object',properties:{steps:{type:'integer',minimum:1}},required:['steps']}},required:['model'],additionalProperties:false}}],executeTool:async(name,args)=>{calls.push({name,args});return {ok:true,_image:{mediaType:'image/png',data:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8p0AAAAASUVORK5CYII='}};}}).completion;assert.deepEqual(calls,[{name:'run_scan',args:{model:'thermal',scan:{steps:2}}}]);});
 
-test('MCP failures are truthful and untrusted MCP provenance is denied',async t=>{const folder=await workspace(t),h=harness(async function*(q,c){const tool=c.servers[0].tools[0];const r=await tool.handler({});assert.equal(r.isError,true);assert.match(r.content[0].text,/fixture error/);assert.equal((await q.options.canUseTool('mcp__syspilot__list_files',{}, {signal:new AbortController().signal,mcpServer:{name:'syspilot',source:'project'}})).behavior,'deny');yield assistant();yield success();});await h.runtime.startTurn({...h.options,workspace:folder,tools:[{name:'list_files',parameters:{type:'object',properties:{}}}],executeTool:async()=>{throw new Error('fixture error');}}).completion;});
+test('MCP failures are truthful and untrusted MCP provenance is denied',async t=>{const folder=await workspace(t),h=harness(async function*(q,c){const tool=c.servers[0].tools[0];const r=await tool.handler({});assert.equal(r.isError,true);assert.match(r.content[0].text,/fixture error/);assert.equal((await q.options.canUseTool('mcp__daidalis__list_files',{}, {signal:new AbortController().signal,mcpServer:{name:'daidalis',source:'project'}})).behavior,'deny');yield assistant();yield success();});await h.runtime.startTurn({...h.options,workspace:folder,tools:[{name:'list_files',parameters:{type:'object',properties:{}}}],executeTool:async()=>{throw new Error('fixture error');}}).completion;});
 
 test('Auto pre-hook approves only registered application MCP provenance and preserves application checks',async t=>{
  const folder=await workspace(t),calls=[];const h=harness(async function*(q,c){
-  const pre=q.options.hooks.PreToolUse[0].hooks[0],name='mcp__syspilot__list_files';
-  for(const server of [{name:'syspilot',source:'project'},{name:'other',source:'sdk'}]){
+  const pre=q.options.hooks.PreToolUse[0].hooks[0],name='mcp__daidalis__list_files';
+  for(const server of [{name:'daidalis',source:'project'},{name:'other',source:'sdk'}]){
    const result=await pre({tool_name:name,tool_input:{},mcp_server:server},'untrusted');assert.equal(result.hookSpecificOutput.permissionDecision,'deny');
    assert.equal((await q.options.canUseTool(name,{}, {mcpServer:server})).behavior,'deny');
   }
-  assert.equal((await pre({tool_name:'mcp__syspilot__unregistered',tool_input:{},mcp_server:{name:'syspilot',source:'sdk'}},'unregistered')).hookSpecificOutput.permissionDecision,'deny');
-  assert.equal((await pre({tool_name:name,tool_input:{},mcp_server:{name:'syspilot',source:'sdk'}},'trusted')).hookSpecificOutput.permissionDecision,'allow');
+  assert.equal((await pre({tool_name:'mcp__daidalis__unregistered',tool_input:{},mcp_server:{name:'daidalis',source:'sdk'}},'unregistered')).hookSpecificOutput.permissionDecision,'deny');
+  assert.equal((await pre({tool_name:name,tool_input:{},mcp_server:{name:'daidalis',source:'sdk'}},'trusted')).hookSpecificOutput.permissionDecision,'allow');
   assert.equal((await c.servers[0].tools[0].handler({})).isError,true);
   yield assistant();yield success();
  });
@@ -224,7 +225,7 @@ test('actual native SDK loop executes builtin Write and in-process engineering M
     if(req.url.includes('count_tokens')){res.writeHead(200,{'content-type':'application/json'});res.end('{"input_tokens":100}');return;}
     if(!req.url.startsWith('/v1/messages')){res.writeHead(404,{'content-type':'application/json'});res.end('{"error":{"type":"not_found_error","message":"Local fixture only"}}');return;}
     const body=JSON.parse(raw);for(const tool of body.tools||[])if(tool.name)names.add(tool.name);modelCalls++;
-    const call=modelCalls===1?{name:'Write',args:{file_path:path.join(folder,'native-proof.txt'),content:'Actually written by Claude SDK builtin Write.'}}:modelCalls===2?{name:'mcp__syspilot__list_files',args:{}}:null;
+    const call=modelCalls===1?{name:'Write',args:{file_path:path.join(folder,'native-proof.txt'),content:'Actually written by Claude SDK builtin Write.'}}:modelCalls===2?{name:'mcp__daidalis__list_files',args:{}}:null;
     res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache'});
     const send=(event,data)=>res.write('event: '+event+'\ndata: '+JSON.stringify(data)+'\n\n');
     send('message_start',{type:'message_start',message:{id:'msg_native_fixture_'+modelCalls,type:'message',role:'assistant',content:[],model:'claude-sonnet-4-5-20250929',stop_reason:null,stop_sequence:null,usage:{input_tokens:100,output_tokens:0}}});
@@ -237,7 +238,7 @@ test('actual native SDK loop executes builtin Write and in-process engineering M
     tools:[{name:'list_files',description:'List local fixture project files',parameters:{type:'object',properties:{}}}],executeTool:async(name,args)=>{toolCalls.push({name,args});return {files:[]};},
     requestApproval:async request=>{assert.equal(request.tool,'Write');await assert.rejects(fs.stat(path.join(folder,'native-proof.txt')));approvals++;return true;},onMessage:m=>publicMessages.push(m),onEvent:e=>nativeEvents.push(e)});
   const timer=setTimeout(()=>turn.cancel(),140000);
-  try{const result=await turn.completion;assert.equal(result.content,'Local native SDK fixture complete.');assert.match(result.sessionId,/^[0-9a-f-]{36}$/);assert.equal(await fs.readFile(path.join(folder,'native-proof.txt'),'utf8'),'Actually written by Claude SDK builtin Write.');assert.equal(approvals,1);assert.equal(modelCalls,3);assert.deepEqual(toolCalls,[{name:'list_files',args:{}}]);assert.ok(routes.every(r=>r.startsWith('POST /v1/messages')));assert.ok(names.has('Write'));assert.ok(names.has('Read'));assert.ok(names.has('Bash'));assert.ok(names.has('mcp__syspilot__list_files'));assert.ok(!names.has('Agent')&&!names.has('Task'));assert.equal(new Set(publicMessages.map(m=>m.id)).size,1);assert.equal(publicMessages.at(-1).phase,'final');assert.ok(nativeEvents.some(e=>e.type==='tool.completed'&&e.data.tool==='Write'));}
+  try{const result=await turn.completion;assert.equal(result.content,'Local native SDK fixture complete.');assert.match(result.sessionId,/^[0-9a-f-]{36}$/);assert.equal(await fs.readFile(path.join(folder,'native-proof.txt'),'utf8'),'Actually written by Claude SDK builtin Write.');assert.equal(approvals,1);assert.equal(modelCalls,3);assert.deepEqual(toolCalls,[{name:'list_files',args:{}}]);assert.ok(routes.every(r=>r.startsWith('POST /v1/messages')));assert.ok(names.has('Write'));assert.ok(names.has('Read'));assert.ok(names.has('Bash'));assert.ok(names.has('mcp__daidalis__list_files'));assert.ok(!names.has('Agent')&&!names.has('Task'));assert.equal(new Set(publicMessages.map(m=>m.id)).size,1);assert.equal(publicMessages.at(-1).phase,'final');assert.ok(nativeEvents.some(e=>e.type==='tool.completed'&&e.data.tool==='Write'));}
   finally{clearTimeout(timer);turn.cancel();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
 });
 
@@ -281,4 +282,37 @@ test('Claude steering releases the old MCP wait and resumes the same session wit
  await started;await turn.steer('Use the new dependency');assert.equal((await turn.completion).content,'Resumed');
  assert.equal(oldSignal.aborted,true);assert.equal(oldResult.isError,true);assert.equal(h.captures.queries[1].options.resume,SID);assert.equal(calls,2);
  rejectLate(Error('old query settled late'));await new Promise(r=>setImmediate(r));assert.equal(oldResult.isError,true);assert.equal(newSignal.aborted,true);
+});
+
+
+for(const [label,sessionId,namespace,allowed] of [
+ ['fresh thread',undefined,legacyToolNamespace,false],
+ ['unmarked persisted thread',SID,undefined,false],
+ ['validated previous-name thread',SID,legacyToolNamespace,true],
+ ['unrecognized namespace marker',SID,'untrusted',false],
+])test('previous Claude MCP namespace: '+label,async t=>{
+ const folder=await workspace(t),calls=[];
+ const h=harness(async function*(q,c){
+  const name='mcp__'+legacyToolNamespace+'__list_files',provenance={name:legacyToolNamespace,source:'sdk'};
+  const pre=await q.options.hooks.PreToolUse[0].hooks[0]({tool_name:name,tool_input:{},mcp_server:provenance},'previous-tool');
+  assert.equal(pre.hookSpecificOutput.permissionDecision,allowed?'allow':'deny');
+  assert.equal((await q.options.canUseTool(name,{}, {mcpServer:provenance})).behavior,allowed?'allow':'deny');
+  assert.equal(Object.hasOwn(q.options.mcpServers,legacyToolNamespace),allowed);
+  assert(Object.hasOwn(q.options.mcpServers,'daidalis'));
+  if(allowed){
+   // Even the valid alias must retain exact registration and SDK provenance.
+   for(const [tool,server] of [[name,{...provenance,source:'project'}],[name,{name:'external',source:'sdk'}],['mcp__'+legacyToolNamespace+'__unregistered',provenance]]){
+    assert.equal((await q.options.canUseTool(tool,{}, {mcpServer:server})).behavior,'deny');
+   }
+   const server=q.options.mcpServers[legacyToolNamespace],[clientTransport,serverTransport]=InMemoryTransport.createLinkedPair();
+   const client=new Client({name:'daidalis-rename-test',version:'1.0.0'});
+   try{
+    await server.instance.connect(serverTransport);await client.connect(clientTransport);
+    assert.equal((await client.callTool({name:'list_files',arguments:{}})).isError,undefined);
+   }finally{await client.close();await server.instance.close();}
+  }
+  yield assistant();yield success();
+ });
+ await h.runtime.startTurn({...h.options,workspace:folder,sessionId,legacyToolNamespace:namespace,tools:[{name:'list_files',parameters:{type:'object',properties:{}}}],executeTool:async(name,args)=>{calls.push({name,args});return {files:['actual-fixture.sysml']};},requestApproval:async()=>assert.fail('Denied namespaces must never reach approval')}).completion;
+ assert.equal(calls.length,allowed?1:0);
 });

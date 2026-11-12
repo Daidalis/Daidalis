@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/readme-cover.svg" alt="Manta — Engineering, in conversation. From intent to models, simulations and evidence." width="100%">
+  <img src="docs/assets/readme-cover.svg" alt="Daidalis — Engineering, in conversation. From intent to models, simulations and evidence." width="100%">
 </p>
 
 <p align="center">
@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://mingxiye.github.io/Manta/">Website & interactive demo</a> ·
+  <a href="docs/github-pages.md">Website & demo guide</a> ·
   <a href="#get-started">Get started</a> ·
   <a href="docs/demo.md">STF walkthrough</a> ·
   <a href="README.zh-CN.md">简体中文</a>
@@ -23,20 +23,20 @@
 
 ---
 
-Manta brings the way you work with a coding Agent to systems engineering. Start with an engineering goal, an existing model, or a failing test. Work through the problem with a **Coordinator and one layer of task threads**, then open the models, documents, simulation results, and evidence from the conversation.
+Daidalis brings the way you work with a coding Agent to systems engineering. Start with an engineering goal, an existing model, or a failing test. Work through the problem with a **Coordinator and one layer of task threads**, then open the models, documents, simulation results, and evidence from the conversation.
 
 The ambition is simple: **make complex engineering approachable through language**. The engineering still needs real tools, traceable decisions, and valid evidence.
 
 > [!NOTE]
-> Manta is a research prototype. Selected tool integrations and engineering iterations have been exercised; complete STF mission development and acceptance remain unfinished. The website demo replays recorded results. It does not run a live Agent or solver.
+> Daidalis is a research prototype. Selected tool integrations and engineering iterations have been exercised; complete STF mission development and acceptance remain unfinished. The website demo replays recorded results. It does not run a live Agent or solver.
 
 ## See it before you install it
 
-**[Explore the interactive walkthrough →](https://mingxiye.github.io/Manta/#demo)**
+**[Preview the interactive walkthrough →](website/README.md#preview-and-validate-locally)**
 
 GitHub Pages is the publishing target; the maintainer must enable it before this address becomes available. [Deployment setup](docs/github-pages.md).
 
-[![Illustrative Coordinator and peer threads with recorded STF evidence](docs/assets/recorded-demo.png)](https://mingxiye.github.io/Manta/#demo)
+[![Illustrative Coordinator and peer threads with recorded STF evidence](docs/assets/recorded-demo.png)](website/README.md#preview-and-validate-locally)
 
 Follow a selected STF low-power engineering iteration. The Coordinator stays in the main conversation; open a peer thread in the right pane, try a labelled scripted follow-up, and inspect its reviewed handoff. Design relationships, the frozen test recipe, telemetry and evidence open from the conversation.
 
@@ -54,7 +54,7 @@ These runs cover selected **NOS3 / cFS / NASA 42 / EPS software integration**. T
 
 **Use the tools when the work needs them.** Models, code, circuits, geometry, and numerical studies remain inspectable artifacts. Open supported documents and model source, review curves and tables, and keep failed checks alongside corrected results.
 
-**Bring your own Agent and model.** Manta reuses **Codex app-server** and **Claude Agent SDK** for the native Agent loop, sessions, tools, and approvals. Model ID, endpoint, and API key are connection settings. Provider compatibility must be tested; a custom endpoint is not automatically compatible with every Agent feature.
+**Bring your own Agent and model.** Daidalis reuses **Codex app-server** and **Claude Agent SDK** for the native Agent loop, sessions, tools, and approvals. Model ID, endpoint, and API key are connection settings. Provider compatibility must be tested; a custom endpoint is not automatically compatible with every Agent feature.
 
 **Continue an existing project.** Select a project folder and ask for the next increment: investigate a failure, change a requirement, compare a design, or prepare a review. The workflow supports iteration rather than requiring a one-way phase wizard.
 
@@ -62,7 +62,7 @@ These runs cover selected **NOS3 / cFS / NASA 42 / EPS software integration**. T
 
 The source includes the following adapters and viewers. Availability is project-specific; installing the Node application alone does not provision all solvers or runners.
 
-| Integration | Work supported in Manta | Scope |
+| Integration | Work supported in Daidalis | Scope |
 | --- | --- | --- |
 | **SysML v2 / KerML** | Source editing, semantic checks, queries, structural diagrams, outline and diagnostics | Pinned Open-MBEE kernel; Docker task-runner jobs can execute FMI-backed continuous analyses with verdicts and trajectories; the kernel itself does not execute dynamic SysML behavior |
 | **OpenModelica** | Model/parameter editing, native jobs, numerical signals and CSV exports | Configured runner required |
@@ -88,8 +88,8 @@ and **Docker Compose 2.20+**. Node, Git, Python, Codex CLI and the Claude Agent 
 are installed inside the image; no host engineering packages are required.
 
 ```sh
-git clone https://github.com/MingxiYe/Manta.git
-cd Manta
+git clone https://github.com/Daidalis/Daidalis.git
+cd Daidalis
 sh install.sh                    # all supported tool groups, including NOS3
 # Or: sh install.sh --preset=minimal
 # Or: sh install.sh --tools=scipy,ngspice,modelica
@@ -165,7 +165,7 @@ unverified requirements and explain what evidence is still needed.
 
 This describes the **requirements-first target case**, not a promise that the full mission is already supported or accepted. Existing candidate design documents belong to the evaluator reference, not hidden input for a from-zero test. The recorded website walkthrough is a separate, narrower engineering increment.
 
-## How Manta fits together
+## How Daidalis fits together
 
 ```mermaid
 flowchart LR
@@ -179,15 +179,15 @@ flowchart LR
   E --> C
 ```
 
-Manta owns project context, task coordination, permission bridges, artifact navigation, and evidence handoff. Codex and Claude supply their native Agent runtimes. Engineering execution happens through configured tools and runners. A task completing, a solver exiting successfully, a verification check passing, and a system being accepted are separate events.
+Daidalis owns project context, task coordination, permission bridges, artifact navigation, and evidence handoff. Codex and Claude supply their native Agent runtimes. Engineering execution happens through configured tools and runners. A task completing, a solver exiting successfully, a verification check passing, and a system being accepted are separate events.
 
 ## What we are working toward
 
-**Complete STF first. Apollo next.** Manta aims to support real systems-engineering work from mission intent through design, implementation, integration, verification, validation, and subsequent changes.
+**Complete STF first. Apollo next.** Daidalis aims to support real systems-engineering work from mission intent through design, implementation, integration, verification, validation, and subsequent changes.
 
 Current recorded milestones include bounded model checks, numerical studies, and selected software integration. Open work includes complete mission coverage and data delivery, broader detailed design, hardware/HIL, environment and lifetime evidence, and independent review. Applicable requirements stay open until valid evidence or an authorized decision closes them.
 
-The long-term experience is “describe a complex system and develop it through conversation.” Manta has not completed a Model 3, Apollo spacecraft, or a fully accepted STF mission.
+The long-term experience is “describe a complex system and develop it through conversation.” Daidalis has not completed a Model 3, Apollo spacecraft, or a fully accepted STF mission.
 
 ## Develop & explore
 
@@ -211,4 +211,4 @@ Useful reading: [installation](docs/installation.md) · [roadmap](docs/ROADMAP.m
 
 The repository excludes keys, runtime chats, VM disks, downloaded third-party projects, and full engineering evidence workspaces. The website contains only a curated recorded example. See [REPOSITORY_SCOPE.md](REPOSITORY_SCOPE.md).
 
-**License:** Manta-owned code and original documentation are licensed under [Apache 2.0](LICENSE). Copyright 2026 MingxiYe. See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md); bundled components and upstream-derived material retain their respective terms.
+**License:** Daidalis-owned code and original documentation are licensed under [Apache 2.0](LICENSE). Copyright 2026 MingxiYe. See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md); bundled components and upstream-derived material retain their respective terms.

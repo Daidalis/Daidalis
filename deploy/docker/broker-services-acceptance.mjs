@@ -19,9 +19,9 @@ const evaluation=await api('/api/evaluate',{projectId:project.id,taskId:'nos3-35
 assert.equal(evaluation.status,'passed');assert.equal(evaluation.scope,'interface-contract-only');assert.equal(evaluation.upstreamReproduction,false);
 console.log('Explicit-scope evaluator route restored');
 await fs.writeFile(project.folderPath+'/connector.mjs',`
-import {Server} from '/opt/manta/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js';
-import {StdioServerTransport} from '/opt/manta/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js';
-import {ListToolsRequestSchema,CallToolRequestSchema} from '/opt/manta/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js';
+import {Server} from '/opt/daidalis/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js';
+import {StdioServerTransport} from '/opt/daidalis/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js';
+import {ListToolsRequestSchema,CallToolRequestSchema} from '/opt/daidalis/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js';
 import fs from 'node:fs';
 const server=new Server({name:'isolated-fixture',version:'1'},{capabilities:{tools:{}}});
 server.setRequestHandler(ListToolsRequestSchema,()=>({tools:[{name:'boundary',inputSchema:{type:'object'}},{name:'wait',inputSchema:{type:'object'}}]}));
@@ -41,7 +41,7 @@ try{
  await new Promise(r=>setTimeout(r,5500));await assert.rejects(fs.access(project.folderPath+'/mcp-escaped'));
  console.log('Actual MCP SDK catalog/call, boundaries and non-cooperative cancellation passed');
 }finally{await connectors.close();}
-const computer=await createBrokerComputer({root:'/opt/manta',dataDir:'/tmp/broker-computer-fixture',store,requestApproval:async()=>false});computer.setBaseUrl(base);
+const computer=await createBrokerComputer({root:'/opt/daidalis',dataDir:'/tmp/broker-computer-fixture',store,requestApproval:async()=>false});computer.setBaseUrl(base);
 try{
  const call=(action,args={},ctx={source:'user'})=>computer.action({projectId:project.id,action,args},ctx);
  await assert.rejects(call('desktop.enable',{consent:true},{permissionMode:'auto'}),/consent/);

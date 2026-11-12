@@ -10,7 +10,7 @@ const defer=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {
 async function until(predicate){const end=Date.now()+3000;while(Date.now()<end){if(predicate())return;await new Promise(r=>setTimeout(r,5));}assert.fail('Expected state was not reached');}
 function gate(promise,signal){return new Promise((resolve,reject)=>{const abort=()=>reject(new Error('Cancelled waiting for engineering result'));if(signal.aborted)return abort();signal.addEventListener('abort',abort,{once:true});promise.then(x=>{signal.removeEventListener('abort',abort);resolve(x);},reject);});}
 async function fixture(t,{providerId='codex-local',cancel=false,preparing=false}={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-engineering-engine-')),store=createStore({dataDir:path.join(root,'data'),seed:false}),finished=defer(),calls=[];
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-engineering-engine-')),store=createStore({dataDir:path.join(root,'data'),seed:false}),finished=defer(),calls=[];
   const project=store.createProject({name:'Engineering wait fixture',resources:{maxAutoResumes:0}});
   store.add('providers',{id:'custom',name:'Fixture SDK',type:'openai-responses',model:'fixture'});
   const providers={getConfig:key=>structuredClone(store.get('providers',key)),redact:x=>String(x)};

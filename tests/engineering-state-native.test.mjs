@@ -11,7 +11,7 @@ import {buildApprovalPresentation} from '../public/approval-presentation.mjs';
 
 test('older engineering objects and evidence remain accessible through explicit IDs and record paging',()=>{
   const objects=Array.from({length:220},(_,n)=>({id:'R-'+n,title:'Requirement '+n,revision:n+1,history:[],historyCount:0}));
-  const value={schema:'manta-engineering-state-v1',objects,relations:[],snapshots:[],changes:[],evidence:Array.from({length:80},(_,n)=>({id:'E-'+n,objectVersions:{['R-'+n]:n+1}})),issues:[]};
+  const value={schema:'daidalis-engineering-state-v1',objects,relations:[],snapshots:[],changes:[],evidence:Array.from({length:80},(_,n)=>({id:'E-'+n,objectVersions:{['R-'+n]:n+1}})),issues:[]};
   const first=engineeringStatePage(value,{});assert.equal(first.objects[0].id,'R-0');assert.equal(first.page.hasMore,true);
   const next=engineeringStatePage(value,{offset:200,limit:50});assert.equal(next.objects.length,20);assert.equal(next.objects.at(-1).id,'R-219');assert.equal(next.page.hasMore,false);
   const exact=engineeringStatePage(value,{objectIds:['R-0','R-219','missing']});assert.deepEqual(exact.objects.map(o=>[o.id,o.revision]),[['R-0',1],['R-219',220]]);assert.deepEqual(exact.missingObjectIds,['missing']);
@@ -28,7 +28,7 @@ test('manual engineering requests display the selected configuration and declare
 });
 
 for(const [providerId,runtimeName] of [['codex-local','codex-app-server'],['claude-local','claude-agent-sdk']])test(`${runtimeName} receives and executes the same engineering tools without a replacement model loop`,async t=>{
-  const temp=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-native-records-')));
+  const temp=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-native-records-')));
   const store=createStore({dataDir:path.join(temp,'data'),seed:false});
   const project=store.createProject({name:'Native engineering tool bridge',resources:{maxAutoResumes:0}});
   const workspace=store.workspace(project.id);await fs.writeFile(path.join(workspace,'requirements.md'),'# Candidate requirement\nAcceptance remains TBD.\n');

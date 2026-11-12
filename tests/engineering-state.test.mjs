@@ -10,7 +10,7 @@ import { summarizeEngineeringState, engineeringStatePage, createEngineeringState
 const user = { actor: { kind: 'user', id: 'reviewer' } };
 const agent = { actor: { kind: 'agent', id: 'worker' } };
 async function fixture(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'manta-engineering-state-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'daidalis-engineering-state-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const folder = path.join(root, 'project'); await fs.mkdir(folder);
   const options = { dataDir: path.join(root, 'state'), seed: false };
@@ -34,7 +34,7 @@ test('explicit engineering IDs, revisions and history persist across a real stor
   await f.service.upsertObject(f.projectId, {id:'R-1',description:'Updated requirement',expectedRevision:1}, agent);
   const reopened = createStore(f.options), service = createEngineeringStateService({ store: reopened });
   const state = await service.get(f.projectId), requirement = state.objects.find(item => item.id === 'R-1');
-  assert.equal(state.schema, 'manta-engineering-state-v1'); assert.equal(requirement.revision, 2); assert.equal(requirement.history.length, 1);
+  assert.equal(state.schema, 'daidalis-engineering-state-v1'); assert.equal(requirement.revision, 2); assert.equal(requirement.history.length, 1);
   assert.equal(requirement.history[0].description, 'Data delivered within TBD contact constraints');
   assert.equal(requirement.authority, 'observed'); assert.equal(requirement.maturity, 'candidate');
 });

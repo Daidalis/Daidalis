@@ -40,7 +40,7 @@ import hashlib, sys, urllib.request
 
 asset, digest, version, target = sys.argv[1:]
 url = 'https://github.com/Open-MBEE/OpenSysML/releases/download/%s/%s' % (version, asset)
-request = urllib.request.Request(url, headers={'User-Agent': 'manta-sysml-sim-installer'})
+request = urllib.request.Request(url, headers={'User-Agent': 'daidalis-sysml-sim-installer'})
 with urllib.request.urlopen(request, timeout=120) as response:
     body = response.read(512 * 1024 * 1024 + 1)
 if len(body) > 512 * 1024 * 1024:
@@ -77,6 +77,6 @@ PY
 "$OPENSYSML_HOME/bin/sysml-grpc" --version
 
 cat > "$OPENSYSML_HOME/manifest.json" <<JSON
-{"schema":"manta-sysml-sim-v1","version":"${OPENSYSML_VERSION}","asset":"${asset}","sha256":"${digest}","pythonPackage":"${PYTHON_PACKAGE_VERSION}"}
+{"schema":"daidalis-sysml-sim-v1","version":"${OPENSYSML_VERSION}","asset":"${asset}","sha256":"${digest}","pythonPackage":"${PYTHON_PACKAGE_VERSION}"}
 JSON
 printf '%s\n' 'OpenSysML and FMPy are installed for the SysML FMI backend.'

@@ -8,13 +8,13 @@ import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {createComputerService} from '../../server/computer.mjs';
 import {createContainerDesktop} from '../../server/container-desktop.mjs';
 import {safePath} from '../../server/sandbox.mjs';
-if(process.getuid()===0||process.env.MANTA_BROKER_TASK!=='1')throw Error('Broker task required');
+if(process.getuid()===0||process.env.DAIDALIS_BROKER_TASK!=='1')throw Error('Broker task required');
 const send=m=>process.stdout.write(JSON.stringify(m)+'\n');
 let seq=0,service,transport,networkProxy,started=false,desktop,desktopSeq=0;const calls=new Map(),desktopCalls=new Map(),tunnels=new Map();
 const callback=(method,args)=>new Promise((resolve,reject)=>{const id=++seq;calls.set(id,{resolve,reject});send({type:'call',id,method,args});});
 function desktopRequest(_socket,_route,payload){
  if(!desktop){
-  desktop=spawn('/usr/bin/python3',['-B','/opt/manta/deploy/runner/desktop-session.py'],{stdio:['pipe','pipe','pipe']});
+  desktop=spawn('/usr/bin/python3',['-B','/opt/daidalis/deploy/runner/desktop-session.py'],{stdio:['pipe','pipe','pipe']});
   const output=readline.createInterface({input:desktop.stdout});
   output.on('line',line=>{try{const m=JSON.parse(line),p=desktopCalls.get(m.id);if(p){desktopCalls.delete(m.id);m.error?p.reject(Error(m.error)):p.resolve(m.result);}}catch{desktop.kill();}});
   const fail=()=>{for(const p of desktopCalls.values())p.reject(Error('Desktop service stopped'));desktopCalls.clear();desktop=null;};
@@ -24,9 +24,9 @@ function desktopRequest(_socket,_route,payload){
 }
 async function start({runtime,options}){
  if(runtime==='computer'){
-  process.env.MBSE_COMPUTER_HOSTS=options.allowedHosts.join(',');
-  process.env.MBSE_CHROME_PATH='/usr/bin/chromium';
-  service=await createComputerService({root:'/opt/manta',dataDir:'/tmp/computer-state',store:{workspace:id=>{if(id!==options.projectId)throw Error('Wrong project');return '/work';}},
+  process.env.DAIDALIS_COMPUTER_HOSTS=options.allowedHosts.join(',');
+  process.env.DAIDALIS_CHROME_PATH='/usr/bin/chromium';
+  service=await createComputerService({root:'/opt/daidalis',dataDir:'/tmp/computer-state',store:{workspace:id=>{if(id!==options.projectId)throw Error('Wrong project');return '/work';}},
    requestApproval:args=>callback('approval',args),browserFetch:args=>callback('fetch',args),
    desktopAdapter:shots=>createContainerDesktop({socketPath:'local',shots,request:desktopRequest})});
   service.setBaseUrl(options.baseUrl);

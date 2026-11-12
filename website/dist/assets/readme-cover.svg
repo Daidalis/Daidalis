@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="640" viewBox="0 0 1600 640" role="img" aria-labelledby="title desc">
-  <title id="title">Manta — Engineering, in conversation.</title>
-  <desc id="desc">Manta brand cover with abstract orbital paths and a connected systems diagram. From intent to models, simulations and evidence.</desc>
+  <title id="title">Daidalis — Engineering, in conversation.</title>
+  <desc id="desc">Daidalis brand cover with abstract orbital paths and a connected systems diagram. From intent to models, simulations and evidence.</desc>
   <defs>
     <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
       <circle cx="1" cy="1" r="0.9" fill="#233c33" opacity="0.11"/>
@@ -18,7 +18,7 @@
   <g transform="translate(74 58) scale(.132) translate(-34 -88)" fill="#233c33">
     <path d="M256 151C246 151 239 145 238 132C231 138 229 154 232 170C192 176 140 157 62 118C70 207 111 266 177 279C209 286 224 305 241 326C245 331 249 333 252 334C250 365 263 385 274 404C280 414 281 423 278 432C288 419 287 408 280 395C267 373 264 357 265 334C270 332 273 330 277 326C294 305 309 286 341 279C407 266 448 207 456 118C378 157 326 176 286 170C289 154 287 138 280 132C279 145 272 151 262 151Z"/>
   </g>
-  <text x="153" y="100" fill="#233c33" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700" letter-spacing="7">MANTA</text>
+  <text x="153" y="100" fill="#233c33" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="700" letter-spacing="7">DAIDALIS</text>
   <rect x="76" y="171" width="7" height="7" rx="3.5" fill="#c46e45"/>
   <text x="99" y="180" fill="#687b67" font-family="Arial, Helvetica, sans-serif" font-size="13" letter-spacing="2.7">A CONVERSATIONAL WORKSPACE FOR SYSTEMS ENGINEERING</text>
   <g fill="#233c33" font-family="Georgia, 'Times New Roman', serif" font-size="82" letter-spacing="-3">
@@ -47,7 +47,7 @@
     <text x="1022" y="236" fill="#7e9274" font-size="10" letter-spacing="1.6">INTENT</text>
     <text x="1022" y="259" fill="#233c33" font-size="17">A system to build</text>
     <rect x="1219" y="308" width="212" height="74" rx="10" fill="#233c33"/>
-    <text x="1240" y="334" fill="#b9c9ad" font-size="10" letter-spacing="1.6">MANTA</text>
+    <text x="1240" y="334" fill="#b9c9ad" font-size="10" letter-spacing="1.6">DAIDALIS</text>
     <text x="1240" y="359" fill="#f6f5ee" font-size="16">Connect the engineering</text>
     <rect x="1038" y="398" width="196" height="72" rx="10" fill="#f8f8f1" stroke="#bcc9b2"/>
     <text x="1057" y="424" fill="#7e9274" font-size="10" letter-spacing="1.6">DESIGN</text>

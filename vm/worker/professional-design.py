@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 """Fixed ngspice/OpenSCAD native execution; all project code remains inside networkless bubblewrap."""
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import base64,csv,datetime,hashlib,io,json,math,os,pathlib,re,resource,signal,subprocess,sys,time
-ROOT=pathlib.Path('/srv/manta/professional');JOBS=ROOT/'jobs';CANCEL=ROOT/'cancelled'
+ROOT=pathlib.Path(_vm_name_path('/srv/daidalis/professional'));JOBS=ROOT/'jobs';CANCEL=ROOT/'cancelled'
 IDENT=re.compile(r'^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$');JOB=re.compile(r'^[A-Za-z0-9_-]{8,100}$');HASH=re.compile(r'^[a-f0-9]{64}$')
 def sha(b):return hashlib.sha256(b).hexdigest()
 def limits():
@@ -93,18 +103,18 @@ def main(req):
    code,output=execute(['/usr/bin/xvfb-run','-a','-s','-screen 0 1024x768x24','/usr/bin/ngspice','-i','-n','/work/sources/'+main_file],b'quit\n')
    success=code==0 and not re.search(rb'(?im)^\s*(?:error(?:\s|:)|fatal(?:\s|:)|.*could not find a valid modelname|.*: no such command available)',output)
   else:
-   code,output=execute(['/usr/bin/ngspice','-b','-r','/work/manta_result.raw','/work/sources/'+main_file])
-   raw=work/'manta_result.raw';table=work/'manta_result.csv';success=code==0 and (raw.is_file() and raw.stat().st_size>30 or table.is_file() and table.stat().st_size>30) and b'No. of Data Rows' in output
+   code,output=execute(['/usr/bin/ngspice','-b','-r','/work/daidalis_result.raw','/work/sources/'+main_file])
+   raw=work/'daidalis_result.raw';table=work/'daidalis_result.csv';success=code==0 and (raw.is_file() and raw.stat().st_size>30 or table.is_file() and table.stat().st_size>30) and b'No. of Data Rows' in output
    if success:
     try:metadata=raw_csv(raw,table) if raw.is_file() and raw.stat().st_size>30 else wrdata_csv(table)
     except Exception as error:logs.append(str(error).encode());success=False
   version=subprocess.check_output(['/usr/bin/ngspice','--version'],text=True).strip();version=next((x.strip('* ').strip() for x in version.splitlines() if 'ngspice-' in x),version[:100])
-  wanted=['manta_result.csv','manta_result.native.dat','manta_result.raw']
+  wanted=['daidalis_result.csv','daidalis_result.native.dat','daidalis_result.raw']
  else:
   defines=[]
   for name,value in sorted(parameters.items()):defines+=['-D',name+'='+('true' if value else 'false') if isinstance(value,bool) else name+'='+repr(value)]
   # CSG syntax/parameter checks use the actual OpenSCAD interpreter; full rendering exports native triangles.
-  output_name='manta_geometry.csg' if operation=='check' else 'manta_geometry.stl'
+  output_name='daidalis_geometry.csg' if operation=='check' else 'daidalis_geometry.stl'
   code,output=execute(['/usr/bin/openscad',*defines,'-o','/work/'+output_name,'/work/sources/'+main_file])
   geometry=work/output_name;success=code==0 and geometry.is_file() and geometry.stat().st_size>10 and b'ERROR:' not in output
   if success and operation=='simulate':
@@ -113,13 +123,13 @@ def main(req):
    else:metadata={'triangles':len(points)//3,'boundingBox':{'min':[min(p[i] for p in points) for i in range(3)],'max':[max(p[i] for p in points) for i in range(3)]},'units':'source model units; no physical qualification implied'}
    if success:
     # Offscreen CPU rendering, still inside the same networkless private job sandbox.
-    execute(['/usr/bin/xvfb-run','-a','-s','-screen 0 1024x768x24','/usr/bin/openscad',*defines,'--imgsize=960,720','--autocenter','--viewall','-o','/work/manta_preview.png','/work/sources/'+main_file],timeout=120)
+    execute(['/usr/bin/xvfb-run','-a','-s','-screen 0 1024x768x24','/usr/bin/openscad',*defines,'--imgsize=960,720','--autocenter','--viewall','-o','/work/daidalis_preview.png','/work/sources/'+main_file],timeout=120)
     last_exit=code
   version=subprocess.run(['/usr/bin/openscad','--version'],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,check=True).stdout.strip()
-  wanted=['manta_geometry.csg','manta_geometry.stl','manta_preview.png']
+  wanted=['daidalis_geometry.csg','daidalis_geometry.stl','daidalis_preview.png']
  (work/'compiler.log').write_bytes(b'\n'.join(logs))
  if (CANCEL/job).exists():success=False
- receipt={'schema':'manta-professional-execution-v1','jobId':job,'inputHash':input_hash,'operation':operation,'mainFile':main_file,'modelName':req.get('modelName'),'sourceFiles':[{'path':p,'sha256':h} for p,d,h in normalized],'parameters':parameters,'tool':{'id':tool,'version':version},'startedAt':started,'finishedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'durationSeconds':time.monotonic()-clock,'exitCode':last_exit,'success':success,'isolation':'Linux VM; bubblewrap unshare-all; read-only sources; no network; host/shared/other jobs inaccessible','outputKind':'geometry' if tool=='openscad' else 'time-series','metadata':metadata}
+ receipt={'schema':'daidalis-professional-execution-v1','jobId':job,'inputHash':input_hash,'operation':operation,'mainFile':main_file,'modelName':req.get('modelName'),'sourceFiles':[{'path':p,'sha256':h} for p,d,h in normalized],'parameters':parameters,'tool':{'id':tool,'version':version},'startedAt':started,'finishedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'durationSeconds':time.monotonic()-clock,'exitCode':last_exit,'success':success,'isolation':'Linux VM; bubblewrap unshare-all; read-only sources; no network; host/shared/other jobs inaccessible','outputKind':'geometry' if tool=='openscad' else 'time-series','metadata':metadata}
  (work/'execution-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n');wanted+=['compiler.log','execution-receipt.json']
  exported=[];size=0
  for rel in wanted:

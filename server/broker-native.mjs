@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 
-export function createBrokerNativeRuntime({runtime,gateway,socketPath=process.env.MANTA_BROKER_NATIVE_SOCKET,projectsRoot=process.env.MANTA_PROJECTS_ROOT||'/projects'}={}){
+export function createBrokerNativeRuntime({runtime,gateway,socketPath=process.env.DAIDALIS_BROKER_NATIVE_SOCKET,projectsRoot=process.env.DAIDALIS_PROJECTS_ROOT||'/projects'}={}){
   const active=new Set();
   return {startTurn(options){
     const root=fs.realpathSync(projectsRoot),workspace=fs.realpathSync(options.workspace),project=path.relative(root,workspace);
@@ -18,7 +18,7 @@ export function createBrokerNativeRuntime({runtime,gateway,socketPath=process.en
     const cancel=()=>finish(Object.assign(Error('Native broker task cancelled'),{name:'AbortError'}));
     socket.on('connect',()=>{
       const safe={};for(const key of ['model','sessionId','input','history','instructions','tools','permissionMode','maxTurns'])if(options[key]!==undefined)safe[key]=options[key];
-      if(safe.instructions)safe.instructions=safe.instructions.replace('Project folder: '+workspace,'Project folder: /work')+'\nNative tools run in /work. Manta tool file paths are project-relative.';
+      if(safe.instructions)safe.instructions=safe.instructions.replace('Project folder: '+workspace,'Project folder: /work')+'\nNative tools run in /work. Daidalis tool file paths are project-relative.';
       send({kind:'native',runtime,project,options:{...safe,apiKey:grant.token,baseUrl:grant.baseUrl}});
     });
     socket.on('data',chunk=>{buffer+=chunk.toString();if(Buffer.byteLength(buffer)>32*1024*1024)return finish(Error('Native broker frame exceeds limit'));

@@ -9,7 +9,7 @@ import {chromium} from 'playwright';
 import {createStore} from '../server/store.mjs';
 import {createModelBackendService} from '../server/model-backend.mjs';
 
-const root = path.dirname(path.dirname(fileURLToPath(import.meta.url))), temporary = process.env.MANTA_DOCUMENT_EVIDENCE || await fs.mkdtemp(path.join(os.tmpdir(),'manta-document-viewer-'));
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url))), temporary = process.env.DAIDALIS_DOCUMENT_EVIDENCE || await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-document-viewer-'));
 await fs.mkdir(temporary,{recursive:true});
 const source = await fs.readFile(path.join(root,'server/model-backend/nos3-integration.sysml'),'utf8');
 function kernel(operation, file) {
@@ -41,7 +41,7 @@ const server = http.createServer(async(req,res) => {
 let browser;const errors = [],steps = [];
 try {
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
-  browser = await chromium.launch({headless:true,...(process.env.MBSE_CHROME_PATH ? {executablePath:process.env.MBSE_CHROME_PATH} : process.platform === 'darwin' ? {channel:'chrome'} : {})});
+  browser = await chromium.launch({headless:true,...(process.env.DAIDALIS_CHROME_PATH ? {executablePath:process.env.DAIDALIS_CHROME_PATH} : process.platform === 'darwin' ? {channel:'chrome'} : {})});
   const page = await browser.newPage({viewport:{width:1440,height:1000}});page.on('pageerror',error => errors.push(error.message));
   await page.goto('http://127.0.0.1:' + server.address().port);await page.waitForFunction(() => window.ready);
   assert.ok(await page.locator('.semantic-node').count() > 10);

@@ -9,7 +9,7 @@ import {createStudioServer} from '../server/index.mjs';
 const catalogResult={models:[{id:'available-model',model:'available-model',displayName:'Available model',isDefault:true}],nextCursor:null};
 async function eventually(check){const end=Date.now()+4000;while(Date.now()<end){if(check())return;await new Promise(r=>setTimeout(r,5));}assert.fail('Timed out waiting for fixture run');}
 async function fixture(t,{list}={}){
-  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-model-http-'))),dataDir=path.join(root,'data'),calls=[],turns=[],folders=[];
+  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-model-http-'))),dataDir=path.join(root,'data'),calls=[],turns=[],folders=[];
   let app,base,release;
   const gate=new Promise(resolve=>{release=resolve;});
   const codexModelCatalog={async list(profile,options){calls.push({profile:structuredClone(profile),...options});return list?list(profile,options):structuredClone(catalogResult);}};
@@ -23,7 +23,7 @@ async function fixture(t,{list}={}){
     async boot(){app=await createStudioServer({root,dataDir,seed:false,computer:false,evaluator:false,engineering:false,codexModelCatalog,engineOptions:{runtimeAdapters:{'codex-app-server':adapter},runTimeoutMs:5000}});const address=await app.listen({port:0});base=`http://127.0.0.1:${address.port}`;return app;},
     async restart(){await app.close();return f.boot();},
     async api(route,method='GET',body,headers={}){const response=await fetch(base+route,{method,headers:{...(body===undefined?{}:{'content-type':'application/json'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,data:await response.json()};},
-    async project(){const folder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-model-project-')));folders.push(folder);const response=await f.api('/api/projects','POST',{name:'NOS3 model selection fixture',folderPath:folder,resources:{maxAutoResumes:0}});assert.equal(response.status,201);return response.data;},
+    async project(){const folder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-model-project-')));folders.push(folder);const response=await f.api('/api/projects','POST',{name:'NOS3 model selection fixture',folderPath:folder,resources:{maxAutoResumes:0}});assert.equal(response.status,201);return response.data;},
     async complete(id){await eventually(()=>!app.engine.active.has(id));const run=app.store.get('runs',id);assert.equal(run.status,'completed',run.error);return run;},
     async forgedHost(route){return new Promise((resolve,reject)=>http.get(base+route,{headers:{host:'evil.example'}},response=>{response.resume();resolve(response.statusCode);}).on('error',reject));}
   };

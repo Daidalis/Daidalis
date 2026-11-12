@@ -1,6 +1,6 @@
 # Product showcase acceptance — 2026-10-27
 
-Scope: product documentation, standalone frontend website, and an interactive recorded STF low-power walkthrough. This change does not advance the engineering acceptance status of STF or deploy changes to the running Manta application.
+Scope: product documentation, standalone frontend website, and an interactive recorded STF low-power walkthrough. This change does not advance the engineering acceptance status of STF or deploy changes to the running Daidalis application.
 
 ## Delivered
 

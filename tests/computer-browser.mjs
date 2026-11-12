@@ -33,7 +33,7 @@ try{
   const unchanged=await action('browser.screenshot');assert.equal(unchanged.screenVersion,submitted.screenVersion);
   await assert.rejects(action('browser.navigate',{url:`http://127.0.0.1:${address.port}/`,screenVersion:submitted.screenVersion}),/cannot access/);
   await assert.rejects(action('browser.navigate',{url:'http://169.254.169.254/',screenVersion:submitted.screenVersion}),/allowlist/);
-  report={passed:true,checks:['ephemeral app origin','real PNG screenshot','stale frame rejection','screenshot coordinates click','Chinese keyboard input','form submission','manual browser approval required','rejected action leaves screen version unchanged','Manta approval UI blocked','private host blocked'],nativeDesktop:'not-exercised'};
+  report={passed:true,checks:['ephemeral app origin','real PNG screenshot','stale frame rejection','screenshot coordinates click','Chinese keyboard input','form submission','manual browser approval required','rejected action leaves screen version unchanged','Daidalis approval UI blocked','private host blocked'],nativeDesktop:'not-exercised'};
   await fs.mkdir(path.join(root,'work'),{recursive:true});
   await fs.writeFile(path.join(root,'work/browser-integration.json'),JSON.stringify(report,null,2));
   process.stdout.write(JSON.stringify(report,null,2)+'\n');

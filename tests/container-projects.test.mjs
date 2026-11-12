@@ -6,11 +6,11 @@ import path from 'node:path';
 import {createStudioServer} from '../server/index.mjs';
 
 test('container managed projects allocate unique persistent folders and still validate explicit paths',async()=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-managed-'));
-  const previous=process.env.MANTA_PROJECTS_ROOT;
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-managed-'));
+  const previous=process.env.DAIDALIS_PROJECTS_ROOT;
   let app;
   try{
-    const projects=path.join(root,'projects');await fs.mkdir(projects);process.env.MANTA_PROJECTS_ROOT=projects;
+    const projects=path.join(root,'projects');await fs.mkdir(projects);process.env.DAIDALIS_PROJECTS_ROOT=projects;
     const options={dataDir:path.join(root,'data'),seed:false,computer:false,evaluator:false,engineering:false,nos3:false,modelBackend:false,professionalModels:false,connectors:false};
     app=await createStudioServer(options);let address=await app.listen({port:0});
     const create=async body=>{const r=await fetch(`http://127.0.0.1:${address.port}/api/projects`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});return {status:r.status,body:await r.json()};};
@@ -25,5 +25,5 @@ test('container managed projects allocate unique persistent folders and still va
     const bootstrap=await(await fetch(`http://127.0.0.1:${address.port}/api/bootstrap`)).json();
     assert.equal(bootstrap.capabilities.managedProjects,true);
     assert.equal(bootstrap.projects.find(p=>p.id===first.body.id).folderPath,first.body.folderPath);
-  }finally{await app?.close();if(previous===undefined)delete process.env.MANTA_PROJECTS_ROOT;else process.env.MANTA_PROJECTS_ROOT=previous;await fs.rm(root,{recursive:true,force:true});}
+  }finally{await app?.close();if(previous===undefined)delete process.env.DAIDALIS_PROJECTS_ROOT;else process.env.DAIDALIS_PROJECTS_ROOT=previous;await fs.rm(root,{recursive:true,force:true});}
 });

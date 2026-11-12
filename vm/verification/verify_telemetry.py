@@ -68,7 +68,7 @@ def verify(packet_file,fsw_file,min_samples=5,tolerance=0.02,expect_invalid=Fals
               len(groups['ad'])>=min_samples and len(groups['gnc'])>=min_samples and
               all(p['valid']==0 for name in ['di','ad','gnc'] for p in groups[name]),
               samples={name:len(groups[name]) for name in ['di','ad','gnc']})
-    return {'schema':'manta.nos3.live-udp.v1','passed':all(c['passed'] for c in checks),'checks':checks,
+    return {'schema':'daidalis.nos3.live-udp.v1','passed':all(c['passed'] for c in checks),'checks':checks,
             'packet_counts':{name:len(group) for name,group in groups.items()},'compiler_layout':layout,
             'decoded_packets':packets,'limitations':['Temporal ground DI/GNC pairing is bounded to 150 ms; exact sensor sequence correspondence is separately checked in production probes.']}
 

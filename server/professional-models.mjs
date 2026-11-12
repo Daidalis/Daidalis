@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import {safePath} from './sandbox.mjs';
+import {alignmentReport,buildRecordedManifest,recordedManifestPath} from '../shared/recorded-manifest.mjs';
 
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
 const clone=value=>JSON.parse(JSON.stringify(value));
@@ -121,7 +122,7 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
   for(const name of await fs.readdir(disk)){
     if(!/^professional_[a-f0-9]{32}\.json$/.test(name))continue;
     const job=JSON.parse(await fs.readFile(path.join(disk,name),'utf8'));if(!ID.test(job.id)||job.id+'.json'!==name)throw Error('Invalid persisted professional job');
-    if(!TERMINAL.has(job.status)){job.status='interrupted';job.reason='Manta restarted before an execution receipt was committed; restart explicitly to rerun pinned inputs';job.finishedAt=now();await atomicJson(path.join(disk,name),job);}jobs.set(job.id,job);
+    if(!TERMINAL.has(job.status)){job.status='interrupted';job.reason='Daidalis restarted before an execution receipt was committed; restart explicitly to rerun pinned inputs';job.finishedAt=now();await atomicJson(path.join(disk,name),job);}jobs.set(job.id,job);
   }
   async function readModel(args={}){
     const ws=workspace(args.projectId);
@@ -160,12 +161,35 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
     if(result.nativeVerification?.checks?.length){if(!Array.isArray(result.nativeVerification.checks)||result.nativeVerification.checks.length>100)throw Error('Invalid native verification checks');for(const check of result.nativeVerification.checks){if(!check||typeof check.id!=='string'||!['boolean','undefined'].includes(typeof check.passed)&&check.passed!==null)throw Error('Malformed native verification check');checks.push({...check,id:'native:'+check.id,source:'native-runner',status:check.passed===true?'passed':check.passed===false?'failed':'unknown',passed:check.passed??null});}}
     delete result.fullTable;
     const verification={status:checks.length?checks.some(check=>check.passed===false)?'failed':checks.some(check=>check.passed===null)?'unknown':'passed':'not-requested',checks};
-    const receipt={schema:'manta-professional-execution-v1',jobId:job.id,inputHash:job.inputHash,model:job.model,sourceFiles:job.sourceFiles.map(({path,sha256})=>({path,sha256})),operation:job.operation,parameters:job.parameters,simulation:job.simulation,signals:job.signals||[],tool:result.tool||null,runnerReceipt:result.receipt||null,executionSucceeded:result.executionSucceeded===true,createdAt:job.createdAt,startedAt:job.startedAt||null,finishedAt:job.finishedAt,scope:'Digital model check / numerical simulation only; no physical, HIL, certification or project-completion claim'};
+    const receipt={schema:'daidalis-professional-execution-v1',jobId:job.id,inputHash:job.inputHash,model:job.model,sourceFiles:job.sourceFiles.map(({path,sha256})=>({path,sha256})),operation:job.operation,parameters:job.parameters,simulation:job.simulation,signals:job.signals||[],tool:result.tool||null,runnerReceipt:result.receipt||null,executionSucceeded:result.executionSucceeded===true,createdAt:job.createdAt,startedAt:job.startedAt||null,finishedAt:job.finishedAt,scope:'Digital model check / numerical simulation only; no physical, HIL, certification or project-completion claim'};
     const receiptEntry=await artifact(job,'receipt.json',JSON.stringify(receipt,null,2),'application/json');
-    job.result={schema:'manta-professional-result-v1',jobId:job.id,status:job.status,ready:true,operation:job.operation,model:job.model,sourceFiles:job.sourceFiles.map(({path,sha256})=>({path,sha256})),inputHash:job.inputHash,...result,receipt,verification,passed:result.executionSucceeded===true&&verification.status==='passed'?true:verification.status==='failed'||result.executionSucceeded===false?false:null,receiptSha256:receiptEntry.sha256,resultPath:job.relative+'/result.json',limitations:['Simulation outcomes apply only to the exact recorded model, parameters, scenario and tool version.','Missing physical tests, independent review and applicable engineering work remain open.']};
+    job.result={schema:'daidalis-professional-result-v1',jobId:job.id,status:job.status,ready:true,operation:job.operation,model:job.model,sourceFiles:job.sourceFiles.map(({path,sha256})=>({path,sha256})),inputHash:job.inputHash,...result,receipt,verification,passed:result.executionSucceeded===true&&verification.status==='passed'?true:verification.status==='failed'||result.executionSucceeded===false?false:null,receiptSha256:receiptEntry.sha256,resultPath:job.relative+'/result.json',limitations:['Simulation outcomes apply only to the exact recorded model, parameters, scenario and tool version.','Missing physical tests, independent review and applicable engineering work remain open.']};
     const resultEntry=await artifact(job,'result.json',JSON.stringify(job.result,null,2),'application/json');job.resultSha256=resultEntry.sha256;
     job.artifacts=Object.values(job.artifactHashes);
     if(store.add)for(const entry of job.artifacts)store.add('artifacts',{id:'artifact_'+crypto.randomUUID(),projectId:job.projectId,threadId:job.threadId,runId:job.runId,name:job.id+' · '+entry.name,path:entry.path,type:entry.mimeType,createdAt:now()});
+  }
+  /** Leave a replayable manifest beside the model. The CSV stays in the job's pinned outputs. Never fails the job. */
+  async function archiveRecorded(job,sourceFiles,table,tableFile){
+    try{
+      const relative=recordedManifestPath(job.model.path);if(!relative)return;
+      const ws=workspace(job.projectId),target=safePath(ws,relative,{write:true});
+      let previous=null;
+      try{previous=JSON.parse(await fs.readFile(target,'utf8'));}catch(error){if(error.code!=='ENOENT'){job.recordedManifest={written:false,reason:'Existing manifest is not readable JSON; left unchanged'};return;}}
+      const main=sourceFiles.find(item=>item.path===job.model.path);
+      const manifest=buildRecordedManifest({columns:table.columns,source:main?.content||'',csv:tableFile,jobId:job.id,note:`${job.model.path} 与 ${job.fmu?.path||'FMU'} 的 FMU 仿真，作业 ${job.id}，${table.rowCount} 行采样。`,checks:job.result?.verification?.checks||[],receipt:job.result?.receipt||null,previous});
+      manifest.alignment=alignmentReport({sysml:main?.content||'',columns:table.columns,aliases:manifest.bindings});
+      await fs.mkdir(path.dirname(target),{recursive:true});
+      await fs.writeFile(target,JSON.stringify(manifest,null,2)+'\n');
+      job.recordedManifest={written:true,path:relative,csv:tableFile,alignment:manifest.alignment};
+    }catch(error){job.recordedManifest={written:false,reason:String(error.message).slice(0,300)};}
+  }
+  /** Advisory only: compare the model's names with a sibling same-stem .mo, if one exists. Never blocks a job. */
+  async function siblingAlignment(projectId,modelPath,source){
+    try{
+      const relative=String(modelPath).replace(/\.sysml$/i,'.mo');if(relative===modelPath)return null;
+      const modelica=await fs.readFile(safePath(workspace(projectId),relative),'utf8');
+      return {modelica:relative,...alignmentReport({sysml:source||'',modelica})};
+    }catch{return null;}
   }
   async function execute(job){
     const controller=new AbortController();controllers.set(job.id,controller);const timer=setTimeout(()=>{job.timedOut=true;controller.abort();},job.timeoutMs);timer.unref?.();let logs='';
@@ -205,6 +229,7 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
       job.status=executionSucceeded?'completed':'failed';job.reason=executionSucceeded?undefined:String(output.diagnostics||'Professional tool did not produce a successful '+job.operation+' result').slice(0,3000);job.finishedAt=now();
       await artifact(job,'execution.log',logs+(output.diagnostics||''),'text/plain');
       await finish(job,{executionSucceeded,tool:output.tool,exitCode:output.exitCode,diagnostics:String(output.diagnostics||'').slice(0,100000),receipt:output.receipt,nativeVerification:output.verification||null,geometry,outputKind:geometry?'geometry':'data',...preview(fullTable),fullTable,tableFile});
+      if(executionSucceeded&&job.toolId===SYML_FMI&&job.operation==='simulate'&&tableFile)await archiveRecorded(job,sourceFiles,fullTable,tableFile);
     }catch(error){
       job.status=job.cancelRequested?'cancelled':job.shutdown?'interrupted':'failed';job.reason=job.timedOut?'Professional model execution timed out':String(error.message).slice(0,3000);job.finishedAt=now();
       await artifact(job,'execution.log',logs+job.reason+'\n','text/plain');await finish(job,{executionSucceeded:false,reason:job.reason,diagnostics:job.reason,table:null,series:[]});
@@ -215,11 +240,11 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
     aborted(ctx.signal);if(closed)throw Error('Professional models service is closed');
     const jobId='professional_'+crypto.randomUUID().replaceAll('-',''),relative='engineering/professional/'+jobId;
     const config={model:{path:input.main.path,sha256:input.main.sha256,language:input.main.language},sourceFiles:input.sourceFiles.map(({path,sha256})=>({path,sha256})),modelName:input.modelName||null,operation:input.operation,parameters:input.parameters,simulation:input.simulation,signals:input.signals||[],checks:input.checks,...(input.fmu?{fmu:{path:input.fmu.path,sha256:input.fmu.sha256}}:{})};
-    const job={id:jobId,jobId,projectId:input.projectId,threadId:ctx.threadId||null,runId:ctx.runId||null,status:'queued',createdAt:now(),relative,...config,inputHash:sha(JSON.stringify(config)),toolId:toolFor(input.main.language,input.operation),sourceFiles:input.sourceFiles.map((source,index)=>({path:source.path,sha256:source.sha256,snapshot:`sources/${index}-${path.basename(source.path)}`})),timeoutMs:input.timeoutMs,...(restartedFrom?{restartedFrom}:{}),artifactHashes:{}};
+    const job={...(input.alignment?{alignment:input.alignment}:{}),id:jobId,jobId,projectId:input.projectId,threadId:ctx.threadId||null,runId:ctx.runId||null,status:'queued',createdAt:now(),relative,...config,inputHash:sha(JSON.stringify(config)),toolId:toolFor(input.main.language,input.operation),sourceFiles:input.sourceFiles.map((source,index)=>({path:source.path,sha256:source.sha256,snapshot:`sources/${index}-${path.basename(source.path)}`})),timeoutMs:input.timeoutMs,...(restartedFrom?{restartedFrom}:{}),artifactHashes:{}};
     await fs.mkdir(safePath(workspace(job.projectId),relative,{write:true}),{recursive:true,mode:0o700});
     for(let i=0;i<input.sourceFiles.length;i++)await artifact(job,job.sourceFiles[i].snapshot,input.sourceFiles[i].content,'text/plain');
     if(input.fmu){job.fmu={...job.fmu,snapshot:`sources/${input.sourceFiles.length}-${path.basename(input.fmu.path)}`};await artifact(job,job.fmu.snapshot,input.fmu.content,'application/octet-stream');}
-    await artifact(job,'input.json',JSON.stringify({schema:'manta-professional-input-v1',...config,inputHash:job.inputHash},null,2),'application/json');
+    await artifact(job,'input.json',JSON.stringify({schema:'daidalis-professional-input-v1',...config,inputHash:job.inputHash},null,2),'application/json');
     jobs.set(job.id,job);await persist(job);queue.push(job);queueMicrotask(pump);return publicJob(job);
   }
   const service={
@@ -232,7 +257,7 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
       const target=safePath(ws,relative,{write:true});let previous=null;try{const stat=await fs.stat(target);if(!stat.isFile()||stat.size>MAX_SOURCE)throw fail('Existing model must be a regular file under 2 MB');previous=await fs.readFile(target,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
       if(previous!==null&&(typeof args.expectedHash!=='string'||sha(previous)!==args.expectedHash)||previous===null&&args.expectedHash)throw fail('Model revision conflict: reload before saving','REVISION_CONFLICT');
       await fs.mkdir(path.dirname(target),{recursive:true,mode:0o700});safePath(ws,relative,{write:true});
-      if(previous!==null){const history=safePath(ws,'.manta/professional-model-history/'+sha(previous)+path.extname(relative),{write:true});await fs.mkdir(path.dirname(history),{recursive:true,mode:0o700});await fs.writeFile(history,previous,{mode:0o600,flag:'wx'}).catch(error=>{if(error.code!=='EEXIST')throw error;});}
+      if(previous!==null){const history=safePath(ws,'.daidalis/professional-model-history/'+sha(previous)+path.extname(relative),{write:true});await fs.mkdir(path.dirname(history),{recursive:true,mode:0o700});await fs.writeFile(history,previous,{mode:0o600,flag:'wx'}).catch(error=>{if(error.code!=='EEXIST')throw error;});}
       const temporary=target+'.'+crypto.randomUUID()+'.tmp';await fs.writeFile(temporary,args.content,{mode:0o600,flag:'wx'});try{safePath(ws,relative,{write:true});let current=null;try{current=await fs.readFile(target,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}if(current!==previous)throw fail('Model changed while saving','REVISION_CONFLICT');aborted(ctx.signal);await fs.rename(temporary,target);}finally{await fs.rm(temporary,{force:true});}
       const model=await readModel({projectId:args.projectId,path:relative});emit({projectId:args.projectId,runId:ctx.runId,type:'professional.model.saved',message:'Native model source saved',data:{path:relative,sha256:model.sha256}});return {...model,saved:true,previousSha256:previous===null?null:sha(previous),validationStatus:'not-checked'};
     });},
@@ -259,7 +284,8 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
         if(environment?.isolated!==true||environment?.brokerIsolation?.kind!=='rootless-task-container')throw fail('SysML FMI jobs load native FMU binaries and require the isolated rootless broker task runner; shared-container and host-managed VM execution are not supported','RUNNER_NOT_ISOLATED');
       }
       const checks=normalizeChecks(args.checks);
-      return enqueue({projectId:args.projectId,main,sourceFiles,operation,modelName:args.modelName,parameters:normalizeParameters(args.parameters),fmu,
+      const alignment=fmi?await siblingAlignment(args.projectId,main.path,sourceFiles[0]?.content):null;
+      return enqueue({alignment,projectId:args.projectId,main,sourceFiles,operation,modelName:args.modelName,parameters:normalizeParameters(args.parameters),fmu,
         simulation:main.language==='modelica'?normalizeSimulation(args.simulation):fmi?normalizeFmiSimulation(args.simulation):main.language==='nos3-stf'?{mode:'native-recipe',durationSeconds:operation==='simulate'?96:null}:{mode:'native-source'},
         signals:normalizeSignals(args.signals,main.language,checks),checks,timeoutMs:Math.min(Math.max(Number.isFinite(args.timeoutMs)?args.timeoutMs:maxJobMs,100),maxJobMs)},ctx);
     },
@@ -279,7 +305,7 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
     },
     async wait(args,{signal,timeoutMs=1800000}={}){const job=scoped(args);if(TERMINAL.has(job.status))return {...publicJob(job),result:await service.result(args)};aborted(signal);return new Promise((resolve,reject)=>{const cleanup=()=>{clearTimeout(timer);events.off(job.id,changed);signal?.removeEventListener('abort',abort);};const changed=async next=>{if(TERMINAL.has(next.status)){cleanup();try{resolve({...next,result:await service.result(args)});}catch(error){reject(error);}}};const abort=()=>{cleanup();reject(fail('Cancelled waiting; the professional job continues','CANCELLED'));};const timer=setTimeout(()=>{cleanup();resolve({...publicJob(job),waitTimedOut:true});},Math.min(Math.max(timeoutMs,1),1800000));events.on(job.id,changed);signal?.addEventListener('abort',abort,{once:true});if(TERMINAL.has(job.status))changed(publicJob(job));});},
     async readOutput(args){const job=scoped(args);let file=args.file;if(typeof file==='string'&&file.startsWith(job.relative+'/'))file=file.slice(job.relative.length+1);const entry=job.artifactHashes[file];if(!entry)throw fail('Unknown professional job artifact');const buffer=await fs.readFile(safePath(jobDirectory(job),file));if(sha(buffer)!==entry.sha256)throw Error('Artifact integrity mismatch');return {buffer,contentType:entry.mimeType,sha256:entry.sha256};},
-    async close(){closed=true;for(const job of jobs.values())if(!TERMINAL.has(job.status)){job.shutdown=true;if(controllers.has(job.id))controllers.get(job.id).abort();else{job.status='interrupted';job.reason='Manta stopped before execution';job.finishedAt=now();await persist(job);}}await Promise.allSettled([...tasks]);}
+    async close(){closed=true;for(const job of jobs.values())if(!TERMINAL.has(job.status)){job.shutdown=true;if(controllers.has(job.id))controllers.get(job.id).abort();else{job.status='interrupted';job.reason='Daidalis stopped before execution';job.finishedAt=now();await persist(job);}}await Promise.allSettled([...tasks]);}
   };
   return service;
 }

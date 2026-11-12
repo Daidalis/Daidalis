@@ -11,35 +11,35 @@ import {createOrbit42Runtime,ORBIT42_TOOL_DEFINITIONS} from '../server/orbit42-t
 
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 const BINARY='a56f32e7a0ce8ec7e26749a5fb7aee673f24a190f444fc85083b3c63bd2b6c31';
-const WORKER='56c6934a4f27dda30a5e040e18b27d65f140d7aab8b51563f0cbaffaedc75163';
 const workerPath=fileURLToPath(new URL('../vm/worker/orbit42-run.py',import.meta.url));
+const WORKER=hash(await fs.readFile(workerPath));
 const templatesProbe=spawnSync('/usr/bin/python3',['-c',`import importlib.util,json,sys
 spec=importlib.util.spec_from_file_location('orbit42_worker',sys.argv[1])
 mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
 print(json.dumps([{'path':name,'sha256':digest} for name,digest in sorted(mod.EXPECTED_TEMPLATE_SHA256.items())]))`,workerPath],{encoding:'utf8',timeout:10000,env:{PATH:'/usr/bin:/bin',PYTHONDONTWRITEBYTECODE:'1',LC_ALL:'C'}});
 assert.equal(templatesProbe.status,0,templatesProbe.stderr||templatesProbe.stdout);
 const PINNED_TEMPLATES=JSON.parse(templatesProbe.stdout);
-const model=JSON.stringify({schema:'manta-orbit42-v1',source:{repository:'nasa-itc/42',revision:'dev_20260403'},scenario:{epochUtc:'2024-08-04T00:00:00Z',leapSeconds:37,periapsisAltitudeKm:400,apoapsisAltitudeKm:400,inclinationDeg:52,raanDeg:0,argumentOfPeriapsisDeg:0,trueAnomalyDeg:20,durationSeconds:600,stepSeconds:0.1,outputIntervalSeconds:60},assumptions:['A bounded reference orbit']},null,2)+'\n';
+const model=JSON.stringify({schema:'daidalis-orbit42-v1',source:{repository:'nasa-itc/42',revision:'dev_20260403'},scenario:{epochUtc:'2024-08-04T00:00:00Z',leapSeconds:37,periapsisAltitudeKm:400,apoapsisAltitudeKm:400,inclinationDeg:52,raanDeg:0,argumentOfPeriapsisDeg:0,trueAnomalyDeg:20,durationSeconds:600,stepSeconds:0.1,outputIntervalSeconds:60},assumptions:['A bounded reference orbit']},null,2)+'\n';
 function native(request){
-  const receipt={schema:'manta-orbit42-receipt-v1',jobId:request.jobId,inputHash:request.inputHash,sourceFile:{path:request.sourceFile.path,sha256:request.inputHash},tool:{id:'nasa-42',repository:'nasa-itc/42',revision:'dev_20260403',binarySha256:BINARY},adapterSha256:WORKER,assets:{fileCount:220,treeSha256:'d7d68ea74816d4c0bd78120adf02a982832727d34806c210b7b693f0028a8c48',sourceIntegritySha256:'fadfb8bd140f81a0488f4668ccb4e19f785bf12349fe42dcf872856ebf1c485d',assetManifestSha256:'de831c50047b3376e1fb5400bf062fc197b5edd536266a91172080ad3af19a61'},templateFiles:PINNED_TEMPLATES,epochUtc:'2024-08-04T00:00:00Z',leapSecondsAssumed:37,rawOutputs:['time.42','PosN.42','VelN.42','PosW.42'].map(name=>({path:name,sha256:hash(name+'\n')}))};
+  const receipt={schema:'daidalis-orbit42-receipt-v1',jobId:request.jobId,inputHash:request.inputHash,sourceFile:{path:request.sourceFile.path,sha256:request.inputHash},tool:{id:'nasa-42',repository:'nasa-itc/42',revision:'dev_20260403',binarySha256:BINARY},adapterSha256:WORKER,assets:{fileCount:220,treeSha256:'d7d68ea74816d4c0bd78120adf02a982832727d34806c210b7b693f0028a8c48',sourceIntegritySha256:'fadfb8bd140f81a0488f4668ccb4e19f785bf12349fe42dcf872856ebf1c485d',assetManifestSha256:'de831c50047b3376e1fb5400bf062fc197b5edd536266a91172080ad3af19a61'},templateFiles:PINNED_TEMPLATES,epochUtc:'2024-08-04T00:00:00Z',leapSecondsAssumed:37,rawOutputs:['time.42','PosN.42','VelN.42','PosW.42'].map(name=>({path:name,sha256:hash(name+'\n')}))};
   const required=['trajectory.csv','report.md','receipt.json','time.42','PosN.42','VelN.42','PosW.42','Inp_Sim.txt','Orb_LEO.txt','native-42.log'];
   const files=required.map(name=>{const bytes=Buffer.from(name==='receipt.json'?JSON.stringify(receipt):name==='trajectory.csv'?'time_seconds,x_n_m\n0,6778145\n':name+'\n');return {path:name,sha256:hash(bytes),contentBase64:bytes.toString('base64'),mimeType:name.endsWith('.json')?'application/json':name.endsWith('.csv')?'text/csv':'text/plain'};});
-  return {schema:'manta-orbit42-native-response-v1',success:true,exitCode:0,tool:receipt.tool,receipt,metrics:{samples:2,checks:[{id:'sample',passed:true}]},files};
+  return {schema:'daidalis-orbit42-native-response-v1',success:true,exitCode:0,tool:receipt.tool,receipt,metrics:{samples:2,checks:[{id:'sample',passed:true}]},files};
 }
 function fakeExecute(file,args,options={}){
   if(file!=='/bin/sh')throw Error('Only managed VM helper expected');
   if(args[0].endsWith('/vm-status.sh'))return {code:0,stdout:JSON.stringify({state:'running'}),stderr:''};
   if(!args[0].endsWith('/vm-exec.sh'))throw Error('Unexpected helper');
   const command=args[1];
-  if(command.startsWith('test -x'))return {code:0,stdout:`${BINARY}  /srv/manta/42/42\n`,stderr:''};
-  if(command.startsWith('mkdir -p /srv/manta/orbit42'))return {code:0,stdout:`${WORKER}  adapter.py\n`,stderr:''};
-  if(command.startsWith('python3 /srv/manta/orbit42/adapter-')&&!command.includes('--cancel'))return {code:0,stdout:JSON.stringify(native(JSON.parse(options.input))),stderr:''};
+  if(command.startsWith('test -x'))return {code:0,stdout:`${BINARY}  /srv/daidalis/42/42\n`,stderr:''};
+  if(command.startsWith('mkdir -p /srv/daidalis/orbit42'))return {code:0,stdout:`${WORKER}  adapter.py\n`,stderr:''};
+  if(command.startsWith('python3 /srv/daidalis/orbit42/adapter-')&&!command.includes('--cancel'))return {code:0,stdout:JSON.stringify(native(JSON.parse(options.input))),stderr:''};
   if(command.includes('--cancel'))return {code:0,stdout:'{}',stderr:''};
   throw Error('Unexpected VM command: '+command);
 }
 
 test('orbit model CAS, isolated job tool lifecycle, retained evidence and project scoping',async()=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-orbit42-test-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-orbit42-test-'));
   const ws=path.join(root,'project'),dataDir=path.join(root,'data'),vmRoot=path.join(root,'vm');
   await fs.mkdir(ws);
   const artifacts=[];
@@ -48,7 +48,7 @@ test('orbit model CAS, isolated job tool lifecycle, retained evidence and projec
   let corruptTemplate=false;
   const scopedExecute=(file,args,options)=>{
     const output=fakeExecute(file,args,options);
-    if(corruptTemplate&&args[1]?.startsWith('python3 /srv/manta/orbit42/adapter-')&&!args[1].includes('--cancel')){
+    if(corruptTemplate&&args[1]?.startsWith('python3 /srv/daidalis/orbit42/adapter-')&&!args[1].includes('--cancel')){
       const response=JSON.parse(output.stdout);
       response.receipt.templateFiles[0].sha256='b'.repeat(64);
       return {...output,stdout:JSON.stringify(response)};
@@ -67,7 +67,7 @@ test('orbit model CAS, isolated job tool lifecycle, retained evidence and projec
     assert.equal(ORBIT42_TOOL_DEFINITIONS.length,7);
     const catalog=await runtime.execute('orbit42_catalog',{},ctx);
     assert.equal(catalog.environment.ready,true);
-    assert.equal(catalog.modelContract.schema,'manta-orbit42-v1');
+    assert.equal(catalog.modelContract.schema,'daidalis-orbit42-v1');
     assert.deepEqual(catalog.modelContract.referenceExample.scenario,JSON.parse(model).scenario);
     assert.equal(catalog.modelContract.limits.maximumIntegrationSteps,20000);
     const saved=await runtime.execute('save_orbit42_model',{path:'models/Orbit.orbit42.json',content:model,expectedHash:null},ctx);
@@ -105,16 +105,16 @@ test('orbit model CAS, isolated job tool lifecycle, retained evidence and projec
 });
 
 test('isolated Orbit 42 restarts only its prepared fixed VM and rejects a changed native binary',async()=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-orbit42-cold-test-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-orbit42-cold-test-'));
   const ws=path.join(root,'project'),dataDir=path.join(root,'data'),vmRoot=path.join(root,'vm');
   await fs.mkdir(ws);await fs.mkdir(path.join(vmRoot,'host'),{recursive:true});await fs.mkdir(path.join(vmRoot,'state'));
-  for(const relative of ['state/config.json','state/ubuntu.raw','host/manta-vm','host/vm-start.sh','host/vm-status.sh','host/vm-exec.sh'])await fs.writeFile(path.join(vmRoot,relative),'prepared\n');
+  for(const relative of ['state/config.json','state/ubuntu.raw','host/daidalis-vm','host/vm-start.sh','host/vm-status.sh','host/vm-exec.sh'])await fs.writeFile(path.join(vmRoot,relative),'prepared\n');
   const calls=[];let running=false,changedBinary=false;
   const execute=(file,args,options={})=>{
     assert.equal(file,'/bin/sh');calls.push({helper:path.basename(args[0]),command:args[1]||null});
     if(args[0].endsWith('/vm-status.sh'))return {code:0,stdout:JSON.stringify({state:running?'running':'stopped'}),stderr:''};
     if(args[0].endsWith('/vm-start.sh')){running=true;return {code:0,stdout:'started',stderr:''};}
-    if(args[0].endsWith('/vm-exec.sh')&&args[1]?.startsWith('test -x')&&changedBinary)return {code:0,stdout:'0'.repeat(64)+'  /srv/manta/42/42\n',stderr:''};
+    if(args[0].endsWith('/vm-exec.sh')&&args[1]?.startsWith('test -x')&&changedBinary)return {code:0,stdout:'0'.repeat(64)+'  /srv/daidalis/42/42\n',stderr:''};
     return fakeExecute(file,args,options);
   };
   const store={workspace(id){assert.equal(id,'p');return ws;},add(){}};
@@ -129,13 +129,13 @@ test('isolated Orbit 42 restarts only its prepared fixed VM and rejects a change
     assert.equal(calls.some(call=>call.helper==='vm-prepare.sh'||call.command?.includes('prepare-native')||call.command?.includes('geospatial')),false);
 
     running=false;changedBinary=true;
-    const nativeCallsBefore=calls.filter(call=>call.command?.startsWith('python3 /srv/manta/orbit42/adapter-')).length;
+    const nativeCallsBefore=calls.filter(call=>call.command?.startsWith('python3 /srv/daidalis/orbit42/adapter-')).length;
     const second=await service.submit({projectId:'p',path:saved.path,expectedHash:saved.sha256},{threadId:'thread',runId:'run'});
     const rejected=await service.wait({projectId:'p',jobId:second.jobId});
     assert.equal(rejected.status,'failed');
     assert.match(rejected.result.diagnostics,/pinned binary/);
     assert.equal(calls.filter(call=>call.helper==='vm-start.sh').length,2);
-    assert.equal(calls.filter(call=>call.command?.startsWith('python3 /srv/manta/orbit42/adapter-')).length,nativeCallsBefore);
+    assert.equal(calls.filter(call=>call.command?.startsWith('python3 /srv/daidalis/orbit42/adapter-')).length,nativeCallsBefore);
     const catalog=await service.catalog({projectId:'p'});
     assert.equal(catalog.environment.ready,false);
     assert.equal(catalog.environment.state,'blocked');

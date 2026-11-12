@@ -8,7 +8,7 @@ import {query} from '@anthropic-ai/claude-agent-sdk';
 
 const worker=fileURLToPath(new URL('../vm/worker/claude-remote-launch.py',import.meta.url));
 const python=`import importlib.util,json,sys
-spec=importlib.util.spec_from_file_location('manta_claude_worker',sys.argv[1])
+spec=importlib.util.spec_from_file_location('daidalis_claude_worker',sys.argv[1])
 worker=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
 data=json.load(sys.stdin)
@@ -32,7 +32,7 @@ test('pinned Linux launcher accepts actual Claude Agent SDK 0.3.307 argv and rej
   disallowedTools:['Agent','Task','Bash','WebFetch','WebSearch'],
   settingSources:[],settings:{apiKeyHelper:'/opt/claude/key-helper'},
   permissionMode:'default',canUseTool:async()=>({behavior:'deny',message:'fixture'}),
-  env:{PATH:'/usr/bin:/bin',HOME:'/home/manta',CLAUDE_CONFIG_DIR:'/home/manta/.claude',
+  env:{PATH:'/usr/bin:/bin',HOME:'/home/daidalis',CLAUDE_CONFIG_DIR:'/home/daidalis/.claude',
    ANTHROPIC_BASE_URL:'http://127.0.0.1:9',CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:'1'},
   spawnClaudeCodeProcess(options){
    captured=options;

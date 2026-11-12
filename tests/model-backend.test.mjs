@@ -8,7 +8,7 @@ import {createStore}from '../server/store.mjs';
 import {createModelBackendService}from '../server/model-backend.mjs';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const SIMPLE='package Demo { private import ScalarValues::*; part def Vehicle { attribute mass : Real = 1500.0; } part car : Vehicle; }';
-async function fixture(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-model-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const store=createStore({dataDir:path.join(root,'data'),seed:false});const project=store.createProject({name:'Real SysML test'});const service=await createModelBackendService({store,dataDir:path.join(root,'backend')});return {root,store,service,projectId:project.id,workspace:store.workspace(project.id)};}
+async function fixture(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-model-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const store=createStore({dataDir:path.join(root,'data'),seed:false});const project=store.createProject({name:'Real SysML test'});const service=await createModelBackendService({store,dataDir:path.join(root,'backend')});return {root,store,service,projectId:project.id,workspace:store.workspace(project.id)};}
 
 test('an explicit model source root resolves sibling packages and records the complete source revision',async t=>{
   const f=await fixture(t);

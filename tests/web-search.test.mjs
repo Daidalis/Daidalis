@@ -10,7 +10,7 @@ const version={schema_version:1,ok:true,result:{version:AGENT_REACH_VERSION}};
 const output=items=>({schema_version:1,ok:true,channel:'web',action:'search',backend:'exa',items});
 const processOutput=(value,code=value.ok?0:1)=>({code,stdout:JSON.stringify(value),stderr:''});
 async function fixture(t,{answer=output([{title:'Model 3',url:'https://www.tesla.com/model3',text:'Public specifications'}]),script,timeoutMs=45000,execute,versionAnswer=version}={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-web-search-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-web-search-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const binary=path.join(root,'reach with spaces');await fs.writeFile(binary,script||'#!/bin/sh\nexit 0\n',{mode:0o700});
   const calls=[],service=createWebSearchService({root,dataDir:root,command:binary,timeoutMs,env:{...process.env,OPENAI_API_KEY:'never-forward-model-key',ANTHROPIC_API_KEY:'never-forward-anthropic-key',UNRELATED_PROJECT_SECRET:'never-forward-project-secret',HTTPS_PROXY:'http://proxy.example:1234'},execute:execute||(async(file,args,options)=>{calls.push({file,args,options});return processOutput(args[0]==='version'?versionAnswer:answer);})});
   return {root,binary,service,calls};

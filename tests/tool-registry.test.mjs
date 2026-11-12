@@ -158,7 +158,7 @@ test('presentation uses only known actions, statuses and workflow stages',()=>{
   const actions=new Set(['open-engineering-records','open-model','open-simulations','open-engineering','open-library','open-computer','open-integrations','recheck-engineering']);
   const statuses=new Set(['ready','unverified','blocked','not-integrated','configured','disabled']);
   const stages=new Set(['requirements','architecture','simulation','verification','delivery','integration']);
-  const result=buildEngineeringRegistry(base);assert.equal(result.schema,'manta-engineering-capabilities-v1');assert.equal(result.projectId,base.projectId);assert.ok(!Number.isNaN(Date.parse(result.observedAt)));
+  const result=buildEngineeringRegistry(base);assert.equal(result.schema,'daidalis-engineering-capabilities-v1');assert.equal(result.projectId,base.projectId);assert.ok(!Number.isNaN(Date.parse(result.observedAt)));
   for(const entry of result.entries){assert.ok(actions.has(entry.action));assert.ok(statuses.has(entry.status));assert.ok(entry.stages.every(stage=>stages.has(stage)));assert.equal(typeof entry.integrated,'boolean');assert.equal(typeof entry.ready,'boolean');}
 });
 

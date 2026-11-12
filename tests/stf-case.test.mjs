@@ -5,10 +5,10 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import {createStfCaseService} from '../server/stf-case.mjs';
-const assets=process.env.STF_TEST_ASSETS||path.join(os.tmpdir(),'manta-optional-stf-assets-not-installed');
+const assets=process.env.STF_TEST_ASSETS||path.join(os.tmpdir(),'daidalis-optional-stf-assets-not-installed');
 const assetTest=(name,fn)=>test(name,{skip:!process.env.STF_TEST_ASSETS?'Set STF_TEST_ASSETS to an explicitly configured reference fixture':false},fn);
 const service=createStfCaseService({assetsRoot:assets});
-async function fixture(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'manta-stf-case-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
+async function fixture(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-stf-case-test-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
 
 test('catalog describes two workflows without promoting engineering completion',()=>{const c=service.catalog();assert.deepEqual(c.cases.map(x=>x.variant),['from-zero','existing-change']);assert.equal(c.engineeringComplete,false);assert.ok(c.cases.every(x=>x.modelPath.endsWith('.mo')&&x.engineeringComplete===false));});
 

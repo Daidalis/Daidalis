@@ -1,7 +1,7 @@
 """Build the public, hash-pinned NASA 42 release; verify every runtime asset."""
 import hashlib,json,os,pathlib,platform,runpy,shutil,subprocess,tarfile,urllib.request
 ARCHIVE_SHA='80a90432fc83772e3002c0320e4d54d7d2a6db230a2eeedbf9747a87f553ae4c'
-cache=pathlib.Path('/var/cache/manta42');cache.mkdir(parents=True,exist_ok=True)
+cache=pathlib.Path('/var/cache/daidalis42');cache.mkdir(parents=True,exist_ok=True)
 archive=cache/'dev_20260403.tar.gz'
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 if not archive.is_file() or sha(archive)!=ARCHIVE_SHA:
@@ -32,6 +32,6 @@ for name in ('42','InOut','Model','World','License'):
     src=source/name
     if src.is_dir():shutil.copytree(src,out/name)
     else:shutil.copy2(src,out/name)
-manifest={'schema':'manta-container-orbit42-build-v1','repository':'nasa-itc/42','revision':'dev_20260403','archiveSha256':ARCHIVE_SHA,'binarySha256':sha(out/'42'),'architecture':platform.machine(),'compiler':subprocess.check_output(['gcc','--version'],text=True).splitlines()[0],'buildFlags':['GUIFLAG=','SHADERFLAG='],'referenceWorkerSha256':sha(pathlib.Path('/opt/orbit42-reference.py'))}
+manifest={'schema':'daidalis-container-orbit42-build-v1','repository':'nasa-itc/42','revision':'dev_20260403','archiveSha256':ARCHIVE_SHA,'binarySha256':sha(out/'42'),'architecture':platform.machine(),'compiler':subprocess.check_output(['gcc','--version'],text=True).splitlines()[0],'buildFlags':['GUIFLAG=','SHADERFLAG='],'referenceWorkerSha256':sha(pathlib.Path('/opt/orbit42-reference.py'))}
 (out/'build.json').write_text(json.dumps(manifest,indent=2)+'\n')
 shutil.rmtree(source)

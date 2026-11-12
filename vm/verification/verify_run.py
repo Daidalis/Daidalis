@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manta worker entrypoint: verify an executed live run, fail closed, save evidence."""
+"""Daidalis worker entrypoint: verify an executed live run, fail closed, save evidence."""
 import argparse
 import hashlib
 import json
@@ -24,7 +24,7 @@ def main():
     required=[simfile,fswfile,truthfile,packetfile,root/'run.json']
     missing=[str(p) for p in required if not p.is_file()]
     if missing:
-        result={'schema':'manta.nos3.full-linux-verification.v1','passed':False,'status':'missing_evidence','missing':missing}
+        result={'schema':'daidalis.nos3.full-linux-verification.v1','passed':False,'status':'missing_evidence','missing':missing}
     else:
         sim=rows(simfile); fsw=rows(fswfile); truth=rows(truthfile)
         probe=verify(sim,fsw,truth,not args.allow_identity_mount,args.min_samples,expect_invalid=args.expect=='invalid')
@@ -84,7 +84,7 @@ def main():
         failed=[c['name'] for c in allchecks if not c['passed']]
         reproduced=(set(failed)&FRAME_FAILURES)==FRAME_FAILURES and not(set(failed)-FRAME_FAILURES)
         accepted=reproduced if args.expect=='baseline-defect' else not failed
-        result={'schema':'manta.nos3.full-linux-verification.v1','passed':accepted,
+        result={'schema':'daidalis.nos3.full-linux-verification.v1','passed':accepted,
                 'status':'defect_reproduced' if args.expect=='baseline-defect' and reproduced else ('verified' if accepted else 'verification_failed'),
                 'engineering_requirement_satisfied':args.expect!='baseline-defect' and accepted,
                 'expectation':args.expect,'sensor_sign':args.sensor_sign,'sensor_bias_deg':args.sensor_bias_deg,'failed_checks':failed,

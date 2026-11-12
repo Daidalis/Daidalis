@@ -15,14 +15,14 @@ const supportsPosix=process.platform!=='win32';
 test('Codex discovery honors explicit configuration before PATH and bounded macOS bundles',()=>{
  const existing=new Set(['/custom/codex','/bin/codex','/Applications/Codex.app/Contents/Resources/codex']);
  const probe={platform:'darwin',cwd:'/',isExecutable:file=>existing.has(file)};
- assert.equal(resolveCodexExecutable({...probe,env:{PATH:'/bin',MBSE_CODEX_PATH:'/custom/codex'}}),'/custom/codex');
+ assert.equal(resolveCodexExecutable({...probe,env:{PATH:'/bin',DAIDALIS_CODEX_PATH:'/custom/codex'}}),'/custom/codex');
  assert.equal(resolveCodexExecutable({...probe,env:{PATH:'/bin'}}),'/bin/codex');
  assert.equal(resolveCodexExecutable({...probe,env:{PATH:'/missing'}}),'/Applications/Codex.app/Contents/Resources/codex');
  assert.equal(resolveCodexExecutable({...probe,platform:'linux',env:{PATH:'/missing'}}),null);
 });
 
 test('an invalid configured executable does not silently select another installation',()=>{
- const seen=[];const found=resolveCodexExecutable({env:{MBSE_CODEX_PATH:'/missing/codex',PATH:'/working'},platform:'darwin',cwd:'/',isExecutable:file=>{seen.push(file);return file==='/working/codex';}});
+ const seen=[];const found=resolveCodexExecutable({env:{DAIDALIS_CODEX_PATH:'/missing/codex',PATH:'/working'},platform:'darwin',cwd:'/',isExecutable:file=>{seen.push(file);return file==='/working/codex';}});
  assert.equal(found,null);assert.deepEqual(seen,['/missing/codex']);
 });
 
@@ -31,7 +31,7 @@ test('Windows lookup accepts native executable paths and rejects command-shell s
  const options={platform:'win32',cwd:'C:\\work',isExecutable:file=>existing.has(file)};
  assert.equal(resolveCodexExecutable({...options,env:{Path:'C:\\tools;C:\\native'}}),'C:\\native\\codex.exe');
  assert.equal(resolveCodexExecutable({...options,env:{Path:'"C:\\tools with spaces"'}}),'C:\\tools with spaces\\codex.exe');
- assert.equal(resolveCodexExecutable({...options,env:{PATH:'C:\\native',MBSE_CODEX_PATH:'C:\\tools\\codex.cmd'}}),null);
+ assert.equal(resolveCodexExecutable({...options,env:{PATH:'C:\\native',DAIDALIS_CODEX_PATH:'C:\\tools\\codex.cmd'}}),null);
  assert.equal(resolveCodexExecutable({...options,env:{PATH:'C:\\tools'}}),null);
 });
 
@@ -43,7 +43,7 @@ test('PATH discovery treats executable names as file names rather than shell pro
 });
 
 test('real executable detection rejects directories and non-executable files',{skip:!supportsPosix},async t=>{
- const temp=await fs.mkdtemp(path.join(os.tmpdir(),'manta-executable-'));t.after(()=>fs.rm(temp,{recursive:true,force:true}));
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-executable-'));t.after(()=>fs.rm(temp,{recursive:true,force:true}));
  const first=path.join(temp,'first'),second=path.join(temp,'second with spaces');await fs.mkdir(first);await fs.mkdir(second);
  await fs.mkdir(path.join(first,'codex'));const candidate=path.join(second,'codex');await fs.writeFile(candidate,'#!/bin/sh\nexit 0\n',{mode:0o600});
  const options={platform:'linux',env:{PATH:[first,second].join(path.delimiter)}};assert.equal(resolveCodexExecutable(options),null);
@@ -65,15 +65,18 @@ test('custom API model configuration does not require querying a local Codex cat
 });
 
 test('POSIX foreground launcher resolves a spaced Node path and shares the data default',{skip:!supportsPosix},async t=>{
- const temp=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-launcher-')));t.after(()=>fs.rm(temp,{recursive:true,force:true}));
+ const temp=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-launcher-')));t.after(()=>fs.rm(temp,{recursive:true,force:true}));
  const source=path.join(temp,'application with spaces'),bin=path.join(temp,'tools with spaces');await fs.mkdir(path.join(source,'scripts'),{recursive:true});await fs.mkdir(path.join(source,'server'));await fs.mkdir(bin);
  await fs.copyFile(new URL('../scripts/start.sh',import.meta.url),path.join(source,'scripts/start.sh'));
  await fs.copyFile(new URL('../scripts/launch-config.mjs',import.meta.url),path.join(source,'scripts/launch-config.mjs'));
+ await fs.copyFile(new URL('../scripts/legacy-env.sh',import.meta.url),path.join(source,'scripts/legacy-env.sh'));
  await fs.copyFile(new URL('../server/environment.mjs',import.meta.url),path.join(source,'server/environment.mjs'));
+ await fs.mkdir(path.join(source,'shared'));
+ await fs.copyFile(new URL('../shared/legacy-names.mjs',import.meta.url),path.join(source,'shared/legacy-names.mjs'));
  await fs.symlink(process.execPath,path.join(bin,'node'));await fs.writeFile(path.join(bin,'curl'),'#!/bin/sh\nexit 1\n',{mode:0o700});
- await fs.writeFile(path.join(source,'server/index.mjs'),'process.stdout.write(JSON.stringify({cwd:process.cwd(),node:process.env.MBSE_NODE,data:process.env.MBSE_DATA_DIR}));');
- const env={PATH:[bin,'/usr/bin','/bin'].join(path.delimiter),MBSE_NODE:path.join(bin,'node'),MBSE_FOREGROUND:'1',MBSE_NO_OPEN:'1',PORT:'1'};
+ await fs.writeFile(path.join(source,'server/index.mjs'),'process.stdout.write(JSON.stringify({cwd:process.cwd(),node:process.env.DAIDALIS_NODE,data:process.env.DAIDALIS_DATA_DIR}));');
+ const env={PATH:[bin,'/usr/bin','/bin'].join(path.delimiter),DAIDALIS_NODE:path.join(bin,'node'),DAIDALIS_FOREGROUND:'1',DAIDALIS_NO_OPEN:'1',PORT:'1'};
  const result=await exec('/bin/sh',[path.join(source,'scripts/start.sh')],{env,timeout:10000});
  assert.deepEqual(JSON.parse(result.stdout),{cwd:source,node:process.execPath,data:path.join(source,'data')});
- await assert.rejects(exec('/bin/sh',[path.join(source,'scripts/start.sh')],{env:{...env,MBSE_NODE:path.join(temp,'missing')},timeout:10000}),error=>/valid MBSE_NODE executable/.test(error.stderr));
+ await assert.rejects(exec('/bin/sh',[path.join(source,'scripts/start.sh')],{env:{...env,DAIDALIS_NODE:path.join(temp,'missing')},timeout:10000}),error=>/valid DAIDALIS_NODE executable/.test(error.stderr));
 });

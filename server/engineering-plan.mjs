@@ -1,6 +1,8 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
+
 // A durable engineering work graph. It references the engineering ledger and task
 // registry; it is neither a second requirements database nor an approval system.
-const SCHEMA = 'manta-engineering-plan-v1';
+const SCHEMA = 'daidalis-engineering-plan-v1';
 export const ENGINEERING_PLAN_STAGES = Object.freeze(['mission','requirements','functions','architecture','design','implementation','integration','verification','validation','operations','crosscutting']);
 export const ENGINEERING_PLAN_STATUSES = Object.freeze(['proposed','ready','active','waiting','blocked','delivered','reviewed']);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -82,7 +84,7 @@ export function createEngineeringPlanService({store,emit=()=>{}}) {
   function project(projectId) { if (!store.data.projects?.some(p=>p.id===projectId)) fail(404,'Project not found.'); }
   function stored(projectId) { project(projectId); return store.data.engineeringPlans.find(p=>p.projectId===projectId); }
   function contextualize(plan) {
-    const result = clone(plan), threads = store.data.threads||[], runs = store.data.runs||[];
+    const result = {...clone(plan),schema:SCHEMA}, threads = store.data.threads||[], runs = store.data.runs||[];
     for (const item of result.items) {
       const thread = item.threadId ? threads.find(t=>t.projectId===plan.projectId&&t.id===item.threadId) : item.taskKey ? threads.find(t=>t.projectId===plan.projectId&&t.taskContract?.taskKey===item.taskKey) : null;
       const run = thread && runs.filter(r=>r.threadId===thread.id).at(-1);
@@ -114,7 +116,7 @@ export function createEngineeringPlanService({store,emit=()=>{}}) {
   function update(projectId,input,{actor={kind:'agent'}}={}) {
     project(projectId);
     obj(input,'update',['expectedRevision','goal','sources','assumptions','openQuestions','items','schema','projectId','revision','maturity','createdAt','updatedAt','updatedBy','scope']);
-    if (input.schema !== undefined && input.schema !== SCHEMA) fail(400,'Unknown engineering plan schema.');
+    if (input.schema !== undefined && !productSchemaMatches(input.schema,SCHEMA)) fail(400,'Unknown engineering plan schema.');
     if (input.projectId !== undefined && input.projectId !== projectId) fail(400,'Engineering plan project mismatch.');
     if (input.maturity !== undefined && input.maturity !== 'candidate') fail(400,'Engineering plan cannot approve requirements or the system.');
     if (input.revision !== undefined && input.revision !== input.expectedRevision) fail(400,'Read revision and expectedRevision must agree.');

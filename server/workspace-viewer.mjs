@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import {safePath} from './sandbox.mjs';
 import {readModelSnapshot} from './model-backend/sources.mjs';
 import {modelProjects,resolveModelProject} from './model-backend/projects.mjs';
+import {legacyInternalDirectory} from '../shared/legacy-names.mjs';
 
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const fail = (message, status = 400) => Object.assign(new Error(message), {status});
@@ -21,10 +22,10 @@ function safeRelative(value = '.') {
   if (segments.includes('..')) throw fail('Path escapes the project workspace');
   for (const segment of segments.filter(x => x && x !== '.')) {
     const lower = segment.toLowerCase();
-    if ((lower.startsWith('.') && segment !== '.manta') || /^id_(?:rsa|dsa|ecdsa|ed25519)(?:\.|$)/.test(lower) || /\.(?:pem|key|p12|pfx|jks|keystore)$/.test(lower) || /^(?:credentials?|secrets?|tokens?|auth|keychain|keys)(?:[._-]|$)/.test(lower) || /^(?:api[._-]?keys?|access[._-]?tokens?)(?:[._-]|$)/.test(lower)) throw fail('Credential and internal configuration files are not available in the viewer', 403);
+    if ((lower.startsWith('.') && segment !== '.daidalis' && segment !== legacyInternalDirectory) || /^id_(?:rsa|dsa|ecdsa|ed25519)(?:\.|$)/.test(lower) || /\.(?:pem|key|p12|pfx|jks|keystore)$/.test(lower) || /^(?:credentials?|secrets?|tokens?|auth|keychain|keys)(?:[._-]|$)/.test(lower) || /^(?:api[._-]?keys?|access[._-]?tokens?)(?:[._-]|$)/.test(lower)) throw fail('Credential and internal configuration files are not available in the viewer', 403);
   }
   const normalized = path.posix.normalize(value);
-  if (segments.includes('.manta') && !normalized.startsWith('.manta/model-evidence/')) throw fail('Internal configuration is not available in the viewer', 403);
+  for (const directory of ['.daidalis',legacyInternalDirectory]) if (segments.includes(directory) && !normalized.startsWith(directory+'/model-evidence/')) throw fail('Internal configuration is not available in the viewer', 403);
   return normalized;
 }
 function kind(name) {
@@ -55,7 +56,7 @@ async function directoryEntries(target, maximum) {
 // Contextual file presentation and explicit human text edits; no solver execution.
 export function workspaceEditPolicy(file={}) {
   const relative=String(file.path||'');
-  if(/^engineering\/(?:nos3|professional|geospatial|orbit|orbit-ground)(?:\/|$)/i.test(relative)||/^engineering\/eng_[a-f0-9]{32}(?:\/|$)/i.test(relative)||relative.startsWith('.manta/'))return {editable:false,readOnlyReason:'已记录的工程作业输入与证据只读'};
+  if(/^engineering\/(?:nos3|professional|geospatial|orbit|orbit-ground)(?:\/|$)/i.test(relative)||/^engineering\/eng_[a-f0-9]{32}(?:\/|$)/i.test(relative)||relative.startsWith('.daidalis/')||relative.startsWith(legacyInternalDirectory+'/'))return {editable:false,readOnlyReason:'已记录的工程作业输入与证据只读'};
   if(/(?:\.(?:mo|sysml|kerml|cir|scad)|\.stf\.json)$/i.test(relative))return {editable:false,readOnlyReason:'请使用原生模型编辑与求解入口'};
   if(!['markdown','text','json','csv'].includes(file.type)||file.encoding!=='utf8'||!file.previewable)return {editable:false,readOnlyReason:'此文件不支持文本编辑'};
   if(file.size>MAX_EDIT)return {editable:false,readOnlyReason:'文本编辑上限为 500 KB'};
@@ -69,12 +70,13 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
   store.data.documentEdits||=[];
   const exclusive=(key,operation)=>{const task=(saveQueues.get(key)||Promise.resolve()).catch(()=>{}).then(operation);saveQueues.set(key,task);return task.finally(()=>{if(saveQueues.get(key)===task)saveQueues.delete(key);});};
   async function readJournal(ws,relative){const target=safePath(ws,relative),handle=await fs.open(target,constants.O_RDONLY|(constants.O_NOFOLLOW||0));try{const stat=await handle.stat();if(!stat.isFile()||stat.size>20000)throw fail('修改日志不可读',409);const bytes=await handle.readFile();safePath(ws,relative);return JSON.parse(bytes.toString('utf8'));}finally{await handle.close();}}
-  function validJournal(edit,projectId,relative){return edit?.projectId===projectId&&/^edit_[a-f0-9-]{36}$/i.test(edit.id)&&validHash(edit.sha256)&&validHash(edit.previousSha256)&&edit.historyPath==='.manta/document-history/'+edit.id+'.txt'&&(!relative||edit.path===relative);}
-  const journalPointer=(projectId,relative)=>'.manta/document-history/path-'+sha(Buffer.from(projectId+':'+relative))+'.json';
+  async function readCompatibleJournal(ws,relative){try{return await readJournal(ws,relative);}catch(error){if(error.code!=='ENOENT')throw error;return readJournal(ws,legacyInternalDirectory+relative.slice('.daidalis'.length));}}
+  function validJournal(edit,projectId,relative){return edit?.projectId===projectId&&/^edit_[a-f0-9-]{36}$/i.test(edit.id)&&validHash(edit.sha256)&&validHash(edit.previousSha256)&&['.daidalis',legacyInternalDirectory].some(directory=>edit.historyPath===directory+'/document-history/'+edit.id+'.txt')&&(!relative||edit.path===relative);}
+  const journalPointer=(projectId,relative)=>'.daidalis/document-history/path-'+sha(Buffer.from(projectId+':'+relative))+'.json';
   async function writeJournal(ws,relative,value){const target=safePath(ws,relative,{write:true}),temporary=target+'.'+crypto.randomUUID()+'.tmp';await fs.writeFile(temporary,JSON.stringify(value),{mode:0o600,flag:'wx'});try{safePath(ws,relative,{write:true});await fs.rename(temporary,target);}finally{await fs.rm(temporary,{force:true});}}
   async function revisionFor(projectId,relative,hash){
     let edit=store.data.documentEdits.findLast(e=>e.projectId===projectId&&e.path===relative),persistence=edit?.indexStatus==='pending'?'journal':'state';
-    try{const journal=await readJournal(workspace(projectId),journalPointer(projectId,relative));if(validJournal(journal,projectId,relative)&&(journal.status==='committed'||journal.sha256===hash)&&(!edit||journal.createdAt>edit.createdAt)){edit=journal;persistence='journal';}}catch{/* A missing journal never changes an ordinary file preview. */}
+    try{const journal=await readCompatibleJournal(workspace(projectId),journalPointer(projectId,relative));if(validJournal(journal,projectId,relative)&&(journal.status==='committed'||journal.sha256===hash)&&(!edit||journal.createdAt>edit.createdAt)){edit=journal;persistence='journal';}}catch{/* A missing journal never changes an ordinary file preview. */}
     return edit?{id:edit.id,actor:edit.actor,at:edit.createdAt,sha256:edit.sha256,previousSha256:edit.previousSha256,current:edit.sha256===hash,persistence,status:edit.status||'committed',reviewApplicability:'not-revalidated'}:null;
   }
   function recordedMetadata(projectId,relative){const artifact=(store.data?.artifacts||[]).find(a=>a.projectId===projectId&&a.path===relative);return artifact?{artifactId:artifact.id,name:artifact.name,runId:artifact.runId||null,recordedAt:artifact.createdAt||null,recordedSha256:artifact.sha256||null,receiptUnchanged:true}:null;}
@@ -241,11 +243,11 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
         if(nextHash===current.sha256)return {...current,saved:false,noChanges:true};
         const before=await bytesFor(projectId,safe,MAX_EDIT);
         if(before.sha256!==expectedSha256)throw fail('文件在保存前发生变化；草稿已保留',409);
-        const ws=workspace(projectId),editId=id('edit'),historyRelative='.manta/document-history/'+editId+'.txt';
+        const ws=workspace(projectId),editId=id('edit'),historyRelative='.daidalis/document-history/'+editId+'.txt';
         const history=safePath(ws,historyRelative,{write:true});await fs.mkdir(path.dirname(history),{recursive:true,mode:0o700});safePath(ws,historyRelative,{write:true});await fs.writeFile(history,before.buffer,{mode:0o600,flag:'wx'});
         const edit={id:editId,projectId,path:safe,type:current.type,previousSha256:before.sha256,sha256:nextHash,bytes:nextBytes.length,historyPath:historyRelative,actor:{kind:'user',id:'local-user'},createdAt:now(),reviewApplicability:'not-revalidated',status:'prepared',indexStatus:'pending'};
-        const journalRelative='.manta/document-history/'+editId+'.json',pointer=journalPointer(projectId,safe);await writeJournal(ws,journalRelative,edit);await writeJournal(ws,pointer,edit);
-        const temporaryRelative=path.posix.join(path.posix.dirname(safe),'.manta-edit-'+crypto.randomUUID()+'.tmp'),temporary=safePath(ws,temporaryRelative,{write:true});
+        const journalRelative='.daidalis/document-history/'+editId+'.json',pointer=journalPointer(projectId,safe);await writeJournal(ws,journalRelative,edit);await writeJournal(ws,pointer,edit);
+        const temporaryRelative=path.posix.join(path.posix.dirname(safe),'.daidalis-edit-'+crypto.randomUUID()+'.tmp'),temporary=safePath(ws,temporaryRelative,{write:true});
         await fs.writeFile(temporary,nextBytes,{mode:0o600,flag:'wx'});await fs.chmod(temporary,(await fs.stat(safePath(ws,safe))).mode&0o777);
         try{
           const unchanged=await bytesFor(projectId,safe,MAX_EDIT);
@@ -266,10 +268,10 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
     },
     async history({projectId,editId}={}) {
       const ws=workspace(projectId);if(typeof editId!=='string'||!/^edit_[a-f0-9-]{36}$/i.test(editId))throw fail('修改记录无效',404);let edit=store.data.documentEdits.find(e=>e.id===editId&&e.projectId===projectId);
-      if(!edit)try{const journal=await readJournal(ws,'.manta/document-history/'+editId+'.json');if(validJournal(journal,projectId))edit=journal;}catch{}
+      if(!edit)try{const journal=await readCompatibleJournal(ws,'.daidalis/document-history/'+editId+'.json');if(validJournal(journal,projectId))edit=journal;}catch{}
       if(!edit)throw fail('修改记录不属于当前项目',404);
-      const expected='.manta/document-history/'+edit.id+'.txt';
-      if(edit.historyPath!==expected||!/^edit_[a-f0-9-]{36}$/i.test(edit.id))throw fail('修改记录路径无效',409);
+      if(!validJournal(edit,projectId))throw fail('修改记录路径无效',409);
+      const expected=edit.historyPath;
       const target=safePath(ws,expected),handle=await fs.open(target,constants.O_RDONLY|(constants.O_NOFOLLOW||0));
       try{const stat=await handle.stat();if(!stat.isFile()||stat.size>MAX_EDIT)throw fail('历史内容不可读',413);const bytes=await handle.readFile();safePath(ws,expected);if(sha(bytes)!==edit.previousSha256)throw fail('历史内容完整性校验失败',409);return {projectId,editId,path:edit.path,name:path.basename(edit.path)+' · 修改前版本',type:edit.type,encoding:'utf8',previewable:true,editable:false,sha256:edit.previousSha256,content:new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes),readOnlyReason:'修改前快照只读',actor:edit.actor,createdAt:edit.createdAt};}finally{await handle.close();}
     },

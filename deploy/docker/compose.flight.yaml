@@ -1,11 +1,11 @@
 services:
-  manta:
+  daidalis:
     environment:
-      MANTA_FLIGHT_SOCKET: /flight-control/flight.sock
+      DAIDALIS_FLIGHT_SOCKET: /flight-control/flight.sock
     volumes:
       - flight-control:/flight-control:ro
   flight:
-    image: manta-flight:local
+    image: daidalis-flight:local
     user: "1000:1000"
     read_only: true
     cap_drop: [ALL]
@@ -24,7 +24,7 @@ services:
       - truth42sim:127.0.0.1
       - fortytwo:127.0.0.1
     volumes:
-      - flight-runtime:/srv/manta
+      - flight-runtime:/srv/daidalis
       - flight-control:/flight-control
     tmpfs: ["/tmp:rw,nosuid,nodev,exec,size=1g,mode=1777"]
     healthcheck:
@@ -37,4 +37,4 @@ services:
 volumes:
   flight-control:
   flight-runtime:
-    name: "${COMPOSE_PROJECT_NAME:-manta}-flight-${MANTA_FLIGHT_RUNTIME_TAG:-v1}"
+    name: "${COMPOSE_PROJECT_NAME:-daidalis}-flight-${DAIDALIS_FLIGHT_RUNTIME_TAG:-v1}"

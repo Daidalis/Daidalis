@@ -1,5 +1,20 @@
 #!/usr/bin/env python3
-"""Live read-only readiness probe for Manta's isolated GDAL/PROJ worker."""
+"""Live read-only readiness probe for Daidalis's isolated GDAL/PROJ worker."""
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import hashlib
 import json
 import os
@@ -7,8 +22,8 @@ import pathlib
 import subprocess
 import sys
 
-RECEIPT = pathlib.Path('/srv/manta/receipts/geospatial-ready.json')
-WORKER = pathlib.Path('/srv/manta/geospatial-worker/geospatial-run.py')
+RECEIPT = pathlib.Path(_vm_name_path('/srv/daidalis/receipts/geospatial-ready.json'))
+WORKER = pathlib.Path(_vm_name_path('/srv/daidalis/geospatial-worker/geospatial-run.py'))
 PINNED = {
     'python3-gdal': '3.4.1+dfsg-1build4',
     'gdal-bin': '3.4.1+dfsg-1build4',
@@ -43,7 +58,7 @@ def status(expected_worker=None):
     if not RECEIPT.is_file() or not WORKER.is_file():
         return {'ready': False, 'reason': 'Geospatial worker or readiness receipt is absent'}
     receipt = json.loads(RECEIPT.read_text())
-    if receipt.get('schema') != 'manta-geospatial-ready-v1' or receipt.get('ready') is not True:
+    if not _product_schema_matches(receipt.get('schema'), 'daidalis-geospatial-ready-v1') or receipt.get('ready') is not True:
         return {'ready': False, 'reason': 'Invalid geospatial readiness receipt'}
     actual_packages = packages()
     if any(actual_packages.get(name) != version for name, version in PINNED.items()):

@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
-const SCHEMA = 'manta-engineering-state-v1';
+const SCHEMA = 'daidalis-engineering-state-v1';
 const LIMIT = Object.freeze({ historyProjection: 50, objects: 2000, files: 32, fileBytes: 2 * 1024 * 1024, readBytes: 16 * 1024 * 1024, readPaths: 128, snapshots: 100, evidence: 500, changes: 500 });
 const now = () => new Date().toISOString();
 const clone = value => JSON.parse(JSON.stringify(value));

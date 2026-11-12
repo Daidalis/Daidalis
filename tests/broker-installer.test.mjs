@@ -7,11 +7,13 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 const exec=promisify(execFile);
 async function fixture(t){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-installer-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-installer-'));
   t.after(()=>fs.rm(root,{recursive:true,force:true}));
   await fs.mkdir(path.join(root,'deploy/docker'),{recursive:true});
   await fs.mkdir(path.join(root,'bin'));
   await fs.copyFile(new URL('../deploy/docker/install-broker.sh',import.meta.url),path.join(root,'deploy/docker/install-broker.sh'));
+  await fs.mkdir(path.join(root,'scripts'));
+  await fs.copyFile(new URL('../scripts/legacy-env.sh',import.meta.url),path.join(root,'scripts/legacy-env.sh'));
   await fs.writeFile(path.join(root,'.env.example'),'');
   // A recording Docker double: these tests must never contact a real daemon.
   await fs.writeFile(path.join(root,'bin/docker'),`#!/bin/sh
@@ -28,25 +30,25 @@ esac
   return {root,env,run:(extra,start=false)=>exec('/bin/sh',['deploy/docker/install-broker.sh',...(start?[]:['--no-start'])],{cwd:root,env:{...env,...extra}})};
 }
 test('broker installer retains minimal tool choices and does not start with --no-start',async t=>{
-  const f=await fixture(t);await f.run({MANTA_TOOLS:'',MANTA_MODELICA:'0',MANTA_ORBIT42:'0'});
+  const f=await fixture(t);await f.run({DAIDALIS_TOOLS:'',DAIDALIS_MODELICA:'0',DAIDALIS_ORBIT42:'0'});
   const saved=await fs.readFile(path.join(f.root,'deploy/local/broker.env'),'utf8');
-  assert.match(saved,/^MANTA_TOOLS=$/m);assert.match(saved,/^MANTA_MODELICA=0$/m);assert.match(saved,/^MANTA_ORBIT42=0$/m);
-  assert.match(saved,/MANTA_ROOTLESS_SOCKET_GID=999/);
+  assert.match(saved,/^DAIDALIS_TOOLS=$/m);assert.match(saved,/^DAIDALIS_MODELICA=0$/m);assert.match(saved,/^DAIDALIS_ORBIT42=0$/m);
+  assert.match(saved,/DAIDALIS_ROOTLESS_SOCKET_GID=999/);
   const calls=await fs.readFile(f.env.TEST_LOG,'utf8');
-  assert.match(calls,/compose config --quiet/);assert.match(calls,/compose build manta broker/);assert.doesNotMatch(calls,/compose up/);
+  assert.match(calls,/compose config --quiet/);assert.match(calls,/compose build daidalis broker/);assert.doesNotMatch(calls,/compose up/);
 });
 test('invalid ports, tools and unsupported Engine fail before building or saving',async t=>{
-  for(const extra of [{MANTA_PORT:'8080'},{MANTA_PORT:'4320',MANTA_DESKTOP_PORT:'4320'},{MANTA_TOOLS:'bogus'},{TEST_ENGINE_VERSION:'25.0.0'}]){
+  for(const extra of [{DAIDALIS_PORT:'8080'},{DAIDALIS_PORT:'4320',DAIDALIS_DESKTOP_PORT:'4320'},{DAIDALIS_TOOLS:'bogus'},{TEST_ENGINE_VERSION:'25.0.0'}]){
     const f=await fixture(t);await assert.rejects(f.run(extra));
     assert.doesNotMatch(await fs.readFile(f.env.TEST_LOG,'utf8'),/compose build/);
     await assert.rejects(fs.access(path.join(f.root,'deploy/local/broker.env')));
   }
 });
 test('broker installer preserves independently selected engineering desktop groups',async t=>{
-  const f=await fixture(t);await f.run({MANTA_TOOLS:'desktop,freecad,scilab',MANTA_MODELICA:'1',MANTA_ORBIT42:'0'});
+  const f=await fixture(t);await f.run({DAIDALIS_TOOLS:'desktop,freecad,scilab',DAIDALIS_MODELICA:'1',DAIDALIS_ORBIT42:'0'});
   const saved=await fs.readFile(path.join(f.root,'deploy/local/broker.env'),'utf8');
-  assert.match(saved,/^MANTA_TOOLS=desktop,freecad,scilab$/m);
-  assert.match(saved,/^MANTA_MODELICA=1$/m);
+  assert.match(saved,/^DAIDALIS_TOOLS=desktop,freecad,scilab$/m);
+  assert.match(saved,/^DAIDALIS_MODELICA=1$/m);
   assert.doesNotMatch(await fs.readFile(f.env.TEST_LOG,'utf8'),/compose up/);
 });
 
@@ -59,6 +61,6 @@ test('missing CPU delegation requires explicit opt-out before installation', asy
  const f = await fixture(t);
  await assert.rejects(f.run({TEST_CPU_QUOTA: 'false'}), /CPU quota is unavailable/);
  assert.doesNotMatch(await fs.readFile(f.env.TEST_LOG, 'utf8'), /compose build/);
- await f.run({TEST_CPU_QUOTA: 'false', MANTA_TASK_CPUS: '0'});
- assert.match(await fs.readFile(path.join(f.root, 'deploy/local/broker.env'), 'utf8'), /^MANTA_TASK_CPUS=0$/m);
+ await f.run({TEST_CPU_QUOTA: 'false', DAIDALIS_TASK_CPUS: '0'});
+ assert.match(await fs.readFile(path.join(f.root, 'deploy/local/broker.env'), 'utf8'), /^DAIDALIS_TASK_CPUS=0$/m);
 });

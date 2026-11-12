@@ -18,7 +18,7 @@ test('real GDAL classifies interior, boundary and exterior and rejects changed s
  await assert.rejects(runner.run({...request,sourceHash:'0'.repeat(64)}),/hash/);
  const mismatch=await runner.run({...request,expectedSourceEpsg:4269});assert.equal(mismatch.success,false);assert.match(mismatch.diagnostics,/CRS/);
 });
-export const orbitModel={schema:'manta-orbit42-v1',source:{repository:'nasa-itc/42',revision:'dev_20260403'},scenario:{epochUtc:'2024-08-04T00:00:00Z',leapSeconds:37,periapsisAltitudeKm:400,apoapsisAltitudeKm:400,inclinationDeg:52,raanDeg:0,argumentOfPeriapsisDeg:0,trueAnomalyDeg:20,durationSeconds:60,stepSeconds:.1,outputIntervalSeconds:10},assumptions:['Analytic acceptance scenario only']};
+export const orbitModel={schema:'daidalis-orbit42-v1',source:{repository:'nasa-itc/42',revision:'dev_20260403'},scenario:{epochUtc:'2024-08-04T00:00:00Z',leapSeconds:37,periapsisAltitudeKm:400,apoapsisAltitudeKm:400,inclinationDeg:52,raanDeg:0,argumentOfPeriapsisDeg:0,trueAnomalyDeg:20,durationSeconds:60,stepSeconds:.1,outputIntervalSeconds:10},assumptions:['Analytic acceptance scenario only']};
 test('real NASA 42 produces native trajectory with verified asset and build receipts',{skip:skip||!existsSync('/opt/orbit42/build.json'),timeout:120000},async()=>{
  const runner=createOrbit42ContainerRunner(),ready=await runner.status();assert.equal(ready.ready,true,ready.reason);
  const content=JSON.stringify(orbitModel),hash=sha(content),request={jobId:'orbit42_'+randomUUID().replaceAll('-',''),inputHash:hash,sourceFile:{path:'models/test.orbit42.json',content,sha256:hash}};

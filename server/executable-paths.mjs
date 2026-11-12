@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const CODEX_MISSING_MESSAGE='Codex executable not found. Install Codex on PATH or set MBSE_CODEX_PATH to its executable. On Windows use a native .exe or run Manta in WSL; .cmd/.bat launchers are not executed.';
+export const CODEX_MISSING_MESSAGE='Codex executable not found. Install Codex on PATH or set DAIDALIS_CODEX_PATH to its executable. On Windows use a native .exe or run Daidalis in WSL; .cmd/.bat launchers are not executed.';
 
 /** Resolve a launchable file without a shell, probing configuration and PATH only. */
 export function resolveExecutable(command,{env=process.env,platform=process.platform,cwd=process.cwd(),isExecutable}={}) {
@@ -23,7 +23,7 @@ export function resolveExecutable(command,{env=process.env,platform=process.plat
 /** Explicit configuration is authoritative; an invalid override never falls back. */
 export function resolveCodexExecutable(options={}) {
   const env=options.env||process.env,platform=options.platform||process.platform;
-  if(env.MBSE_CODEX_PATH)return resolveExecutable(env.MBSE_CODEX_PATH,{...options,env,platform});
+  if(env.DAIDALIS_CODEX_PATH)return resolveExecutable(env.DAIDALIS_CODEX_PATH,{...options,env,platform});
   const found=resolveExecutable('codex',{...options,env,platform});if(found)return found;
   if(platform==='darwin')for(const candidate of [
     '/Applications/Codex.app/Contents/Resources/codex',

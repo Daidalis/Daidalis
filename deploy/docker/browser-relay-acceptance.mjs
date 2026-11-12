@@ -8,7 +8,7 @@ import {relayBrowserRequest} from '../../server/browser-relay.mjs';
 const root=await fs.mkdtemp(path.join(os.tmpdir(),'browser-parity-'));
 const baseUrl='http://127.0.0.1:4317';
 const seen=[];
-const oldHosts=process.env.MBSE_COMPUTER_HOSTS;process.env.MBSE_COMPUTER_HOSTS='example.com';
+const oldHosts=process.env.DAIDALIS_COMPUTER_HOSTS;process.env.DAIDALIS_COMPUTER_HOSTS='example.com';
 const service=await createComputerService({root,dataDir:root,browserFetch:args=>relayBrowserRequest(args,{baseUrl,allowedHosts:['example.com'],projectId:'project_one',context:{source:'user'},fetchImpl:async(url,opts)=>{
  const pathname=new URL(url).pathname;seen.push({url,method:opts.method,cookie:opts.headers.get('cookie'),body:opts.body,contentType:opts.headers.get('content-type'),auth:opts.headers.get('authorization')});
  if(pathname==='/login')return new Response(`<form method="post" action="/session"><input name="name" value="fixture"></form><script>document.forms[0].submit()</script>`,{headers:{'content-type':'text/html'}});
@@ -38,4 +38,4 @@ try{
  await assert.rejects(action('project_one','browser.navigate',{url:'https://example.com/blocked'}));
  assert.equal(seen.some(r=>r.url.includes('169.254')),false);
  console.log('Chromium form login, redirect, multiple cookies, site authentication, binary PATCH and separate project cookie jars passed');
-}finally{await service.close();await fs.rm(root,{recursive:true,force:true});if(oldHosts===undefined)delete process.env.MBSE_COMPUTER_HOSTS;else process.env.MBSE_COMPUTER_HOSTS=oldHosts;}
+}finally{await service.close();await fs.rm(root,{recursive:true,force:true});if(oldHosts===undefined)delete process.env.DAIDALIS_COMPUTER_HOSTS;else process.env.DAIDALIS_COMPUTER_HOSTS=oldHosts;}

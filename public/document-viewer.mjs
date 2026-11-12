@@ -66,7 +66,7 @@ export function renderMarkdown(content, {path = '', resolveImage} = {}) {
     const link = resolveDocumentLink(token.href, path), alt = token.text || basename(token.href);
     let imageURL;
     if (link?.kind === 'path' && typeof resolveImage === 'function') {
-      // Only Manta-controlled image routes. SVG/HTML and network images are
+      // Only Daidalis-controlled image routes. SVG/HTML and network images are
       // opened explicitly via the document controller instead of embedded.
       imageURL = projectRasterURL(link.path,resolveImage);
     }
@@ -306,7 +306,7 @@ function visibleGraph(graph, filter, scoped = false) {
 }
 
 // Layer layout uses only semantic edges. Ownership in the outline is separate;
-// no hand-written Manta trace relation is synthesized into this graph.
+// no hand-written Daidalis trace relation is synthesized into this graph.
 export function layoutSemanticGraph(nodes, edges, {columnWidth = 304} = {}) {
   const byId = new Map(nodes.map(node => [node.id,node])), incoming = new Map(nodes.map(node => [node.id,0])), outgoing = new Map(nodes.map(node => [node.id,[]]));
   for (const edge of edges) {

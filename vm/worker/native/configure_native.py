@@ -4,6 +4,16 @@
 The flight components, cFE, OSAL, PSP, NOS Engine and 42 are original NASA code.
 This mission selects the star-tracker/ADCS chain and UDP CI/TO ground interfaces.
 """
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import argparse
 import pathlib
 import re
@@ -33,9 +43,9 @@ p.add_argument('--fortytwo', type=pathlib.Path, required=True)
 p.add_argument('--work', type=pathlib.Path, required=True)
 a = p.parse_args()
 src, work = a.source.resolve(), a.work.resolve()
-if src == work or not str(work).startswith('/srv/manta/'):
-    raise SystemExit('Work must be a separate /srv/manta/ directory inside Linux')
-if not (work / '.manta-isolated-nos3').exists():
+if src == work or not str(work).startswith(_vm_name_path('/srv/daidalis/')):
+    raise SystemExit(_vm_name_path('Work must be a separate /srv/daidalis/ directory inside Linux'))
+if not (work / '.daidalis-isolated-nos3').exists():
     archive = src.parents[1] / 'nos3-source.tar.gz'
     if archive.exists() and work.name == 'nos3':
         # One compact source archive avoids repeated virtiofs per-file read
@@ -49,8 +59,8 @@ if not (work / '.manta-isolated-nos3').exists():
             tf.extractall(work.parent)
     else:
         shutil.copytree(src, work, symlinks=True, dirs_exist_ok=True, copy_function=plain_copy,
-                        ignore=shutil.ignore_patterns('.git', 'artifacts', 'engineering', '.manta'))
-(work / '.manta-isolated-nos3').write_text('Private Linux verification copy; original host project untouched.\n')
+                        ignore=shutil.ignore_patterns('.git', 'artifacts', 'engineering', '.daidalis'))
+(work / '.daidalis-isolated-nos3').write_text('Private Linux verification copy; original host project untouched.\n')
 build = work / 'cfg/build'
 build.mkdir(parents=True, exist_ok=True)
 for name in ['InOut', 'nos3_defs', 'sims']:
@@ -129,7 +139,7 @@ if not f42.exists():
     f42.mkdir()
     for child in a.fortytwo.resolve().iterdir():
         if child.name in ['World', 'Model']:
-            private_assets = pathlib.Path('/srv/manta/42-assets') / child.name
+            private_assets = pathlib.Path(_vm_name_path('/srv/daidalis/42-assets')) / child.name
             (f42 / child.name).symlink_to(private_assets if private_assets.exists() else child)
         elif child.name in ['Source', 'Include', 'Kit', 'InOut', 'License', 'Makefile']:
             if child.is_dir():
@@ -138,11 +148,11 @@ if not f42.exists():
                 plain_copy(child, f42 / child.name)
     (f42 / 'Object').mkdir(exist_ok=True)
 for name in ['Model', 'World']:
-    private_assets = pathlib.Path('/srv/manta/42-assets') / name
+    private_assets = pathlib.Path(_vm_name_path('/srv/daidalis/42-assets')) / name
     target = f42 / name
     if private_assets.exists() and target.is_symlink() and target.resolve() != private_assets:
         target.unlink()
         target.symlink_to(private_assets)
-(f42 / '.manta-isolated-42').write_text('Private Linux verification copy of NASA 42.\n')
+(f42 / '.daidalis-isolated-42').write_text('Private Linux verification copy of NASA 42.\n')
 shutil.copytree(build / 'InOut', f42 / 'NOS3InOut', dirs_exist_ok=True)
 print('Configured native mission:', work)

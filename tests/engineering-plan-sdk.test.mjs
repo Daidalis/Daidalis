@@ -29,7 +29,7 @@ test('native MCP schema conversion accepts nullable plan review and zero object 
 });
 
 test('official SDK repairs rejected plan links, saves reviewed work and restores it from disk',async t=>{
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-plan-sdk-'));
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-plan-sdk-'));
  t.after(()=>fs.rm(root,{recursive:true,force:true}));
  const folder=path.join(root,'project');await fs.mkdir(folder);
  await fs.writeFile(path.join(folder,'requirements.md'),'R05: Candidate target; acceptance remains TBD.\n');

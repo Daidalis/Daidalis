@@ -48,7 +48,7 @@ function fmiOutput(args,patch={}){
 }
 
 async function fmiFixture(t,{run}={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-sysml-fmi-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-sysml-fmi-'));
   const dataDir=path.join(root,'data');
   const store=createStore({dataDir,seed:false});
   const project=store.createProject({name:'SysML FMI'});
@@ -157,4 +157,50 @@ test('the catalog advertises the SysML FMI backend alongside the semantic kernel
   assert.ok(entry,'sysml-fmi must appear in the tool catalog');
   assert.equal(entry.language,'sysml');
   assert.ok(entry.operations.includes('simulate'));
+});
+
+test('a successful SysML FMI job leaves a replayable manifest beside the model',async t=>{
+  const f=await fmiFixture(t),result=await f.runJob();
+  const manifest=JSON.parse(await fs.readFile(path.join(f.workspace,'models/FMUDecay.recorded.json'),'utf8'));
+  assert.equal(manifest.schema,'daidalis-recorded-trajectory-v1');
+  assert.equal(manifest.provenance,'fmu-run');
+  assert.equal(manifest.csv,result.tableFile);
+  assert.match(manifest.csv,/^engineering\/professional\/professional_[a-f0-9]{32}\/outputs\/trajectory\.csv$/);
+  assert.equal(manifest.receipt.runnerReceipt.fmu.sha256,hash(FMU_BYTES));
+  assert.equal(typeof manifest.drive,'string');
+});
+
+test('a rerun keeps hand-written bindings and drive, and a failed job writes nothing',async t=>{
+  const f=await fmiFixture(t);
+  const target=path.join(f.workspace,'models/FMUDecay.recorded.json');
+  await fs.writeFile(target,JSON.stringify({schema:'daidalis-recorded-trajectory-v1',provenance:'example',csv:'old.csv',bindings:{x:'Decay'},units:{x:'m'},drive:'x'}));
+  await f.runJob();
+  const manifest=JSON.parse(await fs.readFile(target,'utf8'));
+  assert.equal(manifest.provenance,'fmu-run');
+  assert.deepEqual(manifest.bindings,{x:'Decay'});
+  assert.deepEqual(manifest.units,{x:'m'});
+  assert.equal(manifest.drive,'x');
+  assert.notEqual(manifest.csv,'old.csv');
+
+  const g=await fmiFixture(t,{run:args=>fmiOutput(args,{success:false,verification:{checks:[{id:'a',passed:false}]}})});
+  await g.runJob();
+  await assert.rejects(fs.access(path.join(g.workspace,'models/FMUDecay.recorded.json')));
+});
+
+test('a sibling .mo is compared before the run and the result columns afterwards',async t=>{
+  const f=await fmiFixture(t);
+  await fs.writeFile(path.join(f.workspace,'models/FMUDecay.mo'),'model FMUDecay\n  Real x(start=1);\n  Real stray;\nequation\n  der(x)=-x;\n  der(stray)=0;\nend FMUDecay;\n');
+  const job=await f.service.submit(f.args);
+  assert.equal(job.alignment.modelica,'models/FMUDecay.mo');
+  assert.deepEqual(job.alignment.signalsWithoutElement.sort(),['stray','x']);
+  await f.service.wait({projectId:f.projectId,jobId:job.id},{timeoutMs:10000});
+  const manifest=JSON.parse(await fs.readFile(path.join(f.workspace,'models/FMUDecay.recorded.json'),'utf8'));
+  assert.equal(manifest.alignment.kind,'columns');
+  assert.ok(Array.isArray(manifest.alignment.elementsWithoutSignal));
+});
+
+test('a job without a sibling .mo carries no alignment and still runs',async t=>{
+  const f=await fmiFixture(t),job=await f.service.submit(f.args);
+  assert.equal(job.alignment,undefined);
+  await f.service.wait({projectId:f.projectId,jobId:job.id},{timeoutMs:10000});
 });

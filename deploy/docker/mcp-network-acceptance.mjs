@@ -13,9 +13,9 @@ await fs.writeFile(other.folderPath+'/private.txt','private fixture');
 const store={dataDir:'/tmp/mcp-network-acceptance',workspace:id=>{assert.equal(id,project.id);return project.folderPath;},get:(kind,id)=>kind==='projects'&&id===project.id?project:null};
 await fs.mkdir(store.dataDir,{recursive:true});
 await fs.writeFile(project.folderPath+'/network-fixture.mjs',`
-import {Server} from '/opt/manta/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js';
-import {StdioServerTransport} from '/opt/manta/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js';
-import {ListToolsRequestSchema,CallToolRequestSchema} from '/opt/manta/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js';
+import {Server} from '/opt/daidalis/node_modules/@modelcontextprotocol/sdk/dist/esm/server/index.js';
+import {StdioServerTransport} from '/opt/daidalis/node_modules/@modelcontextprotocol/sdk/dist/esm/server/stdio.js';
+import {ListToolsRequestSchema,CallToolRequestSchema} from '/opt/daidalis/node_modules/@modelcontextprotocol/sdk/dist/esm/types.js';
 import fs from 'node:fs';import net from 'node:net';import https from 'node:https';import http from 'node:http';import {execFileSync} from 'node:child_process';
 const server=new Server({name:'network-fixture',version:'1'},{capabilities:{tools:{}}});
 server.setRequestHandler(ListToolsRequestSchema,()=>({tools:['fetch','https','python','direct','local','environment','wait'].map(name=>({name,inputSchema:{type:'object'}}))}));
@@ -32,10 +32,10 @@ server.setRequestHandler(CallToolRequestSchema,async req=>{
  return {content:[{type:'text',text:JSON.stringify(result)}]};
 });await server.connect(new StdioServerTransport());
 `);
-const connectors=createConnectorService({store,env:{OPENAI_API_KEY:'must-not-be-inherited',MANTA_MCP_FIXTURE_TOKEN:'synthetic-connector-token'},stdioTransportFactory:createBrokerStdioTransport});
+const connectors=createConnectorService({store,env:{OPENAI_API_KEY:'must-not-be-inherited',DAIDALIS_MCP_FIXTURE_TOKEN:'synthetic-connector-token'},stdioTransportFactory:createBrokerStdioTransport});
 let config;
 try{
- config=await connectors.save(project.id,{name:'Network fixture',transport:'stdio',command:process.execPath,args:['/work/network-fixture.mjs'],enabled:true,network:{allowedHosts:['example.com']},envFrom:{API_TOKEN:'MANTA_MCP_FIXTURE_TOKEN'},toolPolicies:{fetch:'read',https:'read',python:'read',direct:'read',local:'read',environment:'read',wait:'run'}},{userInitiated:true});
+ config=await connectors.save(project.id,{name:'Network fixture',transport:'stdio',command:process.execPath,args:['/work/network-fixture.mjs'],enabled:true,network:{allowedHosts:['example.com']},envFrom:{API_TOKEN:'DAIDALIS_MCP_FIXTURE_TOKEN'},toolPolicies:{fetch:'read',https:'read',python:'read',direct:'read',local:'read',environment:'read',wait:'run'}},{userInitiated:true});
  await connectors.test(project.id,config.id);
  const call=async(name,args={})=>JSON.parse((await connectors.call(project.id,config.id,name,args)).result.content[0].text);
  assert.deepEqual(await call('environment'),{uid:1000,connectorToken:true,modelKey:false,otherProject:false,dockerSocket:false,data:[]});

@@ -46,7 +46,7 @@ export function createStore({dataDir, workspacesDir = path.join(dataDir, 'worksp
     validateFolder(value) {
       const folder=existingDirectory(value);
       if(broadFolders.has(folder)||systemTrees.some(p=>contains(p,folder)))throw new Error('请选择具体工程文件夹，不能绑定磁盘根目录、个人主目录或系统文件夹。');
-      if(protectedFolders.some(p=>contains(folder,p)||contains(p,folder)))throw new Error('项目文件夹不能包含 Manta 源码/服务数据，也不能位于这些受保护目录内，请另选工程文件夹。');
+      if(protectedFolders.some(p=>contains(folder,p)||contains(p,folder)))throw new Error('项目文件夹不能包含 Daidalis 源码/服务数据，也不能位于这些受保护目录内，请另选工程文件夹。');
       return folder;
     },
     save() {
@@ -66,7 +66,7 @@ export function createStore({dataDir, workspacesDir = path.join(dataDir, 'worksp
         if(fs.lstatSync(legacy).isSymbolicLink()||!fs.realpathSync(legacy).startsWith(fs.realpathSync(workspacesDir)+path.sep))throw new Error('Unsafe legacy workspace');
         project.folderPath=fs.realpathSync(legacy);project.folderBinding='legacy-workspace';project.folderBoundAt=now();store.save();
       }
-      let canonical;try{canonical=existingDirectory(project.folderPath);}catch{throw new Error('项目绑定文件夹不可用；请恢复原目录后继续，Manta 不会自动创建或移动工程文件。');}
+      let canonical;try{canonical=existingDirectory(project.folderPath);}catch{throw new Error('项目绑定文件夹不可用；请恢复原目录后继续，Daidalis 不会自动创建或移动工程文件。');}
       if(canonical!==project.folderPath)throw new Error('项目文件夹路径已改变或被符号链接替换，请恢复原目录后继续。');
       if(project.folderBinding!=='legacy-workspace')store.validateFolder(canonical);
       return canonical;

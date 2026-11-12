@@ -1,10 +1,11 @@
 """Full-duplex native runtime relay; Docker options remain broker-owned."""
 import hashlib,json,os,select,socket,socketserver,subprocess,threading,time,uuid
 from pathlib import Path
+from name_compat import native_home_volume
 
 class NativeHandler(socketserver.StreamRequestHandler):
     def handle(self):
-        broker=self.server.broker;name='manta-task-'+uuid.uuid4().hex;process=None;acquired=False
+        broker=self.server.broker;name='daidalis-task-'+uuid.uuid4().hex;process=None;acquired=False
         try:
             self.connection.settimeout(15)
             raw=self.rfile.readline(24*1024*1024+1)
@@ -33,12 +34,12 @@ class NativeHandler(socketserver.StreamRequestHandler):
                 args+=['--tmpfs','/task-home:rw,nosuid,nodev,size=128m,uid=1000,gid=1000,mode=700',
                        '--tmpfs','/desktop-data:rw,nosuid,nodev,size=64m,uid=1000,gid=1000,mode=700']
             else:
-                home='manta-native-'+hashlib.sha256((broker.owner+':'+request['project']).encode()).hexdigest()[:32]
-                broker.docker('volume','create','--label','manta.native-state='+broker.owner,home)
+                home=native_home_volume(broker,hashlib.sha256((broker.owner+':'+request['project']).encode()).hexdigest()[:32])
+                broker.docker('volume','create','--label','daidalis.native-state='+broker.owner,home)
                 args+=['--mount',f'type=volume,src={home},dst=/task-home',
                        '--mount',f'type=volume,src={broker.model_volume},dst=/model-control,readonly,volume-nocopy']
             worker='service-worker.mjs' if service else 'native-worker.mjs'
-            args+=['--entrypoint','node',broker.image,'/opt/manta/deploy/runner/'+worker]
+            args+=['--entrypoint','node',broker.image,'/opt/daidalis/deploy/runner/'+worker]
             with broker.lock:broker.active.add(name)
             broker.docker(*args)
             process=subprocess.Popen(broker.cli+['start','--attach','--interactive',name],env=broker.env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0)

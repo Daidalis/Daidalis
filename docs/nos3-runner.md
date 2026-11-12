@@ -3,7 +3,7 @@
 本机隔离 Linux 路线现已接通，详见 [本地 Linux 虚拟机](local-linux-vm.md)。下述远程 HTTPS Worker 路线继续可用。
 
 
-Manta keeps the Codex/Claude native runtimes. This connector is an asynchronous engineering tool behind the common tool service, not a replacement agent loop. It does not install software, modify shell profiles, or read global Codex/Claude/SSH configuration.
+Daidalis keeps the Codex/Claude native runtimes. This connector is an asynchronous engineering tool behind the common tool service, not a replacement agent loop. It does not install software, modify shell profiles, or read global Codex/Claude/SSH configuration.
 
 ## What is actually executable
 
@@ -20,7 +20,7 @@ await nos3.inspect({projectId});
 // A user-settings operation: never let an agent choose a new credential destination.
 await nos3.configure({projectId, worker:{
   type:'remote-https', endpoint:'https://engineering-worker.example/nos3',
-  tokenEnv:'MANTA_NOS3_TOKEN'
+  tokenEnv:'DAIDALIS_NOS3_TOKEN'
 }});
 const job = await nos3.submit({
   projectId, scope:'component', revision:sourceCommit,
@@ -41,29 +41,29 @@ Each submission pins the root Git commit, gitlink commits (recursively for popul
 
 ## Remote worker deployment
 
-The runnable entrypoint is `runners/nos3/worker.mjs`. Importing it has no side effects. It uses Node built-ins and existing git/tar/compiler only. No Docker/VM/image is installed or started by Manta.
+The runnable entrypoint is `runners/nos3/worker.mjs`. Importing it has no side effects. It uses Node built-ins and existing git/tar/compiler only. No Docker/VM/image is installed or started by Daidalis.
 
 Deploy this **on a dedicated isolated host**, not the user's Mac:
 
 ```sh
-MANTA_NOS3_SOURCE=/srv/mirrors/nos3 \
-MANTA_NOS3_DATA=/srv/manta-nos3-jobs \
-MANTA_NOS3_TOKEN='<random token of at least 24 characters>' \
-MANTA_NOS3_RECIPES=/opt/manta/runners/nos3/recipes.example.json \
-node /opt/manta/runners/nos3/worker.mjs
+DAIDALIS_NOS3_SOURCE=/srv/mirrors/nos3 \
+DAIDALIS_NOS3_DATA=/srv/daidalis-nos3-jobs \
+DAIDALIS_NOS3_TOKEN='<random token of at least 24 characters>' \
+DAIDALIS_NOS3_RECIPES=/opt/daidalis/runners/nos3/recipes.example.json \
+node /opt/daidalis/runners/nos3/worker.mjs
 ```
 
-Put an authenticated TLS reverse proxy in front of the loopback listener; Manta accepts only HTTPS endpoints, never URL credentials or redirects. A private enterprise HTTPS address can be explicitly configured. Keep tokens in environment variables prefixed `MANTA_NOS3_`; Manta does not inspect unrelated host credentials. Do not put secrets in prompts or checked-in files.
+Put an authenticated TLS reverse proxy in front of the loopback listener; Daidalis accepts only HTTPS endpoints, never URL credentials or redirects. A private enterprise HTTPS address can be explicitly configured. Keep tokens in environment variables prefixed `DAIDALIS_NOS3_`; Daidalis does not inspect unrelated host credentials. Do not put secrets in prompts or checked-in files.
 
-The optional `Containerfile` takes a mandatory digest-pinned `BASE_IMAGE` already containing Node >=22, git, tar and clang. It performs no package-manager install. Run unprivileged, read-only source mount, isolated writable jobs volume, without Docker socket/host network. This simple container is suitable for the component worker. A full NOS3 deployment that launches its own containers needs a **dedicated disposable Linux machine**, not a Docker socket mounted into Manta.
+The optional `Containerfile` takes a mandatory digest-pinned `BASE_IMAGE` already containing Node >=22, git, tar and clang. It performs no package-manager install. Run unprivileged, read-only source mount, isolated writable jobs volume, without Docker socket/host network. This simple container is suitable for the component worker. A full NOS3 deployment that launches its own containers needs a **dedicated disposable Linux machine**, not a Docker socket mounted into Daidalis.
 
 Full build/integration require a complete mirror with all gitlinks checked out at their recorded commits, a compatible prepared NOS3 deployment, configured mission and dependencies/42 runtime. The worker makes a new committed-source snapshot, never builds in the mirror. `recipes.example.json` is an operator template, not an assertion that an unprepared Linux system can build NOS3. The supplied scripts are runnable and fail closed when deployment assets are absent:
 
 - `verify-build.py` checks actual cFS and simulator binary artifacts after `make all`.
-- `run-and-verify-integration.py` launches upstream NOS3/42/cFS/COSMOS, checks real process/container states, executes the upstream SAMPLE command/telemetry test without interactive Docker flags, and collects observed counters and logs. It requires an explicitly dedicated/empty Docker daemon and `/opt/manta-nos3-site/images.lock.json` mapping the two upstream image names to preloaded immutable `sha256:` image IDs. No image is pulled by this script. Upstream launch scripts can modify their disposable containers; use a prepared deployment and controlled package mirrors as appropriate. It never runs on the Mac automatically.
+- `run-and-verify-integration.py` launches upstream NOS3/42/cFS/COSMOS, checks real process/container states, executes the upstream SAMPLE command/telemetry test without interactive Docker flags, and collects observed counters and logs. It requires an explicitly dedicated/empty Docker daemon and `/opt/daidalis-nos3-site/images.lock.json` mapping the two upstream image names to preloaded immutable `sha256:` image IDs. No image is pulled by this script. Upstream launch scripts can modify their disposable containers; use a prepared deployment and controlled package mirrors as appropriate. It never runs on the Mac automatically.
 - These integration checks are an operational smoke, **not** star-tracker frame verification. `R-SENSOR-SEPARATION` remains untested. Do not report mission-wide validation from this report.
 
-Recipes live only on the worker, are supplied by its operator, use explicit argv arrays, and cannot be supplied through an Agent job request. Commands run with a job-local HOME/TMPDIR. A result must provide `manta-nos3-verification-v1`, correct scope, nonempty explicit checks, consistent pass/fail, and, for integration, real nonempty telemetry files. An exit code alone is never acceptance. Input/model fingerprints are echoed and checked; transferred evidence is size-limited and hashed.
+Recipes live only on the worker, are supplied by its operator, use explicit argv arrays, and cannot be supplied through an Agent job request. Commands run with a job-local HOME/TMPDIR. A result must provide `daidalis-nos3-verification-v1`, correct scope, nonempty explicit checks, consistent pass/fail, and, for integration, real nonempty telemetry files. An exit code alone is never acceptance. Input/model fingerprints are echoed and checked; transferred evidence is size-limited and hashed.
 
 ## Wire protocol
 

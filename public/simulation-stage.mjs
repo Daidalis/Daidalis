@@ -82,20 +82,57 @@ export function signalSummaries(table={}, {checks=[], receipt=null}={}){
  return {timeIndex,columns,rows,signals:numeric};
 }
 
-function ident(value){
- const token=String(value||'').split(/[.:]/).filter(Boolean).at(-1)||'';
- return /^[A-Za-z_]\w*$/.test(token)?token:'';
+const identifier=/^[A-Za-z_]\w*$/;
+
+/** `battery`, `Pkg::battery`, and `battery : BatteryPack` are the same element. */
+export function shortName(value){
+ const text=String(value??'').trim();
+ const qualified=text.split('::').filter(Boolean).at(-1)||'';
+ const declared=/^([A-Za-z_]\w*)\s*:(?!:)/.exec(qualified);
+ if(declared)return declared[1];
+ const token=qualified.split('.').filter(Boolean).at(-1)||'';
+ return identifier.test(token)?token:'';
 }
 
-/** Bind a column only when its name, or its last identifier, equals an element name. */
-export function matchSignals(columns=[], elements=[]){
- const names=elements.filter(element=>ident(element?.name));
+/** Column-to-element aliases from a recorded manifest. Both sides must be identifiers. */
+export function signalBindings(bindings){
+ const out={};
+ if(!bindings||typeof bindings!=='object'||Array.isArray(bindings))return out;
+ for(const [column,element] of Object.entries(bindings)){
+  if(!identifier.test(column)||typeof element!=='string'||!identifier.test(element.trim()))continue;
+  out[column]=element.trim();
+ }
+ return out;
+}
+
+/** The signal that lights geometry which has no column of its own. */
+export function driveSignal(value){
+ return typeof value==='string'&&identifier.test(value.trim())?value.trim():'';
+}
+
+export function driveFlags(bindings,drive){
+ const token=driveSignal(drive);
+ return (bindings||[]).map(binding=>({...binding,drive:!!token&&(binding.column===token||binding.name===token)}));
+}
+
+/** Bind a column when its short name equals an element, or a manifest alias names that element. */
+export function matchSignals(columns=[], elements=[], aliases={}){
+ const names=elements.map(element=>({...element,name:shortName(element?.name)})).filter(element=>element.name);
+ const alias=signalBindings(aliases);
+ const seen=new Set();
  const bindings=[];
+ const add=(column,element)=>{
+  const key=column+'\0'+element.name+'\0'+(element.id||'');
+  if(seen.has(key))return;
+  seen.add(key);
+  bindings.push({column,name:element.name,id:element.id||null,kind:element.kind||'element'});
+ };
  for(const column of columns){
   if(timeName(column))continue;
-  const tail=ident(column);
-  const hits=names.filter(element=>element.name===column||ident(element.name)===column||(tail&&ident(element.name)===tail));
-  for(const element of hits)bindings.push({column,name:element.name,id:element.id||null,kind:element.kind||'element'});
+  const target=alias[column];
+  if(target)for(const element of names)if(element.name===target)add(column,element);
+  const tail=shortName(column);
+  for(const element of names)if(element.name===column||(tail&&element.name===tail))add(column,element);
  }
  return bindings;
 }
@@ -104,21 +141,49 @@ export function structureFromSource(source=''){
  const text=String(source||''),elements=[],edges=[];
  for(const match of text.matchAll(/\b(part|port|attribute)\s+(?:def\s+)?([A-Za-z_]\w*)/g))elements.push({name:match[2],kind:match[1]});
  for(const match of text.matchAll(/\bconnect\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s+to\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)/g))edges.push({kind:'connect',source:match[1],target:match[2]});
- for(const match of text.matchAll(/\bflow\s+(?:(?:of\s+)?[A-Za-z_]\w*\s+)?from\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s+to\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)/g))edges.push({kind:'flow',source:match[1],target:match[2]});
+ for(const match of text.matchAll(/\bflow\s+(?:of\s+)?(?:([A-Za-z_]\w*)\s+)?from\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s+to\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)/g))edges.push({kind:'flow',name:match[1]||'',source:match[2],target:match[3]});
+ for(const match of text.matchAll(/\bflow\s+(?!of\b)(?!from\b)([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s+to\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)/g))edges.push({kind:'flow',name:'',source:match[1],target:match[2]});
  return {elements,edges};
 }
 
 export function elementsFromGraph(graph){
- return (graph?.nodes||[]).filter(node=>node&&(node.label||node.qname)).map(node=>({name:node.label||node.qname,id:node.id,kind:node.kind||node.metaclass||'element'}));
+ return (graph?.nodes||[]).filter(node=>node&&(node.label||node.qname)).map(node=>{
+  const raw=String(node.label||node.qname).trim();
+  return {name:shortName(raw)||raw,id:node.id,kind:node.kind||node.metaclass||'element'};
+ });
 }
 
 export function flowEdgesFromGraph(graph){
  const byId=new Map((graph?.nodes||[]).filter(node=>node?.id).map(node=>[node.id,node]));
- return (graph?.edges||[]).filter(edge=>edge&&(edge.kind==='connect'||edge.kind==='flow')&&byId.has(edge.source)&&byId.has(edge.target)).map(edge=>({kind:edge.kind,source:byId.get(edge.source).label||edge.source,target:byId.get(edge.target).label||edge.target,sourceId:edge.source,targetId:edge.target}));
+ return (graph?.edges||[]).filter(edge=>edge&&(edge.kind==='connect'||edge.kind==='flow')&&byId.has(edge.source)&&byId.has(edge.target)).map(edge=>({kind:edge.kind,name:shortName(edge.label)||'',source:byId.get(edge.source).label||edge.source,target:byId.get(edge.target).label||edge.target,sourceId:edge.source,targetId:edge.target}));
 }
 
+/** `fmu-run` is a recorded FMU execution; everything else is illustrative data. */
+export function recordedProvenance(value){
+ return value==='fmu-run'?'fmu-run':value==='agent-authored'?'agent-authored':'example';
+}
 export function recordedBanner(provenance){
- return provenance==='fmu-run'?'留存证据 · 非本次运行':'示例数据';
+ const kind=recordedProvenance(provenance);
+ return kind==='fmu-run'?'留存证据 · 非本次运行':kind==='agent-authored'?'示意数据 · 非仿真结果':'示例数据';
+}
+
+/** Signal columns that no model element or manifest alias claims. Time is never a signal. */
+export function unmatchedColumns(columns=[],elements=[],aliases={}){
+ const bound=new Set(matchSignals(columns,elements,aliases).map(binding=>binding.column));
+ return columns.filter(column=>!timeName(column)&&!bound.has(column));
+}
+
+/**
+ * What the workbench can offer for a SysML file. `replay` needs a manifest, `run` needs a
+ * pinned FMU, and `structure` means nothing can animate this model yet.
+ */
+export function simulationStatus({manifest=null,siblings=null,path=''}={}){
+ const fmus=Array.isArray(siblings?.fmus)?siblings.fmus:[];
+ const stem=String(path||'').split('/').at(-1).replace(/\.sysml$/i,'');
+ const fmu=fmus.find(item=>item.split('/').at(-1).replace(/\.fmu$/i,'')===stem)||(fmus.length===1?fmus[0]:'');
+ if(manifest)return {state:'replay',fmu,message:recordedProvenance(manifest.provenance)==='fmu-run'?'已有 FMU 仿真轨迹，可回放。':'已有轨迹，但不是仿真结果，仅作示意回放。'};
+ if(fmu)return {state:'run',fmu,message:`发现 ${fmu}，可运行 FMI 仿真并生成可回放轨迹。`};
+ return {state:'structure',fmu:'',message:'仅结构，无轨迹：SysML 不会自行运行。需要同名变量的 .mo 导出 .fmu 后再仿真。'};
 }
 export function signalUnits(units){
  const out={};
@@ -144,17 +209,24 @@ function sparkline(samples){
 }
 
 function endpoint(ref){
- const parts=String(ref||'').split('.').filter(Boolean);
- return {name:ident(parts.at(-1))||parts.at(-1)||'',owner:ident(parts.length>1?parts.at(-2):parts.at(-1))||parts.at(-1)||''};
+ const segments=String(ref||'').split('.').filter(Boolean).map(value=>shortName(value)||String(value||'').trim()).filter(Boolean);
+ return {name:segments.at(-1)||'',owner:segments[0]||'',segments};
 }
-function edgeColumn(from,to,bindings){
- for(const name of [from.owner,from.name,to.owner,to.name]){
+function edgeColumn(edge,from,to,bindings,columns){
+ const flowName=shortName(edge?.name);
+ if(flowName){
+  if(columns.includes(flowName))return flowName;
+  const byPart=bindings.find(item=>item.name===flowName);
+  if(byPart)return byPart.column;
+ }
+ const names=[from.name,to.name,...(from.segments||[]),...(to.segments||[])];
+ for(const name of names){
   const hit=bindings.find(item=>item.name===name);
   if(hit)return hit.column;
  }
  return '';
 }
-function flowDiagram(edges,bindings){
+function flowDiagram(edges,bindings,columns=[]){
  if(!edges.length)return '<p class="muted">当前模型没有 connect 或 flow 语句，不绘制流向。</p>';
  const order=[];
  const add=name=>{if(name&&!order.includes(name))order.push(name);};
@@ -199,7 +271,7 @@ function flowDiagram(edges,bindings){
    const flow=item.edge.kind==='flow';
    const yStart=downward?yTop:yBottom;
    const yEnd=downward?yBottom-2:yTop+2;
-   const column=edgeColumn(item.from,item.to,bindings);
+   const column=edgeColumn(item.edge,item.from,item.to,bindings,columns);
    const marker=flow?' marker-end="url(#pm-flow-arrow)"':'';
    const id=edgeIndex++;
    shafts.push(`<path data-flow-edge="${id}" data-flow-kind="${esc(item.edge.kind)}" data-flow-column="${esc(column)}" d="M ${x.toFixed(1)} ${yStart} V ${yEnd}"${marker}></path><text data-flow-label="${id}" data-flow-lane="${lane}" x="${labelX}" y="${yTop+16+lane*16}">${flow?'flow':'connect'} · 未绑定</text>`);
@@ -207,7 +279,7 @@ function flowDiagram(edges,bindings){
  }
  const rail=rails.map(item=>{
   const y1=nodeY.get(item.from.owner)+nodeH/2,y2=nodeY.get(item.to.owner)+nodeH/2;
-  const column=edgeColumn(item.from,item.to,bindings);
+  const column=edgeColumn(item.edge,item.from,item.to,bindings,columns);
   const flow=item.edge.kind==='flow';
   const id=edgeIndex++;
   const x=width-24;
@@ -218,8 +290,8 @@ function flowDiagram(edges,bindings){
 }
 
 export function stageInput(ui={}){
- if(ui.recordedView?.table?.rows?.length)return {recorded:true,provenance:ui.recordedView.provenance==='fmu-run'?'fmu-run':'example',note:ui.recordedView.note||'',units:signalUnits(ui.recordedView.units),table:ui.recordedView.table,checks:ui.recordedView.checks||[],receipt:ui.recordedView.receipt||null,source:ui.draft||ui.model?.content||'',graph:ui.semanticGraph||null};
- if(ui.result?.integrity?.verified===true&&ui.result.table?.rows?.length)return {recorded:false,table:ui.result.table,checks:ui.result.verification?.checks||[],receipt:ui.result.receipt||null,source:ui.draft||ui.model?.content||'',graph:ui.semanticGraph||null};
+ if(ui.recordedView?.table?.rows?.length)return {recorded:true,provenance:recordedProvenance(ui.recordedView.provenance),note:ui.recordedView.note||'',units:signalUnits(ui.recordedView.units),bindings:signalBindings(ui.recordedView.bindings),drive:driveSignal(ui.recordedView.drive),table:ui.recordedView.table,checks:ui.recordedView.checks||[],receipt:ui.recordedView.receipt||null,source:ui.draft||ui.model?.content||'',graph:ui.semanticGraph||null};
+ if(ui.result?.integrity?.verified===true&&ui.result.table?.rows?.length)return {recorded:false,table:ui.result.table,checks:ui.result.verification?.checks||[],receipt:ui.result.receipt||null,bindings:signalBindings(ui.result.bindings),drive:driveSignal(ui.result.drive),source:ui.draft||ui.model?.content||'',graph:ui.semanticGraph||null};
  return null;
 }
 
@@ -230,9 +302,12 @@ export function renderSimulationStage(input){
  const graphEdges=flowEdgesFromGraph(input.graph);
  const edges=graphEdges.length?graphEdges:structure.edges;
  const elements=structure.elements.concat(elementsFromGraph(input.graph));
- const bindings=matchSignals(summary.signals.map(signal=>signal.name),elements);
+ const columns=summary.signals.map(signal=>signal.name);
+ const bindings=matchSignals(columns,elements,input.bindings);
  const banner=input.recorded?`<p class="pm-recorded" data-recorded-provenance="${esc(input.provenance)}">${esc(recordedBanner(input.provenance))}${input.provenance==='fmu-run'&&input.note?` · ${esc(input.note)}`:''}</p>`:'';
  const units=signalUnits(input.units);
+ const unmatched=unmatchedColumns(columns,elements,input.bindings);
+ const unmatchedNote=columns.length&&unmatched.length?`<p class="pm-unmatched" data-unmatched-columns="${esc(unmatched.join(','))}">${bindings.length?'':'没有信号列与模型元素同名；'}${unmatched.length} 个信号列未绑定到模型元素：${esc(unmatched.join('、'))}。可在 .recorded.json 的 bindings 中补充，如 {"${esc(unmatched[0])}":"元素名"}。</p>`:'';
  const cards=summary.signals.map(signal=>{
   const status=signal.checks.length?signal.checks.map(check=>check.passed===true?'通过':check.passed===false?'未通过':'未判定').join('、'):'';
   const unit=units[signal.name]||'';
@@ -240,7 +315,7 @@ export function renderSimulationStage(input){
   return `<article class="pm-signal-card" data-signal="${esc(signal.name)}"><header><strong>${esc(signal.name)}</strong>${unit?`<span class="pm-signal-unit">${esc(unit)}</span>`:''}${status?`<span class="pm-signal-status" data-status="${esc(status)}">${esc(status)}</span>`:''}</header>${sparkline(signal.spark)}<dl><div><dt>当前</dt>${figure(signal.last,true)}</div><div><dt>终值</dt>${figure(signal.last)}</div><div><dt>最小</dt>${figure(signal.min)}</div><div><dt>最大</dt>${figure(signal.max)}</div><div><dt>变化</dt>${figure(signal.delta)}</div></dl>${signal.verdict?`<p class="pm-verdict">${esc(signal.verdict)}</p>`:''}</article>`;
  }).join('');
  const last=Math.max(0,summary.rows.length-1);
- return `<section class="pm-stage" data-pm-stage>${banner}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div></section>`;
+ return `<section class="pm-stage" data-pm-stage>${banner}${unmatchedNote}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings,columns)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div></section>`;
 }
 
 function columnValue(summary,name,index){
@@ -260,7 +335,7 @@ export function applySimulationFrame(root,input,{preview}={}){
  if(label)label.textContent=summary.timeIndex>=0?formatClock(time):String(index).padStart(6);
  if(unit)unit.textContent=summary.timeIndex>=0?'s':'';
  const structure=structureFromSource(input.source);
- const bindings=matchSignals(summary.signals.map(signal=>signal.name),structure.elements.concat(elementsFromGraph(input.graph)));
+ const bindings=driveFlags(matchSignals(summary.signals.map(signal=>signal.name),structure.elements.concat(elementsFromGraph(input.graph)),input.bindings),input.drive);
  for(const signal of summary.signals){
   const now=root.querySelector(`[data-signal-now="${CSS.escape(signal.name)}"]`);
   if(now)now.textContent=formatSample(columnValue(summary,signal.name,index));
@@ -284,8 +359,7 @@ export function applySimulationFrame(root,input,{preview}={}){
  root.querySelectorAll('.semantic-node').forEach(node=>{
   const names=[...node.querySelectorAll('.semantic-label')].flatMap(item=>{
    const raw=item.textContent.trim();
-   const declared=raw.split(/\s*:/)[0].trim();
-   return [raw,declared,ident(raw),ident(declared)];
+   return [raw,shortName(raw)];
   });
   const level=names.map(name=>levels.get(name)).find(value=>value!=null);
   node.classList.toggle('is-signaled',level!=null);
@@ -311,11 +385,11 @@ export function applySimulationFrame(root,input,{preview}={}){
   if(!levels.has(binding.name)||seenParts.has(binding.name))continue;
   seenParts.add(binding.name);
   const value=columnValue(summary,binding.column,index);
-  const part=input.parts?.find(item=>item.label===binding.name||ident(item.label)===binding.name||item.label?.split('/').at(-1)===binding.name||item.path?.endsWith('/'+binding.name));
+  const part=input.parts?.find(item=>item.label===binding.name||shortName(item.label)===binding.name||shortName(item.label?.split('/').at(-1))===binding.name||item.path?.endsWith('/'+binding.name));
   const unit=signalUnits(input.units)[binding.column]||'';
-  emphasis.push({id:part?.id,level:levels.get(binding.name),name:binding.name,value,unit,drive:binding.name==='motor'||binding.column==='motor'});
+  emphasis.push({id:part?.id,level:levels.get(binding.name),name:binding.name,value,unit,drive:binding.drive===true});
  }
  preview?.emphasize?.(emphasis.filter(item=>item.id));
  const readout=root.querySelector('[data-pm-scene-readout]');
- if(readout)readout.innerHTML=emphasis.slice(0,4).map(item=>`<span style="--level:${item.level}"><b>${esc(item.name)}</b><em>${esc(formatSample(item.value))}</em>${item.unit?`<i>${esc(item.unit)}</i>`:''}</span>`).join('');
+ if(readout)readout.innerHTML=emphasis.slice(0,8).map(item=>`<span style="--level:${item.level}"><b>${esc(item.name)}</b><em>${esc(formatSample(item.value))}</em>${item.unit?`<i>${esc(item.unit)}</i>`:''}</span>`).join('');
 }

@@ -4,6 +4,16 @@
 Ground scheduling sends only real cFS commands. No attitude/truth samples are
 injected into the flight Software Bus. A separate verifier checks measured data.
 """
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import argparse
 import base64
 import collections
@@ -19,7 +29,7 @@ import threading
 import time
 
 p = argparse.ArgumentParser()
-p.add_argument('--work', type=pathlib.Path, default=pathlib.Path('/srv/manta/nos3'))
+p.add_argument('--work', type=pathlib.Path, default=pathlib.Path(_vm_name_path('/srv/daidalis/nos3')))
 p.add_argument('--output', type=pathlib.Path, required=True)
 p.add_argument('--duration', type=float, default=25)
 a = p.parse_args()
@@ -28,8 +38,8 @@ if os.uname().sysname != 'Linux':
 if not 5 <= a.duration <= 120:
     raise SystemExit('Duration outside bounded 5..120 seconds')
 work, out = a.work.resolve(), a.output.resolve()
-if not str(work).startswith('/srv/manta/') or not str(out).startswith('/srv/manta/'):
-    raise SystemExit('Use private /srv/manta paths')
+if not str(work).startswith(_vm_name_path('/srv/daidalis/')) or not str(out).startswith(_vm_name_path('/srv/daidalis/')):
+    raise SystemExit(_vm_name_path('Use private /srv/daidalis paths'))
 out.mkdir(parents=True, exist_ok=False)
 simdir = work / 'sims/build/bin'
 fswdir = work / 'fsw/build/exe/cpu1'

@@ -1,0 +1,4 @@
+loadFile("/tmp/CoastDemo.mo");
+getErrorString();
+buildModelFMU(CoastDemo, version="2.0", fmuType="cs");
+getErrorString();

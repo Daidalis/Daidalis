@@ -8,7 +8,7 @@ import {createEngine} from '../server/engine.mjs';
 import {createProviderManager} from '../server/providers.mjs';
 const reply=message=>new Response(JSON.stringify({choices:[{message}]}),{headers:{'content-type':'application/json'}});
 async function fixture(t,fetchImpl,options={}){
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-recovery-')),store=createStore({dataDir:path.join(root,'data'),seed:false});
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-recovery-')),store=createStore({dataDir:path.join(root,'data'),seed:false});
  const providers=createProviderManager({store,fetchImpl}),provider=providers.create({name:'Recovery fixture',type:'openai-compatible',model:'fixture',apiKey:'synthetic-fixture',maxRetries:1});
  const project=store.createProject({name:'Recovery',resources:{maxAutoResumes:0,...options.resources}});
  const engine=createEngine({store,providers,emit:event=>store.add('events',{id:id('event'),createdAt:now(),...event}),...options.engineOptions});

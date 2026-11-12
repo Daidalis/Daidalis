@@ -7,7 +7,7 @@ import {createStore} from '../server/store.mjs';
 import {createToolRuntime,TOOL_DEFINITIONS} from '../server/tools.mjs';
 
 async function fixture(t,options={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-coordination-tools-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-coordination-tools-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const store=createStore({dataDir:path.join(root,'data'),seed:false}),project=store.createProject({name:'Task coordination'}),workspace=store.workspace(project.id),controller=new AbortController();
   const ctx={projectId:project.id,threadId:project.coordinatorThreadId,runId:'main-run',agentId:'main-agent',permissionMode:'auto',signal:controller.signal};
   return {store,project,workspace,ctx,controller,runtime:createToolRuntime({store,emit:()=>{},...options})};

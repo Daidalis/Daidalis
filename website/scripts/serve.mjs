@@ -7,7 +7,7 @@ const defaultRoot=fileURLToPath(new URL('../dist/',import.meta.url));
 const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.json':'application/json; charset=utf-8','.csv':'text/csv; charset=utf-8','.md':'text/plain; charset=utf-8','.png':'image/png'};
 export function createStaticPreview({root=defaultRoot,basePath='/'}={}){
  root=path.resolve(root);const files=new Map(staticFiles(root).map(f=>[f.relative,f.absolute]));
- if(!/^\/(?:[A-Za-z0-9._~-]+\/)*$/.test(basePath)||basePath.split('/').some(p=>p==='.'||p==='..'))throw Error('Use a trailing-slash URL prefix such as /Manta/');
+ if(!/^\/(?:[A-Za-z0-9._~-]+\/)*$/.test(basePath)||basePath.split('/').some(p=>p==='.'||p==='..'))throw Error('Use a trailing-slash URL prefix such as /Daidalis/');
  return http.createServer(async(req,res)=>{
   try{
    if(!['GET','HEAD'].includes(req.method)){res.writeHead(405,{Allow:'GET, HEAD'});res.end();return;}
@@ -25,6 +25,6 @@ export function createStaticPreview({root=defaultRoot,basePath='/'}={}){
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const port=Number(process.env.PORT||4320),basePath=process.env.SITE_BASE_PATH||'/';
  const server=createStaticPreview({root:process.env.SITE_ROOT||defaultRoot,basePath});
- server.listen(port,'127.0.0.1',()=>console.log('Manta website: http://127.0.0.1:'+server.address().port+basePath));
+ server.listen(port,'127.0.0.1',()=>console.log('Daidalis website: http://127.0.0.1:'+server.address().port+basePath));
  for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(()=>process.exit(0)));
 }

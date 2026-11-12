@@ -1,4 +1,4 @@
-# 从工程目标开始的 Manta 工作流
+# 从工程目标开始的 Daidalis 工作流
 
 更新：2026-10-23。最高目标仍是先完整 STF、再 Apollo。任务树、计划、一个数字模型或一次软件联试通过，都不是整个航天器完成。
 
@@ -26,7 +26,7 @@ V 模型用于设计层级和验证/确认的对应关系，不是只允许向�
 
 ## 主聊天与任务线程的协议
 
-Coordinator 维护目标、工作图、跨域接口、决定及结果合入。其下一层并列 thread 各承担一项有边界、有输出和复核标准的持续任务，thread 不再派生 thread。每个线程继续使用 Codex app-server 或 Claude Agent SDK 的原生单 Agent 会话；Manta 提供可见、跨提供方的项目协作与证据交接，而不是另写模型推理循环。
+Coordinator 维护目标、工作图、跨域接口、决定及结果合入。其下一层并列 thread 各承担一项有边界、有输出和复核标准的持续任务，thread 不再派生 thread。每个线程继续使用 Codex app-server 或 Claude Agent SDK 的原生单 Agent 会话；Daidalis 提供可见、跨提供方的项目协作与证据交接，而不是另写模型推理循环。
 
 1. 提出目标后，负责人先看已有工程记录、计划和任务登记，避免重开同样的工作。
 2. 委派时记录稳定 taskKey、scope、deliverables、acceptanceCriteria；必要时限定独占输出路径。线程标题使用工程任务名。
@@ -35,19 +35,19 @@ Coordinator 维护目标、工作图、跨域接口、决定及结果合入。�
 5. thread 向 Coordinator 交付；Coordinator 查看实际产物/配置/工具输出，对照委派要求记下接受、返工或受阻的复核结果，再整合给用户。任务声称完成不是通过证据。
 6. 结果返回后继续当前工程目标，需要时指导返工或安排后续工作。运行终止、用户取消与预算边界仍有效，不能无上限自动循环。
 
-交互参考：[Claude Projects](https://claude.com/resources/articles/projects-redesigned)允许在主聊天监控和指导、进入单个线程处理细节，并把请求路由到新建或已有工作；[Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)把独立工作的活动和摘要带回主聊天，减少原始日志占用。Manta 的工程计划与要求/证据管理是本项目增加的领域层，不是声称复刻厂商未公开的调度实现。
+交互参考：[Claude Projects](https://claude.com/resources/articles/projects-redesigned)允许在主聊天监控和指导、进入单个线程处理细节，并把请求路由到新建或已有工作；[Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)把独立工作的活动和摘要带回主聊天，减少原始日志占用。Daidalis 的工程计划与要求/证据管理是本项目增加的领域层，不是声称复刻厂商未公开的调度实现。
 
 ## 用户看得到什么
 
 主聊天默认显示当前行动、任务去向、实际正在运行的专业作业、明确的等待原因、关键发现/失败、待决定事项和复核后的交付摘要。模型内部思维链不显示，也不生成假的“思考过程”。完整工具参数、文件搜索、重复进展与原始日志在需要时展开。
 
-工具随工作出现，例如“OpenModelica · 食期能量分析 · 求解中”。完成后，同一入口可打开模型、曲线、判据、输入配置和原始输出。聊天中的 Markdown 报告和原生模型/结果链接在 Manta 右侧打开，保留持续编辑、参数修改和图表查看能力。资产仍从 Library 等项目入口可发现，不强迫翻历史聊天。
+工具随工作出现，例如“OpenModelica · 食期能量分析 · 求解中”。完成后，同一入口可打开模型、曲线、判据、输入配置和原始输出。聊天中的 Markdown 报告和原生模型/结果链接在 Daidalis 右侧打开，保留持续编辑、参数修改和图表查看能力。资产仍从 Library 等项目入口可发现，不强迫翻历史聊天。
 
 全部工具的连接、许可与 runner 状态属于能力管理。普通工程聊天无需先浏览一个无关工具目录。以当次目录探测和实际回执确定能否用；建议、检测到安装、接口已连接、执行完成和验证范围分别记录。
 
 ## 持久工程计划接口
 
-`server/engineering-plan.mjs` 将计划保存在 Manta 项目存储的 `engineeringPlans` 集合中。它引用工程对象和任务登记，不复制完整需求数据库。`server/engineering-entry-guidance.mjs` 给两种原生运行时同一套目标驱动行为建议；真实路由、等待和复核仍通过工具执行。
+`server/engineering-plan.mjs` 将计划保存在 Daidalis 项目存储的 `engineeringPlans` 集合中。它引用工程对象和任务登记，不复制完整需求数据库。`server/engineering-entry-guidance.mjs` 给两种原生运行时同一套目标驱动行为建议；真实路由、等待和复核仍通过工具执行。
 
 工具：
 

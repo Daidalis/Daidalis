@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 """Fixed guest bridge. Model/compiler code runs in a networkless, filesystem-isolated bubblewrap."""
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import base64, datetime, hashlib, json, math, os, pathlib, re, resource, signal, shutil, subprocess, sys, time
-ROOT=pathlib.Path('/srv/manta/professional')
+ROOT=pathlib.Path(_vm_name_path('/srv/daidalis/professional'))
 JOBS=ROOT/'jobs'; CANCEL=ROOT/'cancelled'
 IDENT=re.compile(r'^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$')
 JOB=re.compile(r'^[A-Za-z0-9_-]{8,100}$')
@@ -76,7 +86,7 @@ def main(req):
   flags=','.join(k+'='+('true' if v else 'false') if isinstance(v,bool) else k+'='+repr(v) for k,v in sorted(parameters.items()))
   simflags='-override='+flags if flags else ''
   variable_filter='^(time|'+('|'.join(re.escape(name) for name in signals))+')$' if signals else '.*'
-  lines+=['simulate('+model+', startTime='+repr(start)+', stopTime='+repr(stop_time)+', numberOfIntervals='+str(intervals)+', tolerance='+repr(tolerance)+', outputFormat="csv", fileNamePrefix="manta_result", variableFilter='+json.dumps(variable_filter)+', simflags='+json.dumps(simflags)+');','getErrorString();']
+  lines+=['simulate('+model+', startTime='+repr(start)+', stopTime='+repr(stop_time)+', numberOfIntervals='+str(intervals)+', tolerance='+repr(tolerance)+', outputFormat="csv", fileNamePrefix="daidalis_result", variableFilter='+json.dumps(variable_filter)+', simflags='+json.dumps(simflags)+');','getErrorString();']
  (work/'run.mos').write_text('\n'.join(lines)+'\n')
  command=['/usr/bin/bwrap','--unshare-all','--die-with-parent','--new-session']
  for mount in ('/usr','/lib','/lib64','/bin','/etc'):
@@ -97,13 +107,13 @@ def main(req):
  (work/'compiler.log').write_bytes(out+b'\n'+err)
  def txt(name):return (work/name).read_text(errors='replace') if (work/name).is_file() else ''
  check='completed successfully' in txt('check.txt')
- result_path=txt('simulation-result.txt').strip();csvfile=work/'manta_result_res.csv'
+ result_path=txt('simulation-result.txt').strip();csvfile=work/'daidalis_result_res.csv'
  success=child.returncode==0 and check and (operation=='check' or b'The simulation finished successfully.' in out and csvfile.is_file() and csvfile.stat().st_size>20)
  if (CANCEL/job).exists():success=False
  version=subprocess.check_output(['/usr/bin/omc','--version'],text=True).strip()
- receipt={'schema':'manta-professional-execution-v1','jobId':job,'inputHash':input_hash,'operation':operation,'modelName':model,'sourceFiles':[{'path':rel,'sha256':h} for rel,data,h in normalized],'parameters':parameters,'signals':signals,'variableFilter':variable_filter if operation=='simulate' else None,'simulation':{'startTime':start,'stopTime':stop_time,'numberOfIntervals':intervals,'tolerance':tolerance},'tool':{'id':'openmodelica','version':version},'startedAt':begin,'finishedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'durationSeconds':time.monotonic()-start_clock,'exitCode':child.returncode,'success':success,'isolation':'Linux VM; bubblewrap unshare-all; no network; host and other guest jobs inaccessible','argv':['omc','run.mos'],'checkSuccess':check}
+ receipt={'schema':'daidalis-professional-execution-v1','jobId':job,'inputHash':input_hash,'operation':operation,'modelName':model,'sourceFiles':[{'path':rel,'sha256':h} for rel,data,h in normalized],'parameters':parameters,'signals':signals,'variableFilter':variable_filter if operation=='simulate' else None,'simulation':{'startTime':start,'stopTime':stop_time,'numberOfIntervals':intervals,'tolerance':tolerance},'tool':{'id':'openmodelica','version':version},'startedAt':begin,'finishedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'durationSeconds':time.monotonic()-start_clock,'exitCode':child.returncode,'success':success,'isolation':'Linux VM; bubblewrap unshare-all; no network; host and other guest jobs inaccessible','argv':['omc','run.mos'],'checkSuccess':check}
  wanted=['run.mos','compiler.log','library-errors.txt','load-errors.txt','check.txt','check-errors.txt','simulation-result.txt','simulation-messages.txt','simulation-errors.txt']
- if csvfile.exists():wanted+=['manta_result_res.csv']
+ if csvfile.exists():wanted+=['daidalis_result_res.csv']
  accepted=[];omitted=[];total=0
  for rel in wanted:
   file=work/rel

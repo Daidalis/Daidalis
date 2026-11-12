@@ -6,7 +6,7 @@ const MAX_FRAME_BYTES = 24 * 1024 * 1024;
 const MAX_QUEUE_BYTES = 32 * 1024 * 1024;
 const MAX_CALLBACKS = 32;
 
-export function createBrokerSession({runtime,workspace,options,onCall=async()=>{throw Error('Unsupported callback');},onMessage=()=>{},onClose=()=>{},socketPath=process.env.MANTA_BROKER_NATIVE_SOCKET,projectsRoot=process.env.MANTA_PROJECTS_ROOT||'/projects'}) {
+export function createBrokerSession({runtime,workspace,options,onCall=async()=>{throw Error('Unsupported callback');},onMessage=()=>{},onClose=()=>{},socketPath=process.env.DAIDALIS_BROKER_NATIVE_SOCKET,projectsRoot=process.env.DAIDALIS_PROJECTS_ROOT||'/projects'}) {
   const project = path.relative(fs.realpathSync(projectsRoot), fs.realpathSync(workspace));
   if (!/^project-[A-Za-z0-9_-]{1,100}$/.test(project)) throw Error('Managed project required');
   const socket = net.connect(socketPath);

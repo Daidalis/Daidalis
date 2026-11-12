@@ -25,7 +25,7 @@ try {
     try {
       const findings=JSON.parse(session.check());
       // The kernel deliberately permits unresolved draft references as warnings.
-      // Manta's import/acceptance gate treats referential warnings as failures.
+      // Daidalis's import/acceptance gate treats referential warnings as failures.
       const valid=!findings.some(f=>f.severity==='error'||f.stage==='referential');
       const graph=()=>({...JSON.parse(session.toGraph()),interconnection:JSON.parse(session.toGraph('{"view":"interconnection"}'))});
       let data;

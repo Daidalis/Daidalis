@@ -6,8 +6,8 @@ import path from 'node:path';
 import {createStudioServer} from '../server/index.mjs';
 
 async function fixture(t){
- const directory=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-plan-http-')));
- const folder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-plan-project-')));
+ const directory=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-plan-http-')));
+ const folder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-plan-project-')));
  let app,base;
  const f={get app(){return app;},async boot(){app=await createStudioServer({root:directory,dataDir:path.join(directory,'data'),seed:false,computer:false,evaluator:false,engineering:false,professionalModels:false,professionalRunner:false,connectors:false,nos3:false,modelBackend:false,localVm:false,stfCase:false});const address=await app.listen({port:0});base='http://127.0.0.1:'+address.port;},async request(route,method='GET',body,headers={}){const r=await fetch(base+route,{method,headers:{...(body?{'content-type':'application/json'}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json()};},async restart(){await app.close();await f.boot();}};
  t.after(async()=>{await app?.close();await fs.rm(directory,{recursive:true,force:true});await fs.rm(folder,{recursive:true,force:true});});

@@ -173,7 +173,7 @@ def spice_csv(raw):
             raise ValueError('Invalid ngspice sample')
         cursor += count
         rows.append(row)
-    with (WORK/'manta_result.csv').open('w') as f:
+    with (WORK/'daidalis_result.csv').open('w') as f:
         writer=csv.writer(f);writer.writerow(names);writer.writerows(rows)
 
 
@@ -238,12 +238,12 @@ def professional(request):
         if operation=='check':
             argv=['ngspice','-p','-n',main];stdin=b'quit\n'
         else:
-            argv=['ngspice','-b','-r','manta_result.raw',main]
+            argv=['ngspice','-b','-r','daidalis_result.raw',main]
     elif tool == 'openscad':
         argv=['openscad']
         for name,value in parameters.items():
             argv += ['-D',name+'='+json.dumps(value)]
-        argv += ['-o','manta_geometry.stl' if operation=='simulate' else 'manta_geometry.csg',main]
+        argv += ['-o','daidalis_geometry.stl' if operation=='simulate' else 'daidalis_geometry.csg',main]
     else:
         model=request.get('modelName','')
         if not re.fullmatch(r'[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*',model):
@@ -273,7 +273,7 @@ def professional(request):
         if operation=='simulate':
             overrides=','.join(k+'='+json.dumps(v) for k,v in parameters.items())
             flags='-override='+overrides if overrides else ''
-            lines += [f'simulate({model},startTime={start},stopTime={stop},numberOfIntervals={int(n)},tolerance={tol},outputFormat="csv",fileNamePrefix="manta_result",simflags={json.dumps(flags)});','getErrorString();']
+            lines += [f'simulate({model},startTime={start},stopTime={stop},numberOfIntervals={int(n)},tolerance={tol},outputFormat="csv",fileNamePrefix="daidalis_result",simflags={json.dumps(flags)});','getErrorString();']
         (WORK/'run.mos').write_text('\n'.join(lines))
         argv=['omc','-n=1','run.mos']
     started=time.time()
@@ -283,25 +283,25 @@ def professional(request):
     if tool=='ngspice':
         success=success and not re.search(r'(?im)^\s*(error:|fatal:)',diagnostics)
         if operation=='simulate':
-            success=success and (WORK/'manta_result.raw').is_file()
-            if success:spice_csv(WORK/'manta_result.raw')
+            success=success and (WORK/'daidalis_result.raw').is_file()
+            if success:spice_csv(WORK/'daidalis_result.raw')
     elif tool=='openscad':
-        output=WORK/('manta_geometry.stl' if operation=='simulate' else 'manta_geometry.csg')
+        output=WORK/('daidalis_geometry.stl' if operation=='simulate' else 'daidalis_geometry.csg')
         success=success and output.is_file() and output.stat().st_size>10 and 'ERROR:' not in diagnostics
     else:
         success=success and 'completed successfully' in diagnostics and 'Error:' not in diagnostics
-        if operation=='simulate':success=success and (WORK/'manta_result_res.csv').is_file()
-    receipt={'schema':'manta-professional-execution-v1','inputHash':request['inputHash'],
+        if operation=='simulate':success=success and (WORK/'daidalis_result_res.csv').is_file()
+    receipt={'schema':'daidalis-professional-execution-v1','inputHash':request['inputHash'],
              'sourceFiles':[{'path':s['path'],'sha256':s['sha256']} for s in sources],
              'operation':operation,'tool':{'id':tool,'version':state['version']},
              'durationSeconds':time.time()-started,'exitCode':result['code'],'success':success,
              'isolation':ISOLATION}
     (WORK/'compiler.log').write_text(diagnostics)
     (WORK/'execution-receipt.json').write_text(json.dumps(receipt))
-    files=collect(['compiler.log','execution-receipt.json','manta_result.csv','manta_result_res.csv','manta_geometry.stl','manta_geometry.csg'])
+    files=collect(['compiler.log','execution-receipt.json','daidalis_result.csv','daidalis_result_res.csv','daidalis_geometry.stl','daidalis_geometry.csg'])
     geometry=None
     if tool=='openscad' and operation=='simulate' and success:
-        points=[tuple(map(float,p)) for p in re.findall(r'vertex\s+([-+\deE.]+)\s+([-+\deE.]+)\s+([-+\deE.]+)',(WORK/'manta_geometry.stl').read_text())]
+        points=[tuple(map(float,p)) for p in re.findall(r'vertex\s+([-+\deE.]+)\s+([-+\deE.]+)\s+([-+\deE.]+)',(WORK/'daidalis_geometry.stl').read_text())]
         if not points or len(points)%3 or any(not math.isfinite(v) for p in points for v in p):
             raise ValueError('Invalid native STL geometry')
         geometry={'triangles':len(points)//3,'boundingBox':{'min':[min(p[i] for p in points) for i in range(3)],'max':[max(p[i] for p in points) for i in range(3)]},'units':'source model units'}

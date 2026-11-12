@@ -4,7 +4,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {safePath} from './sandbox.mjs';
 const sha=b=>createHash('sha256').update(b).digest('hex');
-export function createFlightContainerRunner({socketPath=process.env.MANTA_FLIGHT_SOCKET,rpc:externalRpc}={}){
+export function createFlightContainerRunner({socketPath=process.env.DAIDALIS_FLIGHT_SOCKET,rpc:externalRpc}={}){
  if(!externalRpc&&(!socketPath||!path.isAbsolute(socketPath)))throw Error('Fixed flight socket required');
  const sockets=new Set();let closed=false;
  function rpc(method,payload,{signal,timeoutMs=960000}={}){

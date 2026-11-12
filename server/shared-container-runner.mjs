@@ -22,7 +22,7 @@ export function createSharedContainerRunner(){
     active++;
     let directory;
     try{
-      directory=await fs.mkdtemp(path.join(os.tmpdir(),'manta-task-'));
+      directory=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-task-'));
       const home=path.join(directory,'home'),work=workspace||path.join(directory,'work');
       await fs.mkdir(home);if(!workspace)await fs.mkdir(work);
       const result=await new Promise((resolve,reject)=>{

@@ -21,11 +21,11 @@ WIDTH,HEIGHT=1280,800
 TOOLS={'openscad':['/usr/bin/openscad'],'terminal':['/usr/bin/xterm'],
        'omedit':['/usr/bin/OMEdit'],'freecad':['/usr/bin/freecad'],
        'scilab':['/usr/bin/scilab'],
-       'capella':['/opt/manta-desktop/capella/capella'],
-       'papyrus':['/opt/manta-desktop/papyrus/papyrus'],
-       'matlab':['/opt/manta-desktop/matlab/bin/matlab'],
-       'dymola':['/opt/manta-desktop/dymola/bin/dymola'],
-       'amesim':['/opt/manta-desktop/amesim/amesim']}
+       'capella':['/opt/daidalis-desktop/capella/capella'],
+       'papyrus':['/opt/daidalis-desktop/papyrus/papyrus'],
+       'matlab':['/opt/daidalis-desktop/matlab/bin/matlab'],
+       'dymola':['/opt/daidalis-desktop/dymola/bin/dymola'],
+       'amesim':['/opt/daidalis-desktop/amesim/amesim']}
 DOCUMENTS={'openscad':{'.scad'},'omedit':{'.mo'},
            'freecad':{'.fcstd','.step','.stp','.iges','.igs','.stl'},
            'scilab':{'.sce','.sci'}}
@@ -88,7 +88,7 @@ def action(req):
         raise ValueError('Valid project required')
     if op=='desktop.enable':
         workspace=Path(args.get('workspace','')).resolve(strict=True)
-        if not workspace.is_dir() or not (workspace==Path('/work') if os.environ.get('MANTA_BROKER_TASK')=='1' else workspace.is_relative_to(Path('/projects')) and workspace!=Path('/projects')):
+        if not workspace.is_dir() or not (workspace==Path('/work') if os.environ.get('DAIDALIS_BROKER_TASK')=='1' else workspace.is_relative_to(Path('/projects')) and workspace!=Path('/projects')):
             raise ValueError('Desktop requires a managed project directory under /projects')
         if project not in sessions:
             if len(sessions)>=3:
@@ -227,5 +227,5 @@ if __name__=='__main__':
     if os.path.exists(SOCKET):os.unlink(SOCKET)
     with Server(SOCKET,Handler) as server:
         os.chmod(SOCKET,0o600)
-        print('Manta virtual desktop ready; VNC password is in /desktop-data/vnc-password.txt',flush=True)
+        print('Daidalis virtual desktop ready; VNC password is in /desktop-data/vnc-password.txt',flush=True)
         server.serve_forever()

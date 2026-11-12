@@ -12,7 +12,7 @@
 
 ## 创建工程项目
 
-在文件系统中准备一个独立工程文件夹，再在 Manta 左侧新建项目并选择该目录。不要选 Manta 源码或服务数据目录。你也可以选择已有工程，让 Agent 先识别当前需求、模型、代码与缺口，而非强制重新开始。
+在文件系统中准备一个独立工程文件夹，再在 Daidalis 左侧新建项目并选择该目录。不要选 Daidalis 源码或服务数据目录。你也可以选择已有工程，让 Agent 先识别当前需求、模型、代码与缺口，而非强制重新开始。
 
 在 Coordinator 主聊天发送：
 
@@ -29,7 +29,7 @@
 
 这是任务需求，不是工具调用脚本。Coordinator 应解释分工和缺失条件；有可独立推进的工作时，可以委派一层平级 thread。用户仍可继续与 Coordinator 交流，或进入任一 thread 提出纠正。
 
-如果采用旧的 `thermal-control-v1` 示例，它是声明式双节点 SciPy 热网络，并不代表 OpenModelica 或真实航天器。该可选示例需要独立的私有 Python 环境及 `MBSE_PYTHON` / `MBSE_ENGINEERING_DEPS`；安装方式与网络卷原生扩展限制见[安装说明](installation.md)。不要为了先打开应用就运行这个安装脚本。
+如果采用旧的 `thermal-control-v1` 示例，它是声明式双节点 SciPy 热网络，并不代表 OpenModelica 或真实航天器。该可选示例需要独立的私有 Python 环境及 `DAIDALIS_PYTHON` / `DAIDALIS_ENGINEERING_DEPS`；安装方式与网络卷原生扩展限制见[安装说明](installation.md)。不要为了先打开应用就运行这个安装脚本。
 
 ## 观察分工、等待与交接
 
@@ -60,7 +60,7 @@ Manual 与 Auto 的边界见[Agent 运行时](agent-runtime.md#权限与隔离)�
 | 现象 | 下一步 |
 | --- | --- |
 | 页面可打开，Agent 未连接 | 在设置中配置并实际测试运行时；应用可启动不代表已有模型权限 |
-| Codex 可检测但测试失败 | 检查测试错误、认证和 endpoint 兼容性；自定义路径使用 `MBSE_CODEX_PATH` |
+| Codex 可检测但测试失败 | 检查测试错误、认证和 endpoint 兼容性；自定义路径使用 `DAIDALIS_CODEX_PATH` |
 | 专业工具 unavailable | 配置该工具的隔离 runner；不能以模型自述或另一种求解器替代执行证据 |
 | Coordinator 没有创建 thread | 它可能选择独自处理；未发生委派就不能声称多 Agent 协作已发生 |
 | 回复有数字但没有运行证据 | 查看工具结果、作业 ID、输入和原始输出，要求明确来源 |

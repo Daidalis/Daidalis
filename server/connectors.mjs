@@ -6,12 +6,13 @@ import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {normalizeMcpNetwork} from '../shared/mcp-network.mjs';
 import {safePath} from './sandbox.mjs';
+import {canonicalEnvironmentName,environmentValue} from '../shared/legacy-names.mjs';
 
 const EFFECTS = new Set(['read', 'write', 'run']);
 const PROJECT_ID = /^project_[a-f0-9-]+$/i;
 const CONNECTOR_ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/;
 const ENV_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-const PRIVATE_ENV = /^MANTA_MCP_[A-Z0-9_]+$/;
+const PRIVATE_ENV = /^DAIDALIS_MCP_[A-Z0-9_]+$/;
 const MANAGED_ENV = new Set(['HOME','USERPROFILE','HOMEDRIVE','HOMEPATH','APPDATA','LOCALAPPDATA','LOGNAME','USER','USERNAME','PATH','SHELL','TERM','TMPDIR','TMP','TEMP','NODE_OPTIONS','NODE_PATH','LD_PRELOAD','DYLD_INSERT_LIBRARIES']);
 const SECRET_NAME = /(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)/i;
 const MAX_CONFIG_BYTES = 100_000;
@@ -54,13 +55,13 @@ function normalizeConfig(input, existing) {
     if(input.network!==undefined)fail('Network allowlists apply only to stdio connectors');
     config.url=httpURL(input.url);
     if(input.accessTokenEnv) {
-      config.accessTokenEnv=text(input.accessTokenEnv,'token environment reference',200);
-      if(!PRIVATE_ENV.test(config.accessTokenEnv))fail('Credential references must use a dedicated MANTA_MCP_* environment variable');
+      config.accessTokenEnv=canonicalEnvironmentName(text(input.accessTokenEnv,'token environment reference',200));
+      if(!PRIVATE_ENV.test(config.accessTokenEnv))fail('Credential references must use a dedicated DAIDALIS_MCP_* environment variable');
     }
   } else {
     if(input.network!==undefined)config.network=normalizeMcpNetwork(input.network);
     config.command=text(input.command,'MCP executable');
-    if(!path.isAbsolute(config.command))fail('MCP executable must be an absolute path; Manta does not install servers');
+    if(!path.isAbsolute(config.command))fail('MCP executable must be an absolute path; Daidalis does not install servers');
     if(!Array.isArray(input.args||[])||(input.args||[]).length>100)fail('MCP args must be a bounded array');
     config.args=(input.args||[]).map(arg=>{
       if(typeof arg!=='string'||arg.length>16000||arg.includes('\0'))fail('Invalid MCP command argument');
@@ -75,9 +76,9 @@ function normalizeConfig(input, existing) {
       if(Object.keys(input[field]||{}).length>40)fail('Too many MCP environment variables');
       for(const [name,value]of Object.entries(input[field]||{})) {
         if(!ENV_NAME.test(name)||MANAGED_ENV.has(name)||typeof value!=='string'||value.length>16000||value.includes('\0'))fail(`Invalid or managed MCP environment variable: ${name}`);
-        if(field==='envFrom'&&!PRIVATE_ENV.test(value))fail('Environment references must use dedicated MANTA_MCP_* names');
+        if(field==='envFrom'&&!PRIVATE_ENV.test(canonicalEnvironmentName(value)))fail('Environment references must use dedicated DAIDALIS_MCP_* names');
         if(field==='env'&&SECRET_NAME.test(name))fail('Store credential environment references in envFrom, not literal configuration');
-        config[field][name]=value;
+        config[field][name]=field==='envFrom'?canonicalEnvironmentName(value):value;
       }
     }
   }
@@ -142,7 +143,7 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
     if(fs.statSync(file).size>MAX_CONFIG_BYTES*30)fail('MCP configuration file is too large');
     const value=JSON.parse(fs.readFileSync(file,'utf8'));
     if(value.version!==1||!Array.isArray(value.connectors)||value.connectors.length>30)fail('Invalid project MCP configuration');
-    return value.connectors;
+    return value.connectors.map(config=>({...config,...(config.accessTokenEnv?{accessTokenEnv:canonicalEnvironmentName(config.accessTokenEnv)}:{}),...(config.envFrom?{envFrom:Object.fromEntries(Object.entries(config.envFrom).map(([key,name])=>[key,canonicalEnvironmentName(name)]))}:{})}));
   }
   function find(projectId,connectorId) {
     const config=configs(projectId).find(c=>c.id===connectorId);if(!config)fail('MCP connector not found');return config;
@@ -165,10 +166,10 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
     const childEnv={},secrets=[];
     for(const [name,source]of Object.entries(config.envFrom||{})) {
       if(!PRIVATE_ENV.test(source))fail('Invalid dedicated MCP credential environment reference');
-      const value=env[source];if(typeof value!=='string'||!value)fail(`Missing MCP environment variable: ${source}`);
+      const value=environmentValue(env,source);if(typeof value!=='string'||!value)fail(`Missing MCP environment variable: ${source}`);
       childEnv[name]=value;secrets.push(value);
     }
-    const token=runtimeKeys.get(key)||(config.accessTokenEnv?env[config.accessTokenEnv]:undefined);
+    const token=runtimeKeys.get(key)||(config.accessTokenEnv?environmentValue(env,config.accessTokenEnv):undefined);
     if(config.accessTokenEnv&&!token)fail(`Missing MCP environment variable: ${config.accessTokenEnv}`);
     if(token)secrets.push(token);
     return {childEnv,secrets,token};
@@ -196,7 +197,7 @@ export function createConnectorService({store,env=process.env,fetchImpl=globalTh
     const connectionController=new AbortController();connectionControllers.set(key,connectionController);
     const connectSignal=signal?AbortSignal.any([signal,connectionController.signal]):connectionController.signal;
     const pending=(async()=>{
-      const workspace=project(projectId),{childEnv,secrets,token}=resolveSecrets(config,key),client=new Client({name:'manta-project-connector',version:'1.0.0'},{capabilities:{}});
+      const workspace=project(projectId),{childEnv,secrets,token}=resolveSecrets(config,key),client=new Client({name:'daidalis-project-connector',version:'1.0.0'},{capabilities:{}});
       const session={client,config,secrets,closed:false,tools:[],stderr:''};
       try {
         let transport;

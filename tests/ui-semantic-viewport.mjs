@@ -7,12 +7,12 @@ import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const out = process.env.MANTA_VIEWPORT_EVIDENCE || await fs.mkdtemp(path.join(os.tmpdir(),'manta-readable-model-'));
+const out = process.env.DAIDALIS_VIEWPORT_EVIDENCE || await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-readable-model-'));
 await fs.mkdir(out,{recursive:true});
 const nodes = Array.from({length:8},(_,i)=>({id:'part-'+i,kind:'part',metaclass:'PartUsage',stereo:'part',label:['Star tracker','Measurement input','Attitude transform','ADCS output'][i%4],line:i+1}));
 let fixture={file:{path:'model.sysml',content:'// Presentation fixture'},model:{data:{graph:{nodes,edges:nodes.slice(1).map((node,i)=>({source:nodes[i].id,target:node.id,kind:'flow'}))}}}};
-if(process.env.MANTA_VIEWPORT_MODEL_URL){
-  const response=await fetch(process.env.MANTA_VIEWPORT_MODEL_URL);assert.equal(response.status,200);
+if(process.env.DAIDALIS_VIEWPORT_MODEL_URL){
+  const response=await fetch(process.env.DAIDALIS_VIEWPORT_MODEL_URL);assert.equal(response.status,200);
   const payload=await response.json();fixture={file:payload.file,model:payload.semantic};
 }
 const server=http.createServer(async(req,res)=>{
@@ -42,5 +42,5 @@ try{
   await page.screenshot({path:path.join(out,'09-sysml-explicit-fit.png')});
   await page.evaluate(()=>{document.querySelector('#viewer').style.width='680px';});await page.waitForTimeout(50);assert.equal(await svg.getAttribute('viewBox'),fit,'resize must not override explicit fit');
   await page.locator('[data-document-filter]').selectOption('all');await page.waitForFunction(()=>document.querySelector('.semantic-label').getScreenCTM().a>=1);assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:5,labelPixels,realModel:!!process.env.MANTA_VIEWPORT_MODEL_URL,nodes:await page.locator('.semantic-node').count(),evidence:out,errors},null,2));
+  console.log(JSON.stringify({passed:5,labelPixels,realModel:!!process.env.DAIDALIS_VIEWPORT_MODEL_URL,nodes:await page.locator('.semantic-node').count(),evidence:out,errors},null,2));
 }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}

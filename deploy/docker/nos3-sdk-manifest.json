@@ -1,5 +1,5 @@
 {
-  "schema": "manta-nos3-sdk-v1",
+  "schema": "daidalis-nos3-sdk-v1",
   "nos3Revision": "5a3bdee6be9a2c67fdf994ae6db56d5c60395302",
   "deploymentRevision": "312ac3bab2d808163f2979edf85e21b86049e32f",
   "architecture": "amd64",

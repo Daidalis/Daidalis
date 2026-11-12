@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import {constants as fsConstants} from 'node:fs';
 import path from 'node:path';
@@ -31,7 +32,7 @@ export function executeLocalVm(file,args,{cwd,input,signal,timeoutMs=120000,pers
 /** Incrementally stage reviewed files without removing a live VirtioFS share. */
 export async function stageManagedWorkerBundle(root,{signal}={}) {
   root=path.resolve(root);
-  const source=path.join(root,'worker'),handoff=path.join(root,'handoff'),target=path.join(handoff,'worker');
+  const handoff=path.join(root,'handoff');
   const files=[],directories=[];let bytes=0;
   const check=()=>{if(signal?.aborted)throw signal.reason||cancelled();};
   async function regularBytes(file,expected){
@@ -55,8 +56,15 @@ export async function stageManagedWorkerBundle(root,{signal}={}) {
       files.push({relative,content:await regularBytes(from,entry)});
     }else throw Error('Unsupported file in managed worker bundle');
   }
-  await scan(source);
-  for(const entry of ['provision-worker.sh','prepare-native.sh'])if(!files.some(file=>file.relative===entry))throw Error('Managed worker bundle is missing its fixed entry script: '+entry);
+  // These are the only application-owned program trees. Existing source
+  // archives, downloaded packages and the live share itself are never replaced.
+  for(const bundle of ['worker','nos3-plan','verification']){
+    const source=path.join(root,bundle),info=await existing(source);
+    if(!info&&bundle!=='worker')continue;
+    if(info&&(!info.isDirectory()||info.isSymbolicLink()))throw Error('Managed worker source directory cannot be a symbolic link or non-directory');
+    await scan(source,bundle);
+  }
+  for(const entry of ['worker/provision-worker.sh','worker/prepare-native.sh'])if(!files.some(file=>file.relative===entry))throw Error('Managed worker bundle is missing its fixed entry script: '+entry);
   async function existing(file){try{return await fs.lstat(file);}catch(error){if(error.code==='ENOENT')return null;throw error;}}
   async function directory(file,create=false){
     let info=await existing(file);
@@ -64,17 +72,17 @@ export async function stageManagedWorkerBundle(root,{signal}={}) {
     if(!info?.isDirectory()||info.isSymbolicLink())throw Error('Managed worker target directory cannot be a symbolic link or non-directory');
   }
   async function parents(relative){
-    await directory(root);await directory(handoff,true);await directory(target,true);
-    if(relative){let current=target;for(const part of relative.split(path.sep)){current=path.join(current,part);await directory(current,true);}}
+    await directory(root);await directory(handoff,true);
+    if(relative){let current=handoff;for(const part of relative.split(path.sep)){current=path.join(current,part);await directory(current,true);}}
   }
   for(const relative of directories){check();await parents(relative);}
   let changed=0,unchanged=0;
   for(const file of files){
     check();await parents(path.dirname(file.relative)==='.'?'':path.dirname(file.relative));
-    const to=path.join(target,file.relative),before=await existing(to);
+    const to=path.join(handoff,file.relative),before=await existing(to);
     if(before&&(!before.isFile()||before.isSymbolicLink()))throw Error('Managed worker target file must be regular and cannot be a symbolic link');
     if(before?.size===file.content.length&&(await regularBytes(to,before)).equals(file.content)){unchanged++;continue;}
-    const temporary=path.join(path.dirname(to),'.manta-stage-'+crypto.randomUUID());let handle;
+    const temporary=path.join(path.dirname(to),'.daidalis-stage-'+crypto.randomUUID());let handle;
     try{
       handle=await fs.open(temporary,'wx',0o644);await handle.writeFile(file.content);await handle.sync();await handle.close();handle=null;
       check();await parents(path.dirname(file.relative)==='.'?'':path.dirname(file.relative));
@@ -104,9 +112,9 @@ export function createLocalLinuxVmService({vmRoot,store,emit=()=>{},execute=exec
   const authorizedFile=path.join(stateDir,'authorized-projects.json');
   async function loadRemembered(){
     if(rememberedLoaded)return;rememberedLoaded=true;
-    try{const info=await fs.lstat(authorizedFile);if(!info.isFile()||info.isSymbolicLink()||info.size>65536)throw Error('Invalid managed VM authorization record');const data=JSON.parse(await fs.readFile(authorizedFile,'utf8'));if(data.schema!=='manta-vm-project-authorizations-v1'||!Array.isArray(data.projectIds)||data.projectIds.some(id=>typeof id!=='string'||id.length>200))throw Error('Invalid managed VM authorization record');for(const id of data.projectIds){try{store.workspace(id);remembered.add(id);}catch{}}}catch(error){if(error.code!=='ENOENT')throw error;}
+    try{const info=await fs.lstat(authorizedFile);if(!info.isFile()||info.isSymbolicLink()||info.size>65536)throw Error('Invalid managed VM authorization record');const data=JSON.parse(await fs.readFile(authorizedFile,'utf8'));if(!productSchemaMatches(data.schema,'daidalis-vm-project-authorizations-v1')||!Array.isArray(data.projectIds)||data.projectIds.some(id=>typeof id!=='string'||id.length>200))throw Error('Invalid managed VM authorization record');for(const id of data.projectIds){try{store.workspace(id);remembered.add(id);}catch{}}}catch(error){if(error.code!=='ENOENT')throw error;}
   }
-  async function remember(projectId){await loadRemembered();remembered.add(projectId);await fs.mkdir(stateDir,{recursive:true,mode:0o700});const temporary=authorizedFile+'.'+crypto.randomUUID()+'.tmp';try{await fs.writeFile(temporary,JSON.stringify({schema:'manta-vm-project-authorizations-v1',projectIds:[...remembered].sort()},null,2)+'\n',{mode:0o600,flag:'wx'});await fs.rename(temporary,authorizedFile);}finally{await fs.unlink(temporary).catch(error=>{if(error.code!=='ENOENT')throw error;});}}
+  async function remember(projectId){await loadRemembered();remembered.add(projectId);await fs.mkdir(stateDir,{recursive:true,mode:0o700});const temporary=authorizedFile+'.'+crypto.randomUUID()+'.tmp';try{await fs.writeFile(temporary,JSON.stringify({schema:'daidalis-vm-project-authorizations-v1',projectIds:[...remembered].sort()},null,2)+'\n',{mode:0o600,flag:'wx'});await fs.rename(temporary,authorizedFile);}finally{await fs.unlink(temporary).catch(error=>{if(error.code!=='ENOENT')throw error;});}}
   async function forget(){remembered.clear();rememberedLoaded=true;await fs.unlink(authorizedFile).catch(error=>{if(error.code!=='ENOENT')throw error;});}
 
   const secrets=()=>token?[token]:[];
@@ -123,8 +131,8 @@ export function createLocalLinuxVmService({vmRoot,store,emit=()=>{},execute=exec
   }
   async function readRuntime(){try{const result=await script('vm-status.sh');const data=JSON.parse(result.stdout);runtime={guestReady:data.guestReady===true,guestDistribution:data.guestDistribution,hostFreeBytes:data.hostFreeBytes,diskAllocatedBytes:data.diskAllocatedBytes,state:data.state};return runtime;}catch(error){if(error.code==='ENOENT')return {state:'not-prepared'};throw error;}}
   async function loadToken(){await fs.mkdir(stateDir,{recursive:true,mode:0o700});await fs.chmod(stateDir,0o700);const file=path.join(stateDir,'worker-token');try{const stat=await fs.lstat(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>256)throw Error('Invalid managed worker credential file');token=(await fs.readFile(file,'utf8')).trim();if(!/^[a-f0-9]{64}$/.test(token))throw Error('Invalid managed worker credential');await fs.chmod(file,0o600);}catch(error){if(error.code!=='ENOENT')throw error;token=crypto.randomBytes(32).toString('hex');await fs.writeFile(file,token+'\n',{mode:0o600,flag:'wx'});}}
-  async function guestReady(signal){const deadline=Date.now()+maxReadyMs;let last;while(Date.now()<deadline){if(signal.aborted)throw signal.reason||cancelled();if(vmProcess?.ended)throw Error('Local Linux VM stopped while booting');try{await script('vm-exec.sh',['test -e /var/lib/cloud/instance/boot-finished && mountpoint -q /mnt/manta-transfer'],{signal,timeoutMs:15000});runtime.guestReady=true;const file=path.join(stateDir,'runtime.json');try{const saved=JSON.parse(await fs.readFile(file,'utf8'));await fs.writeFile(file,JSON.stringify({...saved,guestReady:true,guestBootState:'ready',guestDistribution:'Ubuntu 22.04',updatedAt:new Date().toISOString()},null,2)+'\n',{mode:0o600});}catch(error){if(error.code!=='ENOENT')throw error;}return;}catch(error){last=error;}await sleep(pollIntervalMs,signal);}throw Error(`Linux guest readiness timed out: ${redact(last?.message||'SSH unavailable')}`);}
-  async function healthy(signal){if(!endpoint||!token)return false;try{const response=await fetchImpl(endpoint+'/health',{headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(5000)]):AbortSignal.timeout(5000)});if(!response.ok)return false;const text=await response.text();if(text.length>64000)return false;const data=JSON.parse(text);return data.schema==='manta-nos3-worker-v1'&&data.scopes?.build===true&&data.scopes?.integration===true;}catch{return false;}}
+  async function guestReady(signal){const deadline=Date.now()+maxReadyMs;let last;while(Date.now()<deadline){if(signal.aborted)throw signal.reason||cancelled();if(vmProcess?.ended)throw Error('Local Linux VM stopped while booting');try{await script('vm-exec.sh',['test -e /var/lib/cloud/instance/boot-finished && mountpoint -q /mnt/daidalis-transfer'],{signal,timeoutMs:15000});runtime.guestReady=true;const file=path.join(stateDir,'runtime.json');try{const saved=JSON.parse(await fs.readFile(file,'utf8'));await fs.writeFile(file,JSON.stringify({...saved,guestReady:true,guestBootState:'ready',guestDistribution:'Ubuntu 22.04',updatedAt:new Date().toISOString()},null,2)+'\n',{mode:0o600});}catch(error){if(error.code!=='ENOENT')throw error;}return;}catch(error){last=error;}await sleep(pollIntervalMs,signal);}throw Error(`Linux guest readiness timed out: ${redact(last?.message||'SSH unavailable')}`);}
+  async function healthy(signal){if(!endpoint||!token)return false;try{const response=await fetchImpl(endpoint+'/health',{headers:{authorization:'Bearer '+token,accept:'application/json'},redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(5000)]):AbortSignal.timeout(5000)});if(!response.ok)return false;const text=await response.text();if(text.length>64000)return false;const data=JSON.parse(text);return productSchemaMatches(data.schema,'daidalis-nos3-worker-v1')&&data.scopes?.build===true&&data.scopes?.integration===true;}catch{return false;}}
   async function terminate(handle){if(!alive(handle))return;handle.kill('SIGTERM');await new Promise(resolve=>{const timer=setTimeout(resolve,22000);handle.exited.then(()=>{clearTimeout(timer);resolve();});});if(alive(handle))handle.kill('SIGKILL');}
   async function prepareEnvironment(signal,onVmStarted=()=>{}){
     if(hostPlatform!=='darwin'||hostArch!=='arm64')throw Error('This local Linux VM backend requires Apple Silicon macOS');
@@ -142,14 +150,14 @@ export function createLocalLinuxVmService({vmRoot,store,emit=()=>{},execute=exec
     if(signal.aborted)throw signal.reason||cancelled();
     await stageManagedWorkerBundle(root,{signal});
     update('building','正在虚拟机内检查和准备 NOS3/cFS/42');
-    await script('vm-exec.sh',['bash /mnt/manta-transfer/worker/prepare-native.sh'],{signal,timeoutMs:1800000});
-    const readiness=await script('vm-exec.sh',['cat /srv/manta/receipts/native-ready.json'],{signal,timeoutMs:30000});
+    await script('vm-exec.sh',['bash /mnt/daidalis-transfer/worker/prepare-native.sh'],{signal,timeoutMs:1800000});
+    const readiness=await script('vm-exec.sh',['cat /srv/daidalis/receipts/native-ready.json'],{signal,timeoutMs:30000});
     if(Buffer.byteLength(readiness.stdout)>1024*1024)throw Error('Native readiness receipt exceeds limit');
     const nativeReceipt=JSON.parse(readiness.stdout);
-    if(nativeReceipt.schema!=='manta-nos3-native-ready-v1'||nativeReceipt.ready!==true||!/^[a-f0-9]{64}$/.test(nativeReceipt.inputHash)||!Array.isArray(nativeReceipt.binaries)||nativeReceipt.binaries.length<4)throw Error('Native preparation did not return a valid build receipt');
+    if(!productSchemaMatches(nativeReceipt.schema,'daidalis-nos3-native-ready-v1')||nativeReceipt.ready!==true||!/^[a-f0-9]{64}$/.test(nativeReceipt.inputHash)||!Array.isArray(nativeReceipt.binaries)||nativeReceipt.binaries.length<4)throw Error('Native preparation did not return a valid build receipt');
     await fs.writeFile(path.join(stateDir,'native-ready.json'),JSON.stringify(nativeReceipt,null,2)+'\n',{mode:0o600});
     update('provisioning','正在虚拟机内准备 NOS3 执行服务');
-    await script('vm-exec.sh',['bash /mnt/manta-transfer/worker/provision-worker.sh'],{input:JSON.stringify({token,port:8093})+'\n',signal,timeoutMs:1800000});
+    await script('vm-exec.sh',['bash /mnt/daidalis-transfer/worker/provision-worker.sh'],{input:JSON.stringify({token,port:8093})+'\n',signal,timeoutMs:1800000});
     update('connecting','正在连接并验证 NOS3 执行服务');
     if(alive(tunnelProcess))await terminate(tunnelProcess);
     const port=await allocatePort();

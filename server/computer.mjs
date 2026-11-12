@@ -34,7 +34,7 @@ export function validateBrowserUrl(value,{baseUrl,allowedHosts=[],projectId}={})
     }
     throw new Error('The isolated browser cannot access the Studio application or its approval API');
   }
-  if(url.protocol!=='https:'||(url.port&&url.port!=='443')||!remoteHostAllowed(url.hostname,allowedHosts))throw new Error('This host is not in the computer allowlist. Configure MBSE_COMPUTER_HOSTS on the server.');return url.href;
+  if(url.protocol!=='https:'||(url.port&&url.port!=='443')||!remoteHostAllowed(url.hostname,allowedHosts))throw new Error('This host is not in the computer allowlist. Configure DAIDALIS_COMPUTER_HOSTS on the server.');return url.href;
 }
 export function validateBrowserRequest(value,{baseUrl,allowedHosts=[],projectId,method='GET',body}={}){
   const href=validateBrowserUrl(value,{baseUrl,allowedHosts,projectId}),url=new URL(href);
@@ -59,19 +59,19 @@ export function browserActionNeedsApproval({action,source,permissionMode,baseUrl
 const DESKTOP_TOOL_NAMES=[['omedit',/^(OMEdit|OpenModelica)(?:[-_ \d.]*)\.app$/i],['capella',/^Capella(?:[-_ \d.]*)\.app$/i],['papyrus',/^Papyrus(?:[-_ \d.]*)\.app$/i],['matlab',/^MATLAB(?:[_ -]R?\d{4}[ab])?\.app$/i],['dymola',/^Dymola(?:[-_ \d.]*)\.app$/i],['amesim',/^Amesim(?:[-_ \d.]*)\.app$/i],['scilab',/^Scilab(?:[-_ \d.]*)\.app$/i],['freecad',/^FreeCAD(?:[-_ \d.]*)\.app$/i]];
 async function desktopTools(){let names=[];try{names=await fs.readdir('/Applications');}catch{}return DESKTOP_TOOL_NAMES.map(([id,re])=>{const name=names.find(n=>re.test(n));return{id,name:name||id,installed:!!name,path:name?path.join('/Applications',name):null};});}
 
-async function loadPlaywright(){for(const spec of ['playwright',...(process.env.MBSE_NODE_MODULES?[path.join(process.env.MBSE_NODE_MODULES,'playwright')]:[])]){try{return require(spec);}catch{}}return null;}
+async function loadPlaywright(){for(const spec of ['playwright',...(process.env.DAIDALIS_NODE_MODULES?[path.join(process.env.DAIDALIS_NODE_MODULES,'playwright')]:[])]){try{return require(spec);}catch{}}return null;}
 
 export async function createComputerService({root,dataDir,workspacesDir,store,requestApproval=async()=>false,emit=()=>{},desktopAdapter=null,browserFetch=null}={}){
   const shots=path.join(dataDir||path.join(root,'.local'),'computer-screenshots');await fs.mkdir(shots,{recursive:true});
-  const containerDesktop=desktopAdapter?desktopAdapter(shots):process.env.MANTA_DESKTOP_SOCKET?createContainerDesktop({socketPath:process.env.MANTA_DESKTOP_SOCKET,shots}):null;
+  const containerDesktop=desktopAdapter?desktopAdapter(shots):process.env.DAIDALIS_DESKTOP_SOCKET?createContainerDesktop({socketPath:process.env.DAIDALIS_DESKTOP_SOCKET,shots}):null;
   if(containerDesktop)await containerDesktop.refresh();
   const playwright=await loadPlaywright();let appTools=await desktopTools();let engineeringAvailable=false;try{await fs.access(path.join(root,'public/engineering.html'));engineeringAvailable=true;}catch{}let browser;let desktopEnabled=false;const sessions=new Map(),locks=new Map();
   let browserInstalled=Boolean(playwright);
-  if(playwright&&os.platform()!=='darwin'){try{await fs.access(process.env.MBSE_CHROME_PATH||playwright.chromium.executablePath());}catch{browserInstalled=false;}}
-  const allowedHosts=(process.env.MBSE_COMPUTER_HOSTS||'docs.px4.io,github.com,raw.githubusercontent.com,nos3.readthedocs.io,emanual.robotis.com,bitcraze.io,www.bitcraze.io,example.com').split(',').map(s=>s.trim()).filter(Boolean);
-  let baseUrl=process.env.MBSE_BASE_URL||`http://127.0.0.1:${process.env.PORT||4317}`;
+  if(playwright&&os.platform()!=='darwin'){try{await fs.access(process.env.DAIDALIS_CHROME_PATH||playwright.chromium.executablePath());}catch{browserInstalled=false;}}
+  const allowedHosts=(process.env.DAIDALIS_COMPUTER_HOSTS||'docs.px4.io,github.com,raw.githubusercontent.com,nos3.readthedocs.io,emanual.robotis.com,bitcraze.io,www.bitcraze.io,example.com').split(',').map(s=>s.trim()).filter(Boolean);
+  let baseUrl=process.env.DAIDALIS_BASE_URL||`http://127.0.0.1:${process.env.PORT||4317}`;
   const validNavigation=(value,projectId)=>validateBrowserUrl(value,{baseUrl,allowedHosts,projectId});
-  async function ensureBrowser(){if(!playwright)throw new Error('Playwright unavailable. Install optional dependencies with npm install.');if(!browser){const opts={headless:process.env.MBSE_BROWSER_VISIBLE!=='1',args:['--disable-extensions','--disable-background-networking']};if(process.env.MBSE_CHROME_PATH)opts.executablePath=process.env.MBSE_CHROME_PATH;else if(os.platform()==='darwin')opts.channel='chrome';try{browser=await playwright.chromium.launch(opts);}catch(e){throw new Error('Isolated browser could not start. Install Chrome or run npx playwright install chromium. '+e.message.slice(0,180));}}return browser;}
+  async function ensureBrowser(){if(!playwright)throw new Error('Playwright unavailable. Install optional dependencies with npm install.');if(!browser){const opts={headless:process.env.DAIDALIS_BROWSER_VISIBLE!=='1',args:['--disable-extensions','--disable-background-networking']};if(process.env.DAIDALIS_CHROME_PATH)opts.executablePath=process.env.DAIDALIS_CHROME_PATH;else if(os.platform()==='darwin')opts.channel='chrome';try{browser=await playwright.chromium.launch(opts);}catch(e){throw new Error('Isolated browser could not start. Install Chrome or run npx playwright install chromium. '+e.message.slice(0,180));}}return browser;}
   async function session(projectId){
     if(!projectId||!/^[a-zA-Z0-9_-]+$/.test(projectId))throw new Error('A valid projectId is required');
     if(!sessions.has(projectId)){

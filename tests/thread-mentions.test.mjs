@@ -9,12 +9,12 @@ const idC='thread_33333333-3333-3333-3333-333333333333';
 const worker={id:idA,projectId:'p',kind:'worker',title:'星敏源码审查',executionStatus:'running',activeRunId:'run-real'};
 const second={id:idB,projectId:'p',kind:'worker',title:'通信与数据交付',executionStatus:'waiting_tasks',activeRunId:'run-parent'};
 const context={projectId:'p',threads:[worker,second]};
-const href=id=>'#manta-thread:'+id;
+const href=id=>'#daidalis-thread:'+id;
 
 test('explicit task references resolve only exact known same-project IDs',()=>{
  assert.equal(resolveThreadMention(href(idA),context)?.threadId,idA);
  assert.equal(threadMentionHref(idA,context),href(idA));
- for(const bad of [href(idC),href(idA)+'?q=1',href(idA)+'#extra',href(idA)+' ',href(idA)+'\n',href(idA.replace('thread_','thread%5F')),href('../'+idA),'manta-thread:'+idA,'https://example.test/'+href(idA),href('thread_guess')]){
+ for(const bad of [href(idC),href(idA)+'?q=1',href(idA)+'#extra',href(idA)+' ',href(idA)+'\n',href(idA.replace('thread_','thread%5F')),href('../'+idA),'daidalis-thread:'+idA,'https://example.test/'+href(idA),href('thread_guess')]){
   assert.equal(resolveThreadMention(bad,context),null,bad);
  }
  assert.equal(resolveThreadMention(href(idA),{...context,projectId:'other'}),null);

@@ -1,6 +1,6 @@
 """Extract the exact public source archives recorded by the native build audit."""
 import hashlib,json,os,pathlib,shutil,tarfile,urllib.request
-base=pathlib.Path('/srv/manta/source');cache=pathlib.Path('/var/cache/manta-nos3');cache.mkdir(parents=True,exist_ok=True)
+base=pathlib.Path('/srv/daidalis/source');cache=pathlib.Path('/var/cache/daidalis-nos3');cache.mkdir(parents=True,exist_ok=True)
 manifest=json.loads(pathlib.Path('/opt/nos3-build/sources.json').read_text())
 for entry in manifest:
     archive=cache/(entry['archiveSha256']+'.tar.gz')

@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """Fixed, bounded GDAL/PROJ inspection of one project-pinned Shapefile ZIP.
 
-This runs inside Manta's Linux bubblewrap namespace without network access. It
+This runs inside Daidalis's Linux bubblewrap namespace without network access. It
 does not infer a mission footprint, legal collection permission, or acceptance.
 """
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
 import base64
 import csv
 import hashlib
@@ -53,7 +58,7 @@ def read_request():
     if len(raw) > MAX_ZIP * 2:
         fail('Job request exceeds the bounded transport size')
     request = json.loads(raw)
-    if request.get('schema') != 'manta-geospatial-job-v1' or not JOB.fullmatch(str(request.get('jobId', ''))):
+    if not _product_schema_matches(request.get('schema'), 'daidalis-geospatial-job-v1') or not JOB.fullmatch(str(request.get('jobId', ''))):
         fail('Invalid geospatial job schema or ID')
     if not SHA.fullmatch(str(request.get('inputHash', ''))) or not SHA.fullmatch(str(request.get('sourceHash', ''))):
         fail('Missing pinned input/source hash')
@@ -199,7 +204,7 @@ def preview_geojson(geometries, checks, source_srs):
     vertices = sum(vertex_count(feature['geometry']['coordinates']) for feature in features)
     if len(features) > 500 or vertices > MAX_PREVIEW_VERTICES:
         fail('Bounded display preview exceeds 500 features or 12000 vertices')
-    collection = {'type': 'FeatureCollection', 'name': 'Manta GIS review preview', 'metadata': {'coordinateReferenceSystem': 'EPSG:4326', 'sourceCrs': source_srs.ExportToWkt(), 'simplificationToleranceDegrees': 0.02, 'renderedPolygonCount': len(selected), 'totalPolygonCount': len(geometries), 'verificationGeometry': False}, 'features': features}
+    collection = {'type': 'FeatureCollection', 'name': 'Daidalis GIS review preview', 'metadata': {'coordinateReferenceSystem': 'EPSG:4326', 'sourceCrs': source_srs.ExportToWkt(), 'simplificationToleranceDegrees': 0.02, 'renderedPolygonCount': len(selected), 'totalPolygonCount': len(geometries), 'verificationGeometry': False}, 'features': features}
     encoded = json.dumps(collection, ensure_ascii=False, separators=(',', ':')).encode()
     if len(encoded) > MAX_PREVIEW:
         fail('Bounded map preview exceeds 1.4 MB; use fewer selected features')
@@ -222,7 +227,7 @@ def main():
     request, source = read_request()
     archive, entries = members_of(source)
     hashes = {}
-    with tempfile.TemporaryDirectory(prefix='manta-gis-') as temp:
+    with tempfile.TemporaryDirectory(prefix='daidalis-gis-') as temp:
         root = pathlib.Path(temp)
         for item in entries:
             data = archive.read(item)
@@ -250,7 +255,7 @@ def main():
     csv_bytes = checks_csv(checks)
     verification = {'status': 'not-requested' if not any(row['expected'] for row in checks) else 'failed' if any(row['passed'] is False for row in checks) else 'unknown' if any(row['passed'] is None for row in checks) else 'passed', 'checks': checks}
     output = {
-        'schema': 'manta-geospatial-runner-result-v1', 'jobId': request['jobId'],
+        'schema': 'daidalis-geospatial-runner-result-v1', 'jobId': request['jobId'],
         'exitCode': 0, 'success': True, 'tool': {'id': 'gdal-proj', 'version': tool_versions()['gdal'], 'versions': tool_versions()},
         'receipt': {
             'inputHash': request['inputHash'], 'sourceSha256': request['sourceHash'],
@@ -276,4 +281,4 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as exc:
-        print(json.dumps({'schema': 'manta-geospatial-runner-result-v1', 'exitCode': 2, 'success': False, 'reason': str(exc)[:2000], 'diagnostics': str(exc)[:2000], 'tool': {'id': 'gdal-proj', 'version': tool_versions()['gdal']}, 'files': []}, ensure_ascii=False))
+        print(json.dumps({'schema': 'daidalis-geospatial-runner-result-v1', 'exitCode': 2, 'success': False, 'reason': str(exc)[:2000], 'diagnostics': str(exc)[:2000], 'tool': {'id': 'gdal-proj', 'version': tool_versions()['gdal']}, 'files': []}, ensure_ascii=False))
