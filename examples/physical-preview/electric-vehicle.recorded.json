@@ -8,6 +8,7 @@
     "inverter": "kW",
     "motor": "km/h"
   },
+  "drive": "motor",
   "checks": [
     {"variable": "battery", "passed": true}
   ]

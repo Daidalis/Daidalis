@@ -219,7 +219,7 @@ function createAssembly(THREE, host, parts, onSelect) {
         driveLevel = Math.max(driveLevel, level);
       }
     }
-    if (!hasDrive) driveLevel = Math.max(0, ...next.values(), 0);
+    if (!hasDrive) driveLevel = 0;
     for (const [id, instance] of instances) {
       const level = next.get(id);
       if (level != null) {
