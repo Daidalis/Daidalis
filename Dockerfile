@@ -2,7 +2,9 @@
 ARG NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d
 FROM ${NODE_IMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive
-RUN --network=host apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 git tini && rm -rf /var/lib/apt/lists/*
+RUN --network=host \
+  find /etc/apt \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's|https\?://deb.debian.org|https://mirrors.aliyun.com|g' {} + \
+  && apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 git tini && rm -rf /var/lib/apt/lists/*
 
 FROM base AS tools
 # Comma-separated, validated by the installer. Omit groups to save actual image space.
