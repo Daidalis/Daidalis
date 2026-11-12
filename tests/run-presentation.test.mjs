@@ -113,3 +113,18 @@ test('Task registry and evidence review tool records use the actual public tool 
   const row=buildRunPresentation({runs:[{id:'r',threadId:'main',status:'completed',startedAt:iso(0),finishedAt:iso(20)}],events:[event('registry','tool.completed','r',1,{tool:'get_task_assignments',result:{assignments:[]}}),event('reviews','tool.completed','r',2,{tool:'review_task_results',result:{reviews:[]}})]})[0];
   assert.deepEqual(row.activities.map(a=>a.label),['查看任务分工','记录任务结果复核']);
 });
+
+test('Model recovery events show a plain progress label without exposing request counters',()=>{
+  const row=buildRunPresentation({runs:[{id:'r',threadId:'main',status:'running',startedAt:iso(0)}],events:[event('retry','model.request.retry','r',1,{attempt:2,maxAttempts:6,delayMs:10000}),event('budget','model.request.recovery_exhausted','r',2,{attempts:3,recoveryBudgetMs:300000})]})[0];
+  assert.deepEqual(row.activities.map(a=>a.label),['连接暂时异常，正在重试','模型连接恢复未完成']);
+  assert.equal(row.status,'running');assert.equal(row.activities.some(a=>/128|64|300000/.test(a.label)),false);
+});
+
+test('Model retry notice remains active during a retried request and clears on response or terminal state',()=>{
+  const run={id:'r',threadId:'main',status:'running',startedAt:iso(0)};
+  const pending=[event('retry','model.request.retry','r',1,{attempt:1}),event('attempt','model.request.started','r',2,{attempt:2})];
+  assert.equal(buildRunPresentation({runs:[run],events:pending})[0].modelRecoveryPending,true);
+  for(const type of ['model.request.completed','model.request.recovery_exhausted'])assert.equal(buildRunPresentation({runs:[run],events:[...pending,event('end',type,'r',3,{})]})[0].modelRecoveryPending,false);
+  for(const status of ['completed','failed','cancelled','interrupted'])assert.equal(buildRunPresentation({runs:[{...run,status}],events:pending})[0].modelRecoveryPending,false);
+  assert.equal(buildRunPresentation({runs:[run],events:[event('first','model.request.started','r',1,{attempt:1})]})[0].modelRecoveryPending,false);
+});
