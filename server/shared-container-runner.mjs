@@ -5,6 +5,7 @@ import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {createTaskRunner} from './container-task-runner.mjs';
+import {commandTimeout} from '../shared/execution-budget.mjs';
 
 // First-edition deployment: child processes share the app's container and UID.
 // Temporary workspaces prevent accidental file collisions, not credential access.
@@ -55,11 +56,11 @@ export function createSharedContainerRunner(){
     }
   }
   const runner=createTaskRunner({invoke,isolated:false});
-  return {...runner,async command({workspace,command,timeoutMs=30000,signal}){
+  return {...runner,async command({workspace,command,timeoutMs,signal}){
     if(typeof command!=='string'||!command.trim()||command.length>16000)throw Error('Invalid command');
-    if(!Number.isFinite(timeoutMs)||timeoutMs<=0)throw Error('Invalid command timeout');
+    timeoutMs=commandTimeout(timeoutMs);
     const root=await fs.realpath(workspace),previous=commands.get(root)||Promise.resolve();
-    const task=previous.catch(()=>{}).then(()=>invoke({kind:'shared-command',command,timeoutMs:Math.min(60000,timeoutMs)},{signal,workspace:root}));
+    const task=previous.catch(()=>{}).then(()=>invoke({kind:'shared-command',command,timeoutMs},{signal,workspace:root}));
     commands.set(root,task);
     try{return await task;}finally{if(commands.get(root)===task)commands.delete(root);}
   }};
