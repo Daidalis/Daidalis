@@ -15,6 +15,7 @@ const TOOL_LABELS = {
   read_thread:'读取任务结果', steer_thread:'发送任务补充', wait_threads:'等待子任务结果', wait_for_tasks:'等待子任务结果', get_task_assignments:'查看任务分工', review_task_results:'记录任务结果复核', computer_use:'操作工程工作面',
 };
 const PROGRESS_LABELS = {
+  'model.request.retry':'连接暂时异常，正在重试', 'model.request.recovery_exhausted':'模型连接恢复未完成',
   'sdk.model.started':'等待模型服务回复', 'sdk.model.completed':'模型服务已回复',
   'run.queued':'等待执行', 'run.started':'开始执行', 'run.finished':'执行结束',
   'run.cancelled':'已请求停止', 'agent.started':'开始任务', 'agent.thinking':'处理中',
@@ -205,11 +206,14 @@ export function buildRunPresentation({messages=[],runs=[],events=[],agents=[],th
     const finalMessage=run.status==='completed'&&result&&lastAssistant&&String(lastAssistant.content||'').trim()===result?lastAssistant:null;
     const runApprovals=approvals.filter(a=>a.runId===run.id),start=time(run.startedAt),finish=time(run.finishedAt),queued=time(run.createdAt);
     const live=LIVE.has(run.status),end=finish!==null?finish:live&&typeof nowMs==='number'&&Number.isFinite(nowMs)?nowMs:null;
+    const recoveryEvent=ownEvents.findLast(e=>['model.request.retry','model.request.started','model.request.completed','model.request.recovery_exhausted'].includes(e.type));
+    const modelRecoveryPending=live&&(recoveryEvent?.type==='model.request.retry'||recoveryEvent?.type==='model.request.started'&&recoveryEvent.data?.attempt>1);
     const durationMs=elapsed(start,end),rawStatus=statusOf(run.status);
     const activities=collectActivities({run,messages:ownMessages,events:ownEvents,approvals:runApprovals}).map(a=>{if(a.type==='thread.result')return withDeliveryReview(a,reviews);if(a.kind!=='thread')return a;const task=childThreads.find(t=>t.id===a.childThreadId);return task?{...a,status:task.executionStatus&&task.executionStatus!=='idle'?task.executionStatus:task.status==='resolved'?'completed':task.status==='stopped'?'cancelled':a.status}:a;});
     rows.push({kind:'run',id:run.id,runId:run.id,threadId:run.threadId,run,
       source:run.source || null,automatic:run.source==='auto-summary',status:live&&start===null?'queued':rawStatus,rawStatus,
       executionStatus:runExecutionStatus(run,{approvals:runApprovals}),waitingFor:waitingTasksFor(run,childThreads),waitingJob:run.waitingJob?{...run.waitingJob}:null,
+      modelRecoveryPending,
       queuedAt:queued===null?null:run.createdAt,startedAt:start===null?null:run.startedAt,finishedAt:finish===null?null:run.finishedAt,
       durationMs,durationLive:finish===null&&live&&start!==null,queueDurationMs:elapsed(queued,start!==null?start:rawStatus==='queued'?end:null),
       timingStatus:start===null?'start-unrecorded':end===null?'end-unrecorded':durationMs===null?'invalid-order':'recorded',

@@ -23,7 +23,7 @@ async function fixture(t,fetchImpl,{maxRetries=0,resources={}}={}){
   const project=await api('/api/projects',{name:'Recovery HTTP test',folderPath:workspace,resources:{maxAutoResumes:0,maxRunContinuations:0,...resources}});
   const detail=()=>api('/api/threads/'+project.coordinatorThreadId);
   const send=async content=>(await api('/api/threads/'+project.coordinatorThreadId+'/messages',{content,providerId:provider.id,permissionMode:'auto'})).run;
-  const finish=run=>eventually(detail,d=>!['queued','running','waiting_approval'].includes(d.runs.find(r=>r.id===run.id)?.status));
+  const finish=(run,timeout)=>eventually(detail,d=>!['queued','running','waiting_approval'].includes(d.runs.find(r=>r.id===run.id)?.status),timeout);
   return {app,api,provider,project,workspace,detail,send,finish};
 }
 
@@ -73,4 +73,49 @@ test('HTTP cancellation during backoff ends the run without an automatic restart
   await f.api('/api/runs/'+run.id+'/cancel',{});
   const detail=await f.finish(run),finished=detail.runs.find(r=>r.id===run.id);
   assert.equal(finished.status,'cancelled');assert.equal(attempts,1);assert.equal(detail.events.filter(e=>e.type==='sdk.turn.continued').length,0);
+});
+
+test('HTTP run recovers from three consecutive 502 responses on the real backoff clock without replaying a write',{timeout:60000},async t=>{
+  const requests=[];let attempts=0;
+  const f=await fixture(t,async(_url,options)=>{
+    requests.push(JSON.parse(options.body));attempts++;
+    if(attempts===1)return call('write-before-502','write_file',{path:'once-502.txt',content:'preserved through recovery'});
+    if(attempts<=4)return new Response(JSON.stringify({error:{message:'connection_refused: upstream unavailable'}}),{status:502,headers:{'content-type':'application/json'}});
+    return reply({content:'Recovered without repeating the completed write'});
+  },{maxRetries:5});
+  const started=Date.now(),run=await f.send('Save evidence and finish'),detail=await f.finish(run,55000),finished=detail.runs.find(r=>r.id===run.id);
+  assert.equal(finished.status,'completed',finished.error);assert.equal(finished.modelRequests,2);assert.equal(finished.modelAttempts,5);
+  assert.equal(attempts,5);assert.ok(Date.now()-started>=35000);
+  assert.deepEqual(detail.events.filter(e=>e.type==='model.request.retry').map(e=>e.data.delayMs),[5000,10000,20000]);
+  for(const request of requests.slice(2))assert.deepEqual(request,requests[1]);
+  assert.equal(detail.events.filter(e=>e.type==='tool.completed'&&e.data.tool==='write_file').length,1);
+  assert.equal(await fs.readFile(path.join(f.workspace,'once-502.txt'),'utf8'),'preserved through recovery');
+});
+
+test('HTTP recovery-budget exhaustion preserves the SDK session and completed tools for continuation',async t=>{
+  let attempts=0,recover=false;
+  const f=await fixture(t,async()=>{
+    if(++attempts===1)return call('saved-before-budget','write_file',{path:'budget-saved.txt',content:'kept'});
+    return recover?reply({content:'Continued from the saved result'}):new Response(JSON.stringify({error:{message:'temporarily unavailable'}}),{status:503,headers:{'content-type':'application/json','retry-after':'301'}});
+  },{maxRetries:5});
+  const first=await f.send('Save and continue'),detail=await f.finish(first),interrupted=detail.runs.find(r=>r.id===first.id);
+  assert.equal(interrupted.status,'interrupted');assert.equal(interrupted.stopReason,'model-recovery-timeout');
+  assert.match(interrupted.error,/等待时间超过/);assert.match(interrupted.error,/此线程继续/);assert.equal(attempts,2);
+  recover=true;const next=await f.send('Continue'),continued=await f.finish(next),finished=continued.runs.find(r=>r.id===next.id);
+  assert.equal(finished.status,'completed',finished.error);assert.equal(finished.runtimeSessionId,interrupted.runtimeSessionId);
+  assert.equal(continued.events.filter(e=>e.type==='tool.completed'&&e.data.tool==='write_file').length,1);
+  assert.equal(await fs.readFile(path.join(f.workspace,'budget-saved.txt'),'utf8'),'kept');
+});
+
+test('HTTP retry-count exhaustion reports all six attempts and keeps the completed work',async t=>{
+  let attempts=0;
+  const f=await fixture(t,async()=>{
+    if(++attempts===1)return call('saved-before-exhaustion','write_file',{path:'exhausted-saved.txt',content:'kept'});
+    return new Response(JSON.stringify({error:{message:'upstream refused'}}),{status:502,headers:{'content-type':'application/json','retry-after':'0'}});
+  },{maxRetries:5});
+  const run=await f.send('Save before the outage'),detail=await f.finish(run),finished=detail.runs.find(r=>r.id===run.id);
+  assert.equal(finished.status,'failed');assert.match(finished.error,/已尝试 6 次/);assert.match(finished.error,/此线程继续/);
+  assert.equal(finished.modelRequests,2);assert.equal(finished.modelAttempts,7);assert.equal(attempts,7);
+  assert.equal(detail.events.filter(e=>e.type==='tool.completed'&&e.data.tool==='write_file').length,1);
+  assert.equal(await fs.readFile(path.join(f.workspace,'exhausted-saved.txt'),'utf8'),'kept');
 });

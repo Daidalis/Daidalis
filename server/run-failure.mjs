@@ -1,5 +1,10 @@
 export function describeRuntimeFailure(error,events=[]){
+  if(error.code==='MODEL_RECOVERY_TIMEOUT'){
+    const reason=error.recoveryStopReason==='retry-after-exceeds-budget'?'服务端要求的等待时间超过本次恢复预算。':error.recoveryStopReason==='backoff-exceeds-budget'?'剩余恢复时间不足以等待下一次重试。':'已达到本次连接恢复时限。';
+    return `模型连接恢复未完成。${reason}${error.attempts?`已尝试 ${error.attempts} 次。`:''}已有文件和执行记录仍保留，可稍后在此线程继续。`;
+  }
   if(/(?:\b429\b.*Too Many Requests|rate.?limit)/i.test(error.message||''))return `模型服务拒绝了本次请求，可能触发限流或额度限制（${error.message}）。请检查服务端配额，稍后重试或切换连接。已有文件和执行记录仍保留。`;
+  if(error.status>=500&&error.status<=599||error.code==='MODEL_CONNECTION_FAILED'||error.name==='APIConnectionError')return `模型服务暂时不可用（${error.message}）。${error.attempts?`已尝试 ${error.attempts} 次。`:''}已有文件和执行记录仍保留，可稍后在此线程继续。`;
   if(error.code!=='MODEL_REQUEST_TIMEOUT'&&!/request timed out|request timeout/i.test(error.message||''))return error.message;
   const lastModelEvent=[...events].reverse().find(e=>['sdk.model.started','sdk.model.completed'].includes(e.type));
   if(error.code!=='MODEL_REQUEST_TIMEOUT'&&lastModelEvent?.type!=='sdk.model.started')return error.message;

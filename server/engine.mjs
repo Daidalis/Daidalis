@@ -413,11 +413,11 @@ export function createEngine({store,providers,emit,computer,engineering,engineer
         run.status='completed';
         emit({projectId:run.projectId,runId:run.id,type:'agent.completed',message:state.agent.name,data:{agentId:state.agent.id,threadId:run.threadId}});
       }catch(error){
-        const turnLimit=error.name==='MaxTurnsExceededError'||/Max turns \(\d+\) exceeded/.test(error.message),modelTimeout=error.code==='MODEL_REQUEST_TIMEOUT';
+        const turnLimit=error.name==='MaxTurnsExceededError'||/Max turns \(\d+\) exceeded/.test(error.message),modelTimeout=['MODEL_REQUEST_TIMEOUT','MODEL_RECOVERY_TIMEOUT'].includes(error.code);
         run.status=state.executionTimedOut?'interrupted':state.controller.signal.aborted?'cancelled':turnLimit||modelTimeout?'interrupted':'failed';
         if(run.status==='interrupted'){
           if(turnLimit)run.stopReason='turn-limit';
-          if(modelTimeout)run.stopReason='model-request-timeout';
+          if(modelTimeout)run.stopReason=error.code==='MODEL_RECOVERY_TIMEOUT'?'model-recovery-timeout':'model-request-timeout';
           if(state.executionTimedOut)run.stopReason='execution-time-limit';
         }
         run.error=redact(state.executionTimedOut?'本轮 Agent 已达到执行时限；已有产物与原生会话已保留，可以继续此线程。':turnLimit?describeRunFailure(error,store.data.events.filter(event=>event.runId===run.id)):describeRuntimeFailure(error,store.data.events.filter(event=>event.runId===run.id)));
