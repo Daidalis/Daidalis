@@ -10,7 +10,7 @@ import {commandSandboxAvailable} from '../server/sandbox.mjs';
 
 const quote=value=>"'"+value.replaceAll("'", "'\\''")+"'";
 async function fixture(t){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-auto-policy-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-auto-policy-'));
   t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const store=createStore({dataDir:path.join(root,'data'),seed:false});
   const project=store.createProject({name:'Sandbox Auto'}),workspace=store.workspace(project.id);

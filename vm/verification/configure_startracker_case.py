@@ -48,8 +48,8 @@ def main():
     p.add_argument('--di-file',type=Path,help='Actual installed Inp_DI.txt; defaults to source cfg')
     p.add_argument('--case',choices=['identity','noncommuting','invalid'],default='noncommuting')
     args=p.parse_args(); root=args.source.resolve()
-    if not(root/'.manta-isolated-nos3').is_file():
-        raise SystemExit('Source must have .manta-isolated-nos3 marker')
+    if not(root/'.daidalis-isolated-nos3').is_file():
+        raise SystemExit('Source must have .daidalis-isolated-nos3 marker')
     inout=(args.inout or root/'cfg/InOut').resolve()
     di=(args.di_file or root/'components/generic_adcs/fsw/shared/cfg/Inp_DI.txt').resolve()
     # Allow the source parent only for conventional private build/install siblings.
@@ -86,7 +86,7 @@ def main():
             'purpose':'zero-noise software integration frame/transport verification',
             'caveat':'zero exclusion angles retain geometric Earth/Moon limb occultation; require observed valid samples',
             'files':[str(spacecraft),str(di)]}
-    (root/f'manta-case-{args.case}.json').write_text(json.dumps(report,indent=2)+'\n')
+    (root/f'daidalis-case-{args.case}.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report))
 
 if __name__=='__main__':

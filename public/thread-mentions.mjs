@@ -1,7 +1,8 @@
+import {THREAD_MENTION_PREFIX,threadMentionReference} from './legacy-names.mjs';
 // Assistant prose references only. Membership and live state come from persisted
 // thread records; message wording never invents a task, status or permission.
 const ID = /^thread_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-const PREFIX = '#manta-thread:';
+const PREFIX = THREAD_MENTION_PREFIX;
 const protectedSelector = 'pre,code,a,button,input,textarea,select,option,script,style,[contenteditable],[data-thread-mention-invalid],.message.user,[data-message-origin="user"]';
 function indexThreads(threads,projectId) {
   const all = new Map(), byTitle = new Map(), byId = new Map();
@@ -49,9 +50,10 @@ export function threadMentionView(thread) {
   return {threadId:thread.id,title,executionStatus:status,label,indicator,ariaLabel:title+' · '+label};
 }
 export function resolveThreadMention(href,{threads=[],projectId}={}) {
-  if(typeof href!=='string'||!href.startsWith(PREFIX))return null;
-  const threadId=href.slice(PREFIX.length);
-  if(!ID.test(threadId)||href!==PREFIX+threadId)return null;
+  const reference=threadMentionReference(href);
+  if(!reference)return null;
+  const threadId=reference.id;
+  if(!ID.test(threadId)||href!==reference.prefix+threadId)return null;
   const thread=indexThreads(threads,projectId).byId.get(threadId);
   return thread?threadMentionView(thread):null;
 }
@@ -121,7 +123,7 @@ export function enrichThreadMentions(root,{threads=[],projectId,allowTitleMatche
       else{button.replaceWith(inertText(doc,button.textContent));counts.invalid++;}
     }
     for(const anchor of body.querySelectorAll('a[href]')) {
-      const href=anchor.getAttribute('href');if(!href?.startsWith(PREFIX))continue;
+      const href=anchor.getAttribute('href');if(!threadMentionReference(href))continue;
       if(anchor.closest('pre,code,.message.user,[data-message-origin="user"]'))continue;
       const view=resolveThreadMention(href,options);
       if(view){anchor.replaceWith(buttonFor(doc,view));counts.created++;}

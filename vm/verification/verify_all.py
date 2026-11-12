@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
-"""Fixed Manta worker entrypoint for a real, isolated Linux NOS3 campaign.
+"""Fixed Daidalis worker entrypoint for a real, isolated Linux NOS3 campaign.
 
 The guest must have been provisioned and the pinned native source copy prepared.
-This command changes only /srv/manta source/build/runtime copies and requested
+This command changes only /srv/daidalis source/build/runtime copies and requested
 evidence output. It never changes a macOS/global application configuration.
 """
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import argparse
 import fcntl
 import hashlib
@@ -79,7 +89,7 @@ def main():
     out=args.out.resolve()
     if os.uname().sysname!='Linux':
         raise SystemExit('This entrypoint must execute inside the dedicated Linux guest')
-    if str(out) in ['/','/srv','/srv/manta']:
+    if str(out) in ['/','/srv',_vm_name_path('/srv/daidalis')]:
         raise SystemExit('Output must be a dedicated job directory')
     if not 10<=args.duration<=120:
         raise SystemExit('Duration must be within 10..120 seconds')
@@ -89,16 +99,16 @@ def main():
     here=Path(__file__).resolve().parent
     shutil.copyfile(here/'engineering-fix.json',out/'engineering-fix.json')
     plan=here.parent/'nos3-plan'
-    work=Path('/srv/manta/nos3'); fortytwo=Path('/srv/manta/42')
-    job=Path('/srv/manta/runs')/('campaign-'+uuid.uuid4().hex)
+    work=Path(_vm_name_path('/srv/daidalis/nos3')); fortytwo=Path(_vm_name_path('/srv/daidalis/42'))
+    job=Path(_vm_name_path('/srv/daidalis/runs'))/('campaign-'+uuid.uuid4().hex)
     case_reports={}; operations=[]; began=time.monotonic(); failure=None
     lock=None; lock_acquired=False; restored={'status':'not_attempted'}
     try:
         install_signal_handlers()
-        lock=Path('/srv/manta/verification.lock').open('a')
+        lock=Path(_vm_name_path('/srv/daidalis/verification.lock')).open('a')
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         lock_acquired=True
-        if not(work/'.manta-isolated-nos3').is_file() or not(fortytwo/'.manta-isolated-42').is_file():
+        if not(work/'.daidalis-isolated-nos3').is_file() or not(fortytwo/'.daidalis-isolated-42').is_file():
             raise RuntimeError('Pinned isolated guest sources are not prepared; native provisioning is required')
         if not args.reuse_campaign:
             job.mkdir(parents=True)
@@ -115,10 +125,10 @@ def main():
                 operations.append(command([sys.executable,'-B',here/'configure_startracker_case.py','--source',work,
                     '--inout',fortytwo/'NOS3InOut','--di-file',work/'fsw/build/exe/cpu1/cf/Inp_DI.txt','--case',scenario],out/f'{name}-configure.log'))
                 operations.append(command([sys.executable,'-B',plan/'run_native.py','--work',work,'--output',run,'--duration',args.duration],out/f'{name}-execution.log',timeout=180))
-                for source,target in [(work/f'manta-startracker-{mode}.json','source-manifest.json'),
-                                      (work/f'manta-startracker-{mode}.patch','source.patch'),
-                                      (work/f'manta-case-{scenario}.json','case.json'),
-                                      (fortytwo/'manta-truth42-probe.json','truth-observer-manifest.json')]:
+                for source,target in [(work/f'daidalis-startracker-{mode}.json','source-manifest.json'),
+                                      (work/f'daidalis-startracker-{mode}.patch','source.patch'),
+                                      (work/f'daidalis-case-{scenario}.json','case.json'),
+                                      (fortytwo/'daidalis-truth42-probe.json','truth-observer-manifest.json')]:
                     shutil.copyfile(source,run/target)
                 for path,label in [(fortytwo/'NOS3InOut/SC_NOS3.txt','SC_NOS3.txt'),
                                    (work/'fsw/build/exe/cpu1/cf/Inp_DI.txt','Inp_DI.txt'),
@@ -156,8 +166,8 @@ def main():
                     '--inout',fortytwo/'NOS3InOut','--di-file',work/'fsw/build/exe/cpu1/cf/Inp_DI.txt',
                     '--case','noncommuting'],out/'restore-configure.log'))
                 restored={'status':'restored','mode':'fixed','sensorSign':'normal','sensorBiasDeg':0,
-                    'sourceManifestSha256':hashlib.sha256((work/'manta-startracker-fixed.json').read_bytes()).hexdigest(),
-                    'binaryReceiptSha256':hashlib.sha256(Path('/srv/manta/receipts/binaries.sha256').read_bytes()).hexdigest()}
+                    'sourceManifestSha256':hashlib.sha256((work/'daidalis-startracker-fixed.json').read_bytes()).hexdigest(),
+                    'binaryReceiptSha256':hashlib.sha256(Path(_vm_name_path('/srv/daidalis/receipts/binaries.sha256')).read_bytes()).hexdigest()}
             except Exception as exc:
                 restored={'status':'restore_failed','error':str(exc)}
                 failure=(failure+'; ' if failure else '')+'Runtime restoration failed: '+str(exc)
@@ -197,7 +207,7 @@ def main():
                 samples.get('adac_valid',0)+samples.get('adac_invalid',0)>0 and
                 all(udp.get(name,0)>0 for name in ['startracker','di','ad','gnc']))
     chains={name:chain_executed(report) for name,report in case_reports.items()}
-    result={'schema':'manta-nos3-verification-v1','scope':'integration','fullNos3Simulation':any(chains.values()),
+    result={'schema':'daidalis-nos3-verification-v1','scope':'integration','fullNos3Simulation':any(chains.values()),
             'fullMissionAllDevices':False,'passed':complete,'status':'verified' if complete else 'failed',
             'description':'Native Linux '+os.uname().machine+' NOS3 selected star-tracker / cFS / 42 live simulation campaign',
             'checks':checks,'error':failure,'elapsedSeconds':round(time.monotonic()-began,3),
@@ -217,7 +227,7 @@ def main():
             'telemetryFiles':[m['path'] for m in selected],
             'telemetryTransferBytes':sum(m['bytes'] for m in selected),
             'artifacts':manifest,'operations':operations,
-            'isolation':{'hostGlobalConfigurationChanged':False,'guestRoot':'/srv/manta','originalProjectModified':False},
+            'isolation':{'hostGlobalConfigurationChanged':False,'guestRoot':_vm_name_path('/srv/daidalis'),'originalProjectModified':False},
             'caseReports':{name:name+'/verification.json' for name in case_reports}}
     (out/'verification.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps({'event':'campaign_completed','passed':complete,'output':str(out/'verification.json'),'error':failure}),flush=True)

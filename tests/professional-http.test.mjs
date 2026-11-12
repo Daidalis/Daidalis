@@ -9,7 +9,7 @@ import {createToolRuntime} from '../server/tools.mjs';
 import {numericModelParameters,inferModelName,renderProfessionalWorkbench,parseOutputSignals} from '../public/professional-workbench.mjs';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 test('professional HTTP binds native edits and execution to project/source and preserves explicit failed checks',async t=>{
- const folder=await fs.mkdtemp(path.join(os.tmpdir(),'manta-prof-http-')),dataDir=path.join(folder,'data'),workspace=path.join(folder,'project');await fs.mkdir(workspace);
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-prof-http-')),dataDir=path.join(folder,'data'),workspace=path.join(folder,'project');await fs.mkdir(workspace);
  const runner={status:async()=>({ready:true,state:'ready',version:'test-tool-only'}),prepare:async()=>({ready:true}),run:async input=>({exitCode:0,success:true,tool:{id:'openmodelica',version:'test-tool-only'},receipt:{inputHash:input.inputHash,sourceHashes:input.sourceFiles.map(({path,sha256})=>({path,sha256}))},files:[{path:'result_res.csv',contentBase64:Buffer.from('time,x\n0,1\n1,0.5\n2,0.25\n').toString('base64')}]})};
  const app=await createStudioServer({dataDir,seed:false,computer:false,engineering:false,nos3:false,connectors:false,modelBackend:false,localVm:false,professionalRunner:runner,stfCase:false});
  t.after(async()=>{await app.close();await fs.rm(folder,{recursive:true,force:true});});

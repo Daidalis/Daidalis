@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -9,17 +10,17 @@ const ID=/^orbit42_[a-f0-9]{32}$/;
 const HASH=/^[a-f0-9]{64}$/;
 const RAW=['time.42','PosN.42','VelN.42','PosW.42'];
 const NATIVE_FILES=['trajectory.csv','report.md','receipt.json',...RAW,'Inp_Sim.txt','Orb_LEO.txt','native-42.log'];
-const WORKER_SHA256='56c6934a4f27dda30a5e040e18b27d65f140d7aab8b51563f0cbaffaedc75163';
+const WORKER_SHA256='6555ab8c58189a6a949868c4fbc1c024899ebb94a8c3a1cf2f5302873eca3547';
 const TEMPLATE_TREE_SHA256='9fc8eaffe24ccdaa702c943048f48c87934a733664376689b30c3fe53e72472e';
-const GUEST_ADAPTER='/srv/manta/orbit42/adapter-'+WORKER_SHA256+'.py';
+const GUEST_ADAPTER='/srv/daidalis/orbit42/adapter-'+WORKER_SHA256+'.py';
 const BINARY_SHA256='a56f32e7a0ce8ec7e26749a5fb7aee673f24a190f444fc85083b3c63bd2b6c31';
 const TERMINAL=new Set(['completed','failed','cancelled','interrupted']);
 const MODEL_CONTRACT={
-  schema:'manta-orbit42-v1',format:'.orbit42.json',source:{repository:'nasa-itc/42',revision:'dev_20260403'},
+  schema:'daidalis-orbit42-v1',format:'.orbit42.json',source:{repository:'nasa-itc/42',revision:'dev_20260403'},
   requiredScenarioFields:['epochUtc','leapSeconds','periapsisAltitudeKm','apoapsisAltitudeKm','inclinationDeg','raanDeg','argumentOfPeriapsisDeg','trueAnomalyDeg','durationSeconds','stepSeconds','outputIntervalSeconds'],
   units:{epochUtc:'UTC ISO 8601 whole seconds, 2000–2040',leapSeconds:'s, explicit justified assumption',periapsisAltitudeKm:'km above Earth, 150–2000',apoapsisAltitudeKm:'km above Earth, >= periapsis and <=2000',inclinationDeg:'degrees, 0–180',raanDeg:'degrees, 0–360',argumentOfPeriapsisDeg:'degrees, 0–360',trueAnomalyDeg:'degrees, 0–360',durationSeconds:'s, 60–2000',stepSeconds:'s, 0.01–0.1',outputIntervalSeconds:'s, stepSeconds–300, exact step multiple'},
   limits:{maximumIntegrationSteps:20000,maximumOutputIntervals:2000,assumptions:'0–20 strings, each at most 500 characters'},
-  referenceExample:{schema:'manta-orbit42-v1',source:{repository:'nasa-itc/42',revision:'dev_20260403'},scenario:{epochUtc:'2024-08-04T00:00:00Z',leapSeconds:37,periapsisAltitudeKm:400,apoapsisAltitudeKm:400,inclinationDeg:52,raanDeg:0,argumentOfPeriapsisDeg:0,trueAnomalyDeg:20,durationSeconds:600,stepSeconds:0.1,outputIntervalSeconds:60},assumptions:['Reference example only; replace with sourced mission inputs before engineering use']},
+  referenceExample:{schema:'daidalis-orbit42-v1',source:{repository:'nasa-itc/42',revision:'dev_20260403'},scenario:{epochUtc:'2024-08-04T00:00:00Z',leapSeconds:37,periapsisAltitudeKm:400,apoapsisAltitudeKm:400,inclinationDeg:52,raanDeg:0,argumentOfPeriapsisDeg:0,trueAnomalyDeg:20,durationSeconds:600,stepSeconds:0.1,outputIntervalSeconds:60},assumptions:['Reference example only; replace with sourced mission inputs before engineering use']},
   output:'Native 42 Earth-centered N-frame SI trajectory, simulation seconds from declared epoch; no certified geodetic/J2000 transform or coverage claim'
 };
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
@@ -93,7 +94,7 @@ export async function createOrbit42Service({
     if(!/^orbit42_[a-f0-9]{32}\.json$/.test(name))continue;
     const job=JSON.parse(await fs.readFile(path.join(disk,name),'utf8'));
     if(!ID.test(job.id)||name!==job.id+'.json')throw Error('Invalid persisted orbit job');
-    if(!TERMINAL.has(job.status)){job.status='interrupted';job.reason='Manta stopped before the native 42 receipt was committed; submit a new pinned run';job.finishedAt=now();await atomicJson(path.join(disk,name),job);}
+    if(!TERMINAL.has(job.status)){job.status='interrupted';job.reason='Daidalis stopped before the native 42 receipt was committed; submit a new pinned run';job.finishedAt=now();await atomicJson(path.join(disk,name),job);}
     jobs.set(job.id,job);
   }
   async function artifact(job,relative,bytes,mimeType){
@@ -118,7 +119,7 @@ export async function createOrbit42Service({
       const file=path.join(vmRoot,'host','vm-status.sh');
       const state=await execute('/bin/sh',[file],{cwd:vmRoot,timeoutMs:15000,maxOutputBytes:20000,maxTotalBytes:30000});
       if(state.code!==0||JSON.parse(state.stdout).state!=='running')return {ready:false,state:'not-prepared',reason:'Managed Linux VM is not running'};
-      const probe=await vm('test -x /srv/manta/42/42 && sha256sum /srv/manta/42/42',{timeoutMs:15000,maxOutputBytes:500,maxTotalBytes:1000});
+      const probe=await vm('test -x /srv/daidalis/42/42 && sha256sum /srv/daidalis/42/42',{timeoutMs:15000,maxOutputBytes:500,maxTotalBytes:1000});
       if(probe.code!==0)return {ready:false,state:'not-prepared',reason:'Native 42 executable is not prepared in the isolated Linux VM'};
       const binarySha256=probe.stdout.trim().split(/\s+/)[0];
       if(binarySha256!==BINARY_SHA256)return {ready:false,state:'blocked',reason:'Native 42 executable hash differs from the pinned binary',isolated:true,hostGlobalChanges:false};
@@ -129,7 +130,7 @@ export async function createOrbit42Service({
     // This path only reboots an already prepared, application-owned VM. It
     // never calls vm-prepare, installs packages or exposes the general VM/NOS3
     // service to the isolated evaluation Agent.
-    for(const relative of ['state/config.json','state/ubuntu.raw','host/manta-vm','host/vm-start.sh']){
+    for(const relative of ['state/config.json','state/ubuntu.raw','host/daidalis-vm','host/vm-start.sh']){
       const info=await fs.lstat(path.join(vmRoot,relative));
       if(!info.isFile()||info.isSymbolicLink())throw Error('Fixed Orbit 42 VM startup requires a prepared regular file: '+relative);
     }
@@ -144,10 +145,10 @@ export async function createOrbit42Service({
   }
   async function finish(job,{native,reason}={}){
     if(native){
-      if(native.schema!=='manta-orbit42-native-response-v1'||typeof native.success!=='boolean'||!Number.isInteger(native.exitCode)||!Array.isArray(native.files))throw Error('Invalid native 42 response');
+      if(!productSchemaMatches(native.schema,'daidalis-orbit42-native-response-v1')||typeof native.success!=='boolean'||!Number.isInteger(native.exitCode)||!Array.isArray(native.files))throw Error('Invalid native 42 response');
       if(native.success){
         const receipt=native.receipt;
-        if(native.exitCode!==0||receipt?.schema!=='manta-orbit42-receipt-v1'||receipt.jobId!==job.id||receipt.inputHash!==job.inputHash||receipt.sourceFile?.path!==job.model.path||receipt.sourceFile?.sha256!==job.inputHash||receipt.tool?.id!=='nasa-42'||receipt.tool?.repository!=='nasa-itc/42'||receipt.tool?.revision!=='dev_20260403'||receipt.tool?.binarySha256!==expectedBinary||receipt.adapterSha256!==WORKER_SHA256||native.tool?.binarySha256!==receipt.tool.binarySha256||receipt.assets?.fileCount!==220||receipt.assets?.treeSha256!=='d7d68ea74816d4c0bd78120adf02a982832727d34806c210b7b693f0028a8c48'||(containerRunner?(receipt.assets?.archiveSha256!=='80a90432fc83772e3002c0320e4d54d7d2a6db230a2eeedbf9747a87f553ae4c'||receipt.containerAdapterSha256!==containerProfile?.containerAdapterSha256):(receipt.assets?.sourceIntegritySha256!=='fadfb8bd140f81a0488f4668ccb4e19f785bf12349fe42dcf872856ebf1c485d'||receipt.assets?.assetManifestSha256!=='de831c50047b3376e1fb5400bf062fc197b5edd536266a91172080ad3af19a61'))||!validTemplateReceipt(receipt.templateFiles)||!Number.isInteger(native.metrics?.samples)||native.metrics.samples<2||native.metrics.samples>2001||!Array.isArray(native.metrics?.checks)||native.metrics.checks.some(check=>check.passed!==true))throw Error('Native 42 receipt or sanity checks do not match the pinned request');
+        if(native.exitCode!==0||!productSchemaMatches(receipt?.schema,'daidalis-orbit42-receipt-v1')||receipt.jobId!==job.id||receipt.inputHash!==job.inputHash||receipt.sourceFile?.path!==job.model.path||receipt.sourceFile?.sha256!==job.inputHash||receipt.tool?.id!=='nasa-42'||receipt.tool?.repository!=='nasa-itc/42'||receipt.tool?.revision!=='dev_20260403'||receipt.tool?.binarySha256!==expectedBinary||receipt.adapterSha256!==WORKER_SHA256||native.tool?.binarySha256!==receipt.tool.binarySha256||receipt.assets?.fileCount!==220||receipt.assets?.treeSha256!=='d7d68ea74816d4c0bd78120adf02a982832727d34806c210b7b693f0028a8c48'||(containerRunner?(receipt.assets?.archiveSha256!=='80a90432fc83772e3002c0320e4d54d7d2a6db230a2eeedbf9747a87f553ae4c'||receipt.containerAdapterSha256!==containerProfile?.containerAdapterSha256):(receipt.assets?.sourceIntegritySha256!=='fadfb8bd140f81a0488f4668ccb4e19f785bf12349fe42dcf872856ebf1c485d'||receipt.assets?.assetManifestSha256!=='de831c50047b3376e1fb5400bf062fc197b5edd536266a91172080ad3af19a61'))||!validTemplateReceipt(receipt.templateFiles)||!Number.isInteger(native.metrics?.samples)||native.metrics.samples<2||native.metrics.samples>2001||!Array.isArray(native.metrics?.checks)||native.metrics.checks.some(check=>check.passed!==true))throw Error('Native 42 receipt or sanity checks do not match the pinned request');
       }
       if(native.files.length>16)throw Error('Native 42 returned too many artifacts');
       if(!native.success&&native.files.length)throw Error('Failed native 42 run cannot publish output artifacts');
@@ -181,7 +182,7 @@ export async function createOrbit42Service({
       job.reason=native.success?undefined:String(native.diagnostics||'Native 42 failed').slice(0,2000);
       job.finishedAt=now();
       job.result={
-        schema:'manta-orbit42-result-v1',jobId:job.id,status:job.status,passed:native.success===true,
+        schema:'daidalis-orbit42-result-v1',jobId:job.id,status:job.status,passed:native.success===true,
         model:job.model,inputHash:job.inputHash,tool:native.tool||null,
         executionSucceeded:native.success===true,exitCode:native.exitCode,
         metrics:native.metrics||null,scope:native.scope||'Native 42 short-run reference orbit only',
@@ -198,7 +199,7 @@ export async function createOrbit42Service({
       job.status=job.cancelRequested?'cancelled':job.shutdown?'interrupted':'failed';
       job.reason=String(reason||'Orbit 42 execution did not commit a receipt').slice(0,2000);
       job.finishedAt=now();
-      job.result={schema:'manta-orbit42-result-v1',jobId:job.id,status:job.status,passed:false,model:job.model,inputHash:job.inputHash,executionSucceeded:false,diagnostics:job.reason,resultPath:job.relative+'/result.json',trajectoryPath:null,reportPath:null};
+      job.result={schema:'daidalis-orbit42-result-v1',jobId:job.id,status:job.status,passed:false,model:job.model,inputHash:job.inputHash,executionSucceeded:false,diagnostics:job.reason,resultPath:job.relative+'/result.json',trajectoryPath:null,reportPath:null};
     }
     const resultEntry=await artifact(job,'result.json',JSON.stringify(job.result,null,2)+'\n','application/json');
     job.resultSha256=resultEntry.sha256;
@@ -244,7 +245,7 @@ export async function createOrbit42Service({
       // VirtioFS/NAS reads can be inconsistent while the handoff is staged.
       // Copy reviewed bytes into private guest storage, then verify their exact
       // digest before Python parses or executes the adapter.
-      const stage=await vm('mkdir -p /srv/manta/orbit42 && cp /mnt/manta-transfer/worker/orbit42-run.py '+GUEST_ADAPTER+' && sha256sum '+GUEST_ADAPTER,{signal:controller.signal,timeoutMs:15000,maxOutputBytes:1000,maxTotalBytes:2000});
+      const stage=await vm('mkdir -p /srv/daidalis/orbit42 && cp /mnt/daidalis-transfer/worker/orbit42-run.py '+GUEST_ADAPTER+' && sha256sum '+GUEST_ADAPTER,{signal:controller.signal,timeoutMs:15000,maxOutputBytes:1000,maxTotalBytes:2000});
       if(stage.code!==0||stage.stdout.trim().split(/\s+/)[0]!==WORKER_SHA256)throw Error('Reviewed orbit adapter did not stage with its pinned SHA-256');
       const sourceFile=await readSource(job);
       const request={jobId:job.id,inputHash:job.inputHash,sourceFile};
@@ -286,7 +287,7 @@ export async function createOrbit42Service({
         try{const stat=await fs.lstat(target);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>65536)throw invalid('Existing orbit model must be a regular file under 64 KiB');previous=await fs.readFile(target,'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
         if(previous===null?args.expectedHash!==null:sha(previous)!==args.expectedHash)throw invalid('Orbit model changed; reload before editing','REVISION_CONFLICT');
         await fs.mkdir(path.dirname(target),{recursive:true,mode:0o700});safePath(ws,relative,{write:true});
-        if(previous!==null){const history=safePath(ws,'.manta/orbit42-model-history/'+sha(previous)+'.orbit42.json',{write:true});await fs.mkdir(path.dirname(history),{recursive:true,mode:0o700});await fs.writeFile(history,previous,{mode:0o600,flag:'wx'}).catch(error=>{if(error.code!=='EEXIST')throw error;});}
+        if(previous!==null){const history=safePath(ws,'.daidalis/orbit42-model-history/'+sha(previous)+'.orbit42.json',{write:true});await fs.mkdir(path.dirname(history),{recursive:true,mode:0o700});await fs.writeFile(history,previous,{mode:0o600,flag:'wx'}).catch(error=>{if(error.code!=='EEXIST')throw error;});}
         const temporary=target+'.'+crypto.randomUUID()+'.tmp';
         await fs.writeFile(temporary,args.content,{mode:0o600,flag:'wx'});
         try{
@@ -313,12 +314,12 @@ export async function createOrbit42Service({
       if(inputHash!==args.expectedHash)throw invalid('Orbit model changed; reload before submitting','REVISION_CONFLICT');
       let model;
       try{model=JSON.parse(content);}catch{throw invalid('Orbit model must be valid JSON');}
-      if(model?.schema!=='manta-orbit42-v1')throw invalid('Expected manta-orbit42-v1 model');
+      if(!productSchemaMatches(model?.schema,'daidalis-orbit42-v1'))throw invalid('Expected daidalis-orbit42-v1 model');
       const jobId='orbit42_'+crypto.randomUUID().replaceAll('-',''),relativeDir='engineering/orbit/'+jobId;
       const job={id:jobId,jobId,projectId:args.projectId,threadId:ctx.threadId||null,runId:ctx.runId||null,status:'queued',createdAt:now(),relative:relativeDir,model:{path:relative,sha256:inputHash},inputHash,timeoutMs:Math.min(Math.max(Number.isFinite(args.timeoutMs)?args.timeoutMs:maxJobMs,30000),180000),artifactHashes:{}};
       await fs.mkdir(safePath(ws,relativeDir,{write:true}),{recursive:true,mode:0o700});
       await artifact(job,'source.orbit42.json',content,'application/json');
-      await artifact(job,'input.json',JSON.stringify({schema:'manta-orbit42-input-v1',jobId,model:job.model,inputHash,submittedAt:job.createdAt},null,2)+'\n','application/json');
+      await artifact(job,'input.json',JSON.stringify({schema:'daidalis-orbit42-input-v1',jobId,model:job.model,inputHash,submittedAt:job.createdAt},null,2)+'\n','application/json');
       jobs.set(job.id,job);await persist(job);queue.push(job);queueMicrotask(pump);return publicJob(job);
     },
     async list({projectId}={}){workspace(projectId);return [...jobs.values()].filter(job=>job.projectId===projectId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(publicJob);},
@@ -356,7 +357,7 @@ export async function createOrbit42Service({
     },
     async close(){
       closed=true;
-      for(const job of jobs.values())if(!TERMINAL.has(job.status)){job.shutdown=true;if(controllers.has(job.id))controllers.get(job.id).abort();else{job.status='interrupted';job.reason='Manta stopped before orbit execution';job.finishedAt=now();await persist(job);}}
+      for(const job of jobs.values())if(!TERMINAL.has(job.status)){job.shutdown=true;if(controllers.has(job.id))controllers.get(job.id).abort();else{job.status='interrupted';job.reason='Daidalis stopped before orbit execution';job.finishedAt=now();await persist(job);}}
       await Promise.allSettled([...tasks]);
     }
   };

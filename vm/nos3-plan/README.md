@@ -22,7 +22,7 @@ their unchanged type schemas, avoiding an unnecessary Julia installation.
 
 The host Virtualization.framework helper and cloud-init are managed separately
 under `../host`. Only the project `handoff` directory is shared. Guest paths are
-private `/srv/manta` paths; the original NOS3 project is never built or patched.
+private `/srv/daidalis` paths; the original NOS3 project is never built or patched.
 
 `fetch_sources.py` retrieves allowlisted source archives at the NOS3 gitlink
 revisions and records archive SHA-256 values in `source/manifest.json`.
@@ -32,12 +32,12 @@ Ubuntu 22.04 ARM64 guest. It installs build dependencies and two official NASA
 ARM64 packages inside that disk. The small source and headless-asset archives
 avoid per-file shared-filesystem read-lock failures observed on this host.
 
-`build_native.sh /srv/manta/nos3` compiles the actual code natively and records
-ELF architecture and binary SHA-256 values in `/srv/manta/receipts`.
+`build_native.sh /srv/daidalis/nos3` compiles the actual code natively and records
+ELF architecture and binary SHA-256 values in `/srv/daidalis/receipts`.
 
 ## Execution
 
-`run_native.py --work /srv/manta/nos3 --output /srv/manta/runs/UNIQUE_CASE
+`run_native.py --work /srv/daidalis/nos3 --output /srv/daidalis/runs/UNIQUE_CASE
 --duration 20` starts all production processes. The original NOS3 time driver
 uses a private pseudoterminal because it uses ncurses; no GUI window or synthetic
 clock is substituted. NOS Engine stdin stays open. Measurement starts only after
@@ -52,7 +52,7 @@ retained. Execution success is recorded separately from engineering assertions.
 
 The independent campaign entrypoint is maintained under `../verification`:
 
-`python3 -B /mnt/manta-transfer/verification/verify_all.py --out JOB_DIRECTORY`.
+`python3 -B /mnt/daidalis-transfer/verification/verify_all.py --out JOB_DIRECTORY`.
 
 It runs original-defect, fixed, quaternion-sign, invalid-observation and sensor
 bias cases. The original-defect case must reveal the actual mounting-transform

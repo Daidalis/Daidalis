@@ -3,8 +3,23 @@
 processes execute in a guest bubblewrap namespace without worker/home/NAS access.
 The controller records only actual outputs; numerical/SIL checks are not hardware acceptance.
 """
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import pathlib,sys,json,hashlib,os,signal,subprocess,base64,gzip,csv,time,re,fcntl,shutil,resource
-ROOT=pathlib.Path('/srv/manta/stf-low-power');STATE=pathlib.Path('/srv/manta/stf-native-jobs');STATE.mkdir(exist_ok=True,mode=0o700)
+ROOT=pathlib.Path(_vm_name_path('/srv/daidalis/stf-low-power'));STATE=pathlib.Path(_vm_name_path('/srv/daidalis/stf-native-jobs'));STATE.mkdir(exist_ok=True,mode=0o700)
 sha=lambda b:hashlib.sha256(b).hexdigest()
 CONTROLLER_SHA=sha(pathlib.Path(__file__).read_bytes())
 children=[];cancelled=False
@@ -47,7 +62,7 @@ for source in source_files:
 manifests=[f for f in source_files if f['path'].endswith('.stf.json')]
 if len(manifests)!=1:raise RuntimeError('Exactly one native STF manifest required')
 manifest=json.loads(manifests[0]['content'])
-if manifest.get('schema')!='manta-stf-native-case-v1' or manifest.get('caseType')!='stf-low-power' or manifest.get('recipeVersion')!=1:raise RuntimeError('Unsupported native STF case manifest')
+if not _product_schema_matches(manifest.get('schema'), 'daidalis-stf-native-case-v1') or manifest.get('caseType')!='stf-low-power' or manifest.get('recipeVersion')!=1:raise RuntimeError('Unsupported native STF case manifest')
 if manifest.get('upstream',{}).get('nos3')!='5a3bdee6be9a2c67fdf994ae6db56d5c60395302':raise RuntimeError('Unsupported native NOS3 source baseline')
 apply=request.get('parameters',{}).get('applyProtection',True)
 if not isinstance(apply,bool):raise RuntimeError('applyProtection must be boolean')
@@ -73,7 +88,7 @@ def file_entry(p,name=None):
 
 def sandbox(command,runtime=False):
  args=['/usr/bin/bwrap','--unshare-all','--die-with-parent','--new-session','--ro-bind','/usr','/usr','--ro-bind','/bin','/bin','--ro-bind','/lib','/lib','--proc','/proc','--dev','/dev','--tmpfs','/tmp','--dir','/etc','--ro-bind','/etc/ld.so.cache','/etc/ld.so.cache','--ro-bind',str(ROOT/'runtime-hosts'),'/etc/hosts','--ro-bind','/etc/nsswitch.conf','/etc/nsswitch.conf','--ro-bind','/etc/alternatives','/etc/alternatives','--bind',str(ROOT),str(ROOT),'--clearenv','--setenv','PATH','/usr/bin:/bin','--setenv','LANG','C.UTF-8','--setenv','HOME','/tmp','--setenv','TMPDIR','/tmp','--chdir',str(ROOT)]
- if runtime:args+=['--bind','/dev/mqueue','/dev/mqueue','--ro-bind','/srv/manta/42','/srv/manta/42','--ro-bind','/srv/manta/42-assets','/srv/manta/42-assets']
+ if runtime:args+=['--bind','/dev/mqueue','/dev/mqueue','--ro-bind',_vm_name_path('/srv/daidalis/42'),_vm_name_path('/srv/daidalis/42'),'--ro-bind',_vm_name_path('/srv/daidalis/42-assets'),_vm_name_path('/srv/daidalis/42-assets')]
  else:args+=['--setenv','CFS_APP_PATH','../components','--setenv','MISSION_DEFS','../cfg/build/','--setenv','MISSIONCONFIG','../cfg/build/nos3']
  return args+command
 
@@ -105,7 +120,7 @@ try:
   tools=ROOT/'tools';tools.mkdir(exist_ok=True);campaign=pathlib.Path(__file__).with_name('stf-low-power-campaign.py');shutil.copyfile(campaign,tools/'campaign.py')
   sim_input=ROOT/'42run/InOut/Inp_Sim.txt';sim_text=sim_input.read_text();sim_text=re.sub(r'^120\.0\s+0\.01','180.0  0.01',sim_text,flags=re.M);sim_input.write_text(sim_text)
   (ROOT/'runtime-hosts').write_text('127.0.0.1 localhost fortytwo nos-engine-server sc01-nos-engine-server nos-fsw truth42sim\n::1 localhost\n')
-  execute('isolation-probe',['python3','-c',"import os,json,socket; paths=['/home/manta/.ssh','/srv/manta/worker/config.json','/mnt/manta-transfer']; visible={p:os.path.exists(p) for p in paths}; assert not any(visible.values()); assert os.getuid()!=0; sock=socket.socket(); sock.settimeout(.3); code=sock.connect_ex(('127.0.0.1',8093)); assert code!=0; print(json.dumps({'uid':os.getuid(),'protectedPathsVisible':visible,'workerPortReachable':False,'networkNamespace':os.readlink('/proc/self/ns/net')}))"],runtime=True,timeout=15)
+  execute('isolation-probe',['python3','-c',_vm_name_path("import os,json,socket; paths=['/home/daidalis/.ssh','/srv/daidalis/worker/config.json','/mnt/daidalis-transfer']; visible={p:os.path.exists(p) for p in paths}; assert not any(visible.values()); assert os.getuid()!=0; sock=socket.socket(); sock.settimeout(.3); code=sock.connect_ex(('127.0.0.1',8093)); assert code!=0; print(json.dumps({'uid':os.getuid(),'protectedPathsVisible':visible,'workerPortReachable':False,'networkNamespace':os.readlink('/proc/self/ns/net')}))")],runtime=True,timeout=15)
   execute('configure',['cmake','-S','fsw/cfe','-B','fsw/build'],timeout=120)
   execute('native-build',['cmake','--build','fsw/build','--target','mission-install','--parallel','4'],timeout=180)
   ready_file=ROOT/'ready.json';ready=json.loads(ready_file.read_text());
@@ -134,7 +149,7 @@ finally:
   try:os.killpg(child.pid,signal.SIGKILL)
   except ProcessLookupError:pass
  scope='Actual selected NOS3 LC/SC/EPS/MGR/SAMPLE/42 software integration with CI test scheduling. Full mission scheduler, all-device integration and physical qualification remain unverified.'
- verification={'schema':'manta-stf-native-verification-v1','case':'stf-low-power','variant':variant,'passed':criteria_passed,'checks':checks,'scope':scope,'unverified':manifest.get('unverified',[]),'executions':executions}
+ verification={'schema':'daidalis-stf-native-verification-v1','case':'stf-low-power','variant':variant,'passed':criteria_passed,'checks':checks,'scope':scope,'unverified':manifest.get('unverified',[]),'executions':executions}
  (out/'verification.json').write_text(json.dumps(verification,indent=2))
  for p in sorted(out.rglob('*')):
   if not p.is_file():continue
@@ -143,5 +158,5 @@ finally:
    data=p.read_bytes();compressed=gzip.compress(data,mtime=0);files.append({'path':relative+'.gz','sha256':sha(compressed),'contentBase64':base64.b64encode(compressed).decode(),'mimeType':'application/gzip'})
    if p.suffix=='.log':files.append({'path':relative,'sha256':sha(data[-200000:]),'contentBase64':base64.b64encode(data[-200000:]).decode(),'mimeType':'text/plain'})
   else:files.append(file_entry(p,relative))
- receipt={'schema':'manta-stf-native-receipt-v1','jobId':job,'inputHash':input_hash,'sourceFiles':[{'path':f['path'],'sha256':f['sha256']} for f in source_files],'variant':variant,'tool':tool,'executions':executions,'scope':scope,'hardwareValidation':False,'fullStfMission':False,'controllerSha256':CONTROLLER_SHA,'campaignSha256':sha((ROOT/'tools/campaign.py').read_bytes()),'prepareRecipeSha256':json.loads((ROOT/'ready.json').read_text()).get('prepareRecipeSha256'),'unverified':manifest.get('unverified',[])}
+ receipt={'schema':'daidalis-stf-native-receipt-v1','jobId':job,'inputHash':input_hash,'sourceFiles':[{'path':f['path'],'sha256':f['sha256']} for f in source_files],'variant':variant,'tool':tool,'executions':executions,'scope':scope,'hardwareValidation':False,'fullStfMission':False,'controllerSha256':CONTROLLER_SHA,'campaignSha256':sha((ROOT/'tools/campaign.py').read_bytes()),'prepareRecipeSha256':json.loads((ROOT/'ready.json').read_text()).get('prepareRecipeSha256'),'unverified':manifest.get('unverified',[])}
  print(json.dumps({'exitCode':exit_code,'success':success,'tool':tool,'diagnostics':diagnostics or ('Native STF scenario completed; '+str(sum(c['passed'] for c in checks))+'/'+str(len(checks))+' observed checks passed'),'receipt':receipt,'verification':{'status':'passed' if criteria_passed is True else 'failed' if criteria_passed is False else 'not-requested' if success else 'unknown','checks':checks},'files':files}))

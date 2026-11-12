@@ -1,8 +1,8 @@
 # 本地隔离 Linux 工程环境
 
-Manta 在 Apple Silicon macOS 上通过 Apple Virtualization.framework 管理 Ubuntu 22.04 ARM64 虚拟机。当前配置为 4 vCPU、4 GiB RAM、10 GiB 稀疏磁盘，宿主剩余空间低于 5 GiB 时停止扩张。虚拟机镜像、源码、收据、SSH 凭据和辅助程序留在单独的 Manta 工程目录；不安装 Homebrew、Docker、全局 Python/Node，不修改 shell、全局 SSH、Codex 或 Claude 配置，不创建系统自启动服务。
+Daidalis 在 Apple Silicon macOS 上通过 Apple Virtualization.framework 管理 Ubuntu 22.04 ARM64 虚拟机。当前配置为 4 vCPU、4 GiB RAM、10 GiB 稀疏磁盘，宿主剩余空间低于 5 GiB 时停止扩张。虚拟机镜像、源码、收据、SSH 凭据和辅助程序留在单独的 Daidalis 工程目录；不安装 Homebrew、Docker、全局 Python/Node，不修改 shell、全局 SSH、Codex 或 Claude 配置，不创建系统自启动服务。
 
-安装者在 Manta 私有数据目录 `nos3/local-vm.json` 配置一个固定 `vmRoot`。模型和对话不能提交任意宿主路径、安装命令、连接令牌或 HTTP 地址来替换它。设置 → 工具连接显示准备、连接和停止状态。
+安装者在 Daidalis 私有数据目录 `nos3/local-vm.json` 配置一个固定 `vmRoot`。模型和对话不能提交任意宿主路径、安装命令、连接令牌或 HTTP 地址来替换它。设置 → 工具连接显示准备、连接和停止状态。
 
 Agent 调用 `prepare_nos3_environment`，由固定流程自动准备和启动虚拟机、等待真实 SSH/cloud-init 就绪、核验或首次构建原生环境、准备 Worker、建立仅绑定宿主回环的 SSH 隧道，并检查鉴权后的实际能力。Linux 依赖只在专用虚拟机中安装。首次使用官方 Ubuntu 镜像时校验完整 SHA256；已有虚拟磁盘启动时仅核对启动配置、签名辅助程序、内核和 initrd，不重复读取创建期压缩包。
 
@@ -23,6 +23,6 @@ NOS3、cFE/OSAL/PSP、NOSengine、42 和星敏模拟器在 Linux 内原生执行
 
 结果可从 `GET /api/projects/:id/nos3/jobs/:jobId/result` 读取。公共接口不返回 Worker token、SSH 密钥或隧道地址。结果文件另存保护哈希，修改过的测量、错误模型版本和未实际执行的结果不能回写为验证通过。失败检查同样保留，不因进程正常退出就转换成通过。
 
-完整原始日志和场景数据留在 Linux 的 `/srv/manta/worker/jobs/:jobId/native` 与 `/srv/manta/runs`；紧凑但实际的验证数据回传项目 `engineering/nos3/:jobId`。物理传感器/HIL、硬实时资格、所有设备的完整任务覆盖、陈旧测量超时仍须单独验证。
+完整原始日志和场景数据留在 Linux 的 `/srv/daidalis/worker/jobs/:jobId/native` 与 `/srv/daidalis/runs`；紧凑但实际的验证数据回传项目 `engineering/nos3/:jobId`。物理传感器/HIL、硬实时资格、所有设备的完整任务覆盖、陈旧测量超时仍须单独验证。
 
 关闭环境可使用设置里的“停止虚拟机”，或项目 API `POST /nos3/environment/stop`。存在运行作业时会拒绝停止。后续作业由已配置的 managed-local 路径自动再次准备，不要求用户手动开终端。

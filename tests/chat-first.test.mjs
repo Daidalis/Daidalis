@@ -11,7 +11,7 @@ test('active tool, wait, approval, and failure remain visible while successful t
  assert.deepEqual(view.publicActivities.map(a=>a.id),['active','waiting','approval','error']);assert.deepEqual(view.processActivities.map(a=>a.id),['done']);assert.equal(view.messages.length,1);
 });
 test('routine source failures and thread receipts fold while engineering failures stay prominent',()=>{
- const activities=[{id:'source',kind:'tool',tool:'WebFetch',status:'failed'},{id:'file',kind:'tool',tool:'mcp__manta__read_file',status:'failed'},{id:'solver',kind:'tool',tool:'wait_professional_job',status:'failed'},{id:'task',kind:'thread',type:'thread.started',childThreadId:'worker',status:'queued'}];
+ const activities=[{id:'source',kind:'tool',tool:'WebFetch',status:'failed'},{id:'file',kind:'tool',tool:'mcp__daidalis__read_file',status:'failed'},{id:'solver',kind:'tool',tool:'wait_professional_job',status:'failed'},{id:'task',kind:'thread',type:'thread.started',childThreadId:'worker',status:'queued'}];
  const view=chatTurnDisclosure({status:'running',activities},{activities,routes:[],messages:[]});
  assert.deepEqual(view.publicActivities.map(a=>a.id),['solver']);
  assert.deepEqual(view.processActivities.map(a=>a.id),['source','file','task']);
@@ -22,7 +22,7 @@ test('one compact task handoff supersedes the start receipt and explicit prose a
  const started={id:'start',kind:'thread',type:'thread.started',childThreadId:'worker',status:'queued'};
  const returned={id:'return',kind:'thread',type:'thread.result',childThreadId:'worker',status:'completed'};
  assert.deepEqual(compactThreadHandoffs({activities:[started,returned]}),[returned]);
- assert.deepEqual(compactThreadHandoffs({activities:[started],processMessages:[{content:'已分派 #manta-thread:worker 审查来源。'}]}),[]);
+ assert.deepEqual(compactThreadHandoffs({activities:[started],processMessages:[{content:'已分派 #daidalis-thread:worker 审查来源。'}]}),[]);
  assert.deepEqual(compactThreadHandoffs({activities:[started],processMessages:[{content:'正在审查来源。'}]}),[started]);
 });
 test('opening a model from a Thread retains that origin; opening Coordinator content is independent of open side Thread',()=>{

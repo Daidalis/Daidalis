@@ -11,7 +11,7 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve
 async function eventually(check,label='condition',timeout=3000){const end=Date.now()+timeout;while(Date.now()<end){if(check())return;await new Promise(r=>setTimeout(r,5));}assert.fail('Timed out: '+label);}
 function gate(promise,signal){let abort;return new Promise((resolve,reject)=>{abort=()=>reject(Object.assign(new Error('Native fixture interrupted'),{name:'AbortError'}));if(signal.aborted)return abort();signal.addEventListener('abort',abort,{once:true});promise.then(resolve,reject);}).finally(()=>signal.removeEventListener('abort',abort));}
 async function fixture(t,handler,{resources={},runTimeoutMs=4000,autoResumeDebounceMs=5,webFetcher,webSearch}={}){
-  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-coordination-engine-'))),dataDir=path.join(root,'data'),store=createStore({dataDir,seed:false}),calls=[],events=[];let sequence=0;
+  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-coordination-engine-'))),dataDir=path.join(root,'data'),store=createStore({dataDir,seed:false}),calls=[],events=[];let sequence=0;
   store.add('providers',{id:'api-profile',name:'Custom API fixture',type:'openai-responses',baseUrl:'https://example.test/v1',model:'fixture'});
   const providers={getConfig:key=>structuredClone(store.get('providers',key)),list:()=>store.data.providers.map(p=>({...p,configured:true})),redact:value=>String(value),complete(){throw new Error('No inner Agent loop may replace native adapters');}};
   const adapters=Object.fromEntries(RUNTIMES.map(name=>[name,{startTurn(options){

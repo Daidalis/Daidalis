@@ -12,27 +12,27 @@ def prepare(binary, source_root, temporary_root='/private/tmp'):
     binary = Path(binary)
     root = str(Path(source_root).resolve())
     namespace = hashlib.sha256(root.encode()).hexdigest()[:20]
-    directory = Path(temporary_root) / ('manta-app-%s-%s' % (os.getuid(), namespace))
+    directory = Path(temporary_root) / ('daidalis-app-%s-%s' % (os.getuid(), namespace))
     try:
         directory.mkdir(mode=0o700)
     except FileExistsError:
         pass
     info = directory.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
-        raise RuntimeError('Manta temporary executable directory is not private')
+        raise RuntimeError('Daidalis temporary executable directory is not private')
     content = binary.read_bytes()
     expected = hashlib.sha256(content).digest()
-    target = directory / 'Manta'
+    target = directory / 'Daidalis'
     try:
         current = target.lstat()
     except FileNotFoundError:
         current = None
     if current:
         if not stat.S_ISREG(current.st_mode) or current.st_uid != os.getuid() or current.st_mode & 0o077:
-            raise RuntimeError('Invalid Manta cached executable')
+            raise RuntimeError('Invalid Daidalis cached executable')
         if hashlib.sha256(target.read_bytes()).digest() == expected and current.st_mode & stat.S_IXUSR:
             return target
-    fd, name = tempfile.mkstemp(prefix='.Manta-', dir=directory)
+    fd, name = tempfile.mkstemp(prefix='.Daidalis-', dir=directory)
     try:
         with os.fdopen(fd, 'wb') as output:
             output.write(content)
@@ -40,7 +40,7 @@ def prepare(binary, source_root, temporary_root='/private/tmp'):
             os.fsync(output.fileno())
         os.chmod(name, 0o700)
         if hashlib.sha256(Path(name).read_bytes()).digest() != expected:
-            raise RuntimeError('Manta executable cache verification failed')
+            raise RuntimeError('Daidalis executable cache verification failed')
         os.replace(name, target)
     finally:
         if os.path.exists(name):

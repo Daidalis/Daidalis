@@ -13,7 +13,7 @@ async function api(route,body,method=body?'POST':'GET'){
   const response=await fetch(base+route,{method,headers:body?{'content-type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(180000)});
   const result=await response.json();if(!response.ok)throw Error(redact(result.error||'HTTP '+response.status));return result;
 }
-const types=(process.env.MANTA_TEST_TYPES||'codex-app-server,claude-agent').split(',');
+const types=(process.env.DAIDALIS_TEST_TYPES||'codex-app-server,claude-agent').split(',');
 for(const type of types){
   let active;
   try{

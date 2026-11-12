@@ -1,5 +1,7 @@
 # Docker deployment — first edition
 
+For an existing deployment using the previous application name, follow the [name migration guide](rename-migration.md) before replacing the running services.
+
 The default shared-container deployment uses your existing Docker Engine or Docker Desktop (Linux containers), with
 Docker Compose 2.20+. No host Python/Node toolchain, dedicated Linux account,
 rootless setup or Docker socket mount is required.
@@ -34,13 +36,13 @@ Claude Agent SDK 0.3.307 are included in every preset.
 To use an existing API environment file:
 
 ```sh
-MANTA_ENV_FILE=/absolute/path/to/.env sh install.sh
+DAIDALIS_ENV_FILE=/absolute/path/to/.env sh install.sh
 ```
 
 The installer otherwise uses the checkout's `.env`, falling back to `.env.example`.
 Credentials are loaded at runtime into the application only, not the image or
 desktop or flight container. Configure the provider endpoint, model and `keyEnv` (for
-example `OPENAI_API_KEY`) in Manta; API compatibility must be tested for each
+example `OPENAI_API_KEY`) in Daidalis; API compatibility must be tested for each
 runtime. Codex uses Responses; Claude requires Anthropic Messages compatibility.
 For custom Claude gateways, deferred tool search is disabled as described in the
 [Claude gateway documentation](https://code.claude.com/docs/en/mcp#tool-search-through-an-llm-gateway),
@@ -49,7 +51,7 @@ so native tools remain discoverable. Permission approval remains enabled.
 If the default ports are occupied, set them on the first installation:
 
 ```sh
-MANTA_PORT=4319 MANTA_DESKTOP_PORT=6082 sh install.sh
+DAIDALIS_PORT=4319 DAIDALIS_DESKTOP_PORT=6082 sh install.sh
 ```
 
 The selections, ports and desktop profile are saved in `deploy/local/install.env`.
@@ -81,7 +83,7 @@ An application deadline stays active through response-body reading, including
 when the provider sends response headers before finishing its JSON body.
 
 Source and Docker startup both default to 64 model iterations per execution
-segment. Docker's existing `MANTA_MAX_TOOL_TURNS` variable (2–200) selects the
+segment. Docker's existing `DAIDALIS_MAX_TOOL_TURNS` variable (2–200) selects the
 deployment default; it counts model iterations, not individual tool calls.
 Existing explicit environment or project overrides remain effective. To adopt
 the new deployment default, remove an old override or change it to 64, then
@@ -144,15 +146,15 @@ See the [Docker rootless prerequisites](https://docs.docker.com/engine/security/
 # Select your existing rootless daemon explicitly; adjust this path if needed.
 export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
 sh deploy/docker/install-broker.sh
-# Optional: MANTA_ENV_FILE=/absolute/path/to/.env
-# Optional tool selection: MANTA_TOOLS=ngspice,sysmlsim MANTA_MODELICA=0 MANTA_ORBIT42=0
-# Optional OpenSysML + FMPy backend: MANTA_SYML_SIM=1 (default; set 0 to omit)
-# Optional isolated NOS3 component/build/integration: MANTA_BROKER_FLIGHT=1
+# Optional: DAIDALIS_ENV_FILE=/absolute/path/to/.env
+# Optional tool selection: DAIDALIS_TOOLS=ngspice,sysmlsim DAIDALIS_MODELICA=0 DAIDALIS_ORBIT42=0
+# Optional OpenSysML + FMPy backend: DAIDALIS_SYML_SIM=1 (default; set 0 to omit)
+# Optional isolated NOS3 component/build/integration: DAIDALIS_BROKER_FLIGHT=1
 # --no-start builds and saves configuration without starting the application.
 ```
 
 Open `http://127.0.0.1:4320` and configure an **API, Codex or Claude Agent**. Default project
-name is `manta-isolated`; existing shared-deployment volumes are not migrated.
+name is `daidalis-isolated`; existing shared-deployment volumes are not migrated.
 The app, broker and task processes all run as UID 1000. Only the broker receives
 the rootless daemon socket; the installer detects its namespace GID and grants
 that supplementary group to the broker without making the socket world-writable.
@@ -166,13 +168,13 @@ deadline, bounded output and a read-only root filesystem. NOS3 tasks have 8 GiB
 and 512 PIDs, with a disposable writable layer for native build/runtime files.
 Up to four engineering/command tasks and eight native Agent tasks run concurrently. Default CPU
 quota is two cores per task. If the user has no delegated CPU controller, startup
-fails with an explanation. **Explicitly set `MANTA_TASK_CPUS=0` to opt out of CPU
+fails with an explanation. **Explicitly set `DAIDALIS_TASK_CPUS=0` to opt out of CPU
 quota** while retaining the other limits; status then reports `cpuQuota: null`.
 This does not enforce an aggregate CPU limit or a project-volume disk quota.
 
 Broker mode supports API-mode editing, SysML, native Codex/Claude, isolated
 commands, the three solvers, GIS, orbit and orbit-to-ground workflows. Set
-`MANTA_BROKER_FLIGHT=1` before installation to build the optional NOS3 task image.
+`DAIDALIS_BROKER_FLIGHT=1` before installation to build the optional NOS3 task image.
 The built-in SciPy thermal model, explicit-scope evaluator, project MCP connectors,
 Chromium and virtual desktop are also available. STF and the legacy VM management
 entry point remain disabled.
@@ -185,7 +187,7 @@ model proxy. Codex Auto uses the outer rootless container as its sandbox; Manual
 retains native approvals and may request approval when nested sandboxing is
 unavailable. A compatible API-key endpoint is required; host CLI login is not
 imported. Delete project session volumes only when their conversation state is
-no longer needed (`manta.native-state` labels identify the owning deployment).
+no longer needed (`daidalis.native-state` labels identify the owning deployment).
 
 Browser/desktop and stdio MCP each use a project-specific session container, with
 only that project's files mounted. Eight service sessions can run concurrently,
@@ -218,7 +220,7 @@ project. Neither desktop nor browser can control the host's desktop.
 
 MCP configuration remains user initiated. Stdio executables must already exist in
 the task image; use `/work` or relative paths for project files. They receive only
-explicitly configured `MANTA_MCP_*` credential mappings, not the application's
+explicitly configured `DAIDALIS_MCP_*` credential mappings, not the application's
 model keys. They are offline by default in broker mode.
 
 To enable networking, open the project's **Integrations → MCP** connection, choose
@@ -236,7 +238,7 @@ A corresponding API configuration is:
   "args": ["/work/my-installed-mcp-server.mjs"],
   "enabled": true,
   "network": {"allowedHosts": ["api.example.org", "files.example.org"]},
-  "envFrom": {"API_TOKEN": "MANTA_MCP_TOOL_TOKEN"}
+  "envFrom": {"API_TOKEN": "DAIDALIS_MCP_TOOL_TOKEN"}
 }
 ```
 
@@ -276,7 +278,7 @@ Explicit online acceptance (creates synthetic projects; reads example.com withou
 model credentials or project uploads):
 
 ```sh
-docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/mcp-network-acceptance.mjs
+docker compose --env-file deploy/local/broker.env exec -T daidalis node deploy/docker/mcp-network-acceptance.mjs
 ```
 
 The SciPy adapter accepts declarative parameters and scans, runs the fixed solver
@@ -290,10 +292,10 @@ With the same `DOCKER_HOST` selected, maintain the isolated deployment separatel
 ```sh
 docker compose --env-file deploy/local/broker.env ps
 docker compose --env-file deploy/local/broker.env logs --tail 100
-docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/broker-acceptance.mjs
-docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/acceptance.mjs
-docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/broker-services-acceptance.mjs
-docker compose --env-file deploy/local/broker.env exec -T manta node deploy/docker/desktop-acceptance.mjs
+docker compose --env-file deploy/local/broker.env exec -T daidalis node deploy/docker/broker-acceptance.mjs
+docker compose --env-file deploy/local/broker.env exec -T daidalis node deploy/docker/acceptance.mjs
+docker compose --env-file deploy/local/broker.env exec -T daidalis node deploy/docker/broker-services-acceptance.mjs
+docker compose --env-file deploy/local/broker.env exec -T daidalis node deploy/docker/desktop-acceptance.mjs
 docker compose --env-file deploy/local/broker.env up -d --force-recreate --wait
 docker compose --env-file deploy/local/broker.env down
 ```
@@ -310,10 +312,10 @@ quota enforcement is not claimed as tested. Native Codex/Claude repository repai
 and GIS/orbit-to-ground workflows have also passed in rootless task containers.
 Run `node deploy/docker/broker-native-acceptance.mjs` inside the app for a local
 model fixture using the real native binaries (no paid model requests), including
-session resumption and cancellation. Set `MANTA_NATIVE_PARALLEL=1` for five
+session resumption and cancellation. Set `DAIDALIS_NATIVE_PARALLEL=1` for five
 concurrent sessions. The deployment accepts at most eight native turns at once;
 additional turns fail explicitly instead of escaping the isolation boundary. For NOS3,
-run `MANTA_ACCEPT_NOS3=1 MANTA_ACCEPT_STF=0 node deploy/docker/flight-acceptance.mjs`
+run `DAIDALIS_ACCEPT_NOS3=1 DAIDALIS_ACCEPT_STF=0 node deploy/docker/flight-acceptance.mjs`
 inside the app after enabling the flight image. The optional CI live-model job
 requires explicit workflow dispatch and configured model secrets.
 
@@ -382,13 +384,13 @@ moving Debian repositories are not bit-for-bit reproducible.
 
 ## Execution boundary
 
-Manta and tools run as UID 1000 with a read-only root filesystem, dropped
+Daidalis and tools run as UID 1000 with a read-only root filesystem, dropped
 capabilities, no-new-privileges, and container CPU/memory/PID limits. No Docker
 socket, privileged container or host directory is mounted by the supplied Compose.
 Broker/rootless experiments and host initialization scripts are excluded from this edition.
 A non-root container process does not imply that the host Docker daemon is rootless.
 
-**Commands and solvers share Manta's container, UID and network. They can access
+**Commands and solvers share Daidalis's container, UID and network. They can access
 application data and credentials available to that user.** This edition is for
 trusted personal projects; temporary work directories are not a security sandbox.
 The UI and execution receipts identify this mode as `shared-container`, not
@@ -404,7 +406,7 @@ source snapshots and hashed execution evidence.
 
 OpenModelica compilation uses one compiler worker; numerical library thread counts
 are limited to avoid oversubscribing the container's process budget. The Docker
-Agent budget defaults to 64 model turns, configurable with `MANTA_MAX_TOOL_TURNS`
+Agent budget defaults to 64 model turns, configurable with `DAIDALIS_MAX_TOOL_TURNS`
 (2–200) in the runtime environment file. Budget exhaustion preserves the session,
 reports the most recent tool failure, and allows a later user message to continue.
 
@@ -422,7 +424,7 @@ Retrieve the generated password:
 sh deploy/docker/compose.sh exec desktop cat /desktop-data/vnc-password.txt
 ```
 
-In Manta's Computer panel, explicitly enable the engineering virtual desktop.
+In Daidalis's Computer panel, explicitly enable the engineering virtual desktop.
 Launch an installed application, take a screenshot, then click/type/send keys.
 Agent actions still require approvals. The desktop is an independent Linux
 container with `network_mode: none`; its noVNC connection uses a Unix-socket relay.
@@ -455,11 +457,11 @@ application/task image, matching the original macOS application IDs:
 
 | Application ID | Linux launcher |
 | --- | --- |
-| `capella` | `/opt/manta-desktop/capella/capella` |
-| `papyrus` | `/opt/manta-desktop/papyrus/papyrus` |
-| `matlab` | `/opt/manta-desktop/matlab/bin/matlab` |
-| `dymola` | `/opt/manta-desktop/dymola/bin/dymola` |
-| `amesim` | `/opt/manta-desktop/amesim/amesim` |
+| `capella` | `/opt/daidalis-desktop/capella/capella` |
+| `papyrus` | `/opt/daidalis-desktop/papyrus/papyrus` |
+| `matlab` | `/opt/daidalis-desktop/matlab/bin/matlab` |
+| `dymola` | `/opt/daidalis-desktop/dymola/bin/dymola` |
+| `amesim` | `/opt/daidalis-desktop/amesim/amesim` |
 
 Install the actual Linux distribution and dependencies in a derived Dockerfile.
 An executable at a listed path makes it discoverable; it does not validate startup,
@@ -497,7 +499,7 @@ also tested with API, native Codex and native Claude file-operation workflows.
 Live checks can be repeated inside the running application container:
 
 ```sh
-sh deploy/docker/compose.sh exec -e MANTA_ACCEPT_BROWSER=1 -e MANTA_ACCEPT_DESKTOP=1 manta node deploy/docker/acceptance.mjs
+sh deploy/docker/compose.sh exec -e DAIDALIS_ACCEPT_BROWSER=1 -e DAIDALIS_ACCEPT_DESKTOP=1 daidalis node deploy/docker/acceptance.mjs
 ```
 
 Omit the browser/desktop environment flags when those groups were not installed.
@@ -512,7 +514,7 @@ passed an offline numerical decay test against the analytic value exp(-1).
 Multi-project GUI acceptance (creates two visible test projects):
 
 ```sh
-sh deploy/docker/compose.sh exec manta node deploy/docker/desktop-acceptance.mjs
+sh deploy/docker/compose.sh exec daidalis node deploy/docker/desktop-acceptance.mjs
 ```
 
 Full mission coverage and arbitrary device configurations are not claimed.
@@ -523,7 +525,7 @@ this does not establish every multi-agent development workflow.
 A real Agent-to-solver acceptance is available separately (uses model tokens):
 
 ```sh
-sh deploy/docker/compose.sh exec -T manta node deploy/docker/live-engineering-acceptance.mjs
+sh deploy/docker/compose.sh exec -T daidalis node deploy/docker/live-engineering-acceptance.mjs
 ```
 
 It requires the runtime API environment and checks model creation, simulation,
@@ -537,7 +539,7 @@ The Linux amd64 container acceptance checks run real GDAL point classification
 results through the application API. Neither requires a model-provider key:
 
 ```sh
-sh deploy/docker/compose.sh exec -T manta node deploy/docker/gis-orbit-acceptance.mjs
+sh deploy/docker/compose.sh exec -T daidalis node deploy/docker/gis-orbit-acceptance.mjs
 ```
 
 42 is compiled headlessly from public `nasa-itc/42` tag `dev_20260403`.
@@ -587,7 +589,7 @@ manifest alone does not contain those sources.
 The **full** `sh install.sh` preset includes the `sysmlsim` tool group; custom
 shared-container builds may use `--tools=sysmlsim` to add the verified packages.
 For the rootless broker deployment, `sh deploy/docker/install-broker.sh` enables
-the same toolchain by default through `MANTA_SYML_SIM=1`. Set the flag to `0`
+the same toolchain by default through `DAIDALIS_SYML_SIM=1`. Set the flag to `0`
 before building to omit it; without the backend the application reports FMI
 simulation unavailable. The toolchain is installed in a dedicated Python virtual environment and
 uses a version-pinned, checksum-verified `sysml-grpc` binary. It makes no host
@@ -595,7 +597,7 @@ Python changes and the task has no network access at runtime.
 
 Submit a `.sysml` source plus one project-relative `.fmu` path and its current
 SHA-256 through `submit_professional_job`. The SysML source names the FMI calc
-with `metadata ToolExecution` and an analysis case; Manta snapshots the source
+with `metadata ToolExecution` and an analysis case; Daidalis snapshots the source
 and FMU together, then runs OpenSysML for assertions and FMPy for the full
 trajectory. The exact input hash, FMU platform, experiment and tool versions are
 recorded. The result CSV uses the existing professional-workbench chart, and
@@ -607,29 +609,29 @@ Repeat app-level flight acceptance (downloads the public NOS3 checkout into a
 new managed project; the two scenarios take several minutes):
 
 ```sh
-sh deploy/docker/compose.sh exec -T -e MANTA_ACCEPT_NOS3=1 manta node deploy/docker/flight-acceptance.mjs
+sh deploy/docker/compose.sh exec -T -e DAIDALIS_ACCEPT_NOS3=1 daidalis node deploy/docker/flight-acceptance.mjs
 ```
 
 Repeat native Codex/Claude repository repair (uses configured provider tokens):
 
 ```sh
-sh deploy/docker/compose.sh exec -T manta node deploy/docker/live-repository-acceptance.mjs
+sh deploy/docker/compose.sh exec -T daidalis node deploy/docker/live-repository-acceptance.mjs
 ```
 
 This reads `OPENAI_BASE_URL`, `OPENAI_API_KEY` and `OPENAI_MODEL` at runtime.
 The default tests both native runtimes and requires an endpoint compatible with
-both Responses and Anthropic Messages. Set `MANTA_TEST_TYPES=codex-app-server`
-or `MANTA_TEST_TYPES=claude-agent` for a single compatible connection.
+both Responses and Anthropic Messages. Set `DAIDALIS_TEST_TYPES=codex-app-server`
+or `DAIDALIS_TEST_TYPES=claude-agent` for a single compatible connection.
 It starts with failing tests, requires source-only edits, and independently
 reruns the unchanged test suite after the Agent finishes.
 
 ### Orbit-to-ground acceptance
 
 Run `gis-orbit-acceptance.mjs` first, then supply a real complete NAD83 state
-Shapefile ZIP as `MANTA_STATE_ZIP` inside the application container:
+Shapefile ZIP as `DAIDALIS_STATE_ZIP` inside the application container:
 
 ```sh
-sh deploy/docker/compose.sh exec -T -e MANTA_STATE_ZIP=/tmp/states.zip manta node deploy/docker/orbit-ground-acceptance.mjs
+sh deploy/docker/compose.sh exec -T -e DAIDALIS_STATE_ZIP=/tmp/states.zip daidalis node deploy/docker/orbit-ground-acceptance.mjs
 ```
 
 The accepted public mirror was

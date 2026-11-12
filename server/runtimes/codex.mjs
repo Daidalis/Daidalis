@@ -1,3 +1,4 @@
+import {environmentNames,legacyToolNamespace} from '../../shared/legacy-names.mjs';
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,7 +8,7 @@ import {StringDecoder} from 'node:string_decoder';
 import {codexReadIsolation} from './read-isolation.mjs';
 import {resolveCodexExecutable,CODEX_MISSING_MESSAGE} from '../executable-paths.mjs';
 
-const NAMESPACE='syspilot';
+const NAMESPACE='daidalis';
 const REASONING_NOTIFICATIONS=['item/reasoning/summaryTextDelta','item/reasoning/summaryPartAdded','item/reasoning/textDelta'];
 const TOOL_TYPES=new Set(['commandExecution','fileChange','dynamicToolCall','mcpToolCall','webSearch','imageView']);
 const abortError=()=>Object.assign(new Error('Codex turn interrupted'),{name:'AbortError',code:'ABORT_ERR'});
@@ -62,7 +63,7 @@ async function withToolAbort(operation,signal){
 
 /** Native app-server transport. Codex owns the agent loop, history, tools and streaming. */
 export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl=spawn,requestTimeoutMs=30000,readIsolation=null,remoteWorkspace=null,externalSandbox=false}={}){
-  if(externalSandbox&&(process.platform!=='linux'||process.getuid?.()===0||process.env.MANTA_BROKER_TASK!=='1'||!fs.existsSync('/.dockerenv')))throw Error('External Codex sandbox requires the broker task container');
+  if(externalSandbox&&(process.platform!=='linux'||process.getuid?.()===0||process.env.DAIDALIS_BROKER_TASK!=='1'||!fs.existsSync('/.dockerenv')))throw Error('External Codex sandbox requires the broker task container');
   const handles=new Set();
   function startTurn(options={}){
     if(!codexPath)throw new Error(CODEX_MISSING_MESSAGE);
@@ -81,13 +82,13 @@ export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl
       nativeWorkspace='/work';remoteSlug=path.basename(workspace);
     }
     const allowedTools=new Map();for(const t of tools){if(!/^[A-Za-z0-9_-]{1,64}$/.test(t.name||'')||allowedTools.has(t.name))throw new Error('Invalid or duplicate dynamic tool name');allowedTools.set(t.name,t);}
-    let env={...process.env};const secretValues=[];for(const key of new Set([...(options.secretEnvNames||[]),'OPENAI_API_KEY','ANTHROPIC_API_KEY','AZURE_OPENAI_API_KEY','GEMINI_API_KEY','GOOGLE_API_KEY'])){if(env[key])secretValues.push(env[key]);delete env[key];}
+    let env={...process.env};const secretValues=[];for(const key of new Set([...(options.secretEnvNames||[]).flatMap(environmentNames),'OPENAI_API_KEY','ANTHROPIC_API_KEY','AZURE_OPENAI_API_KEY','GEMINI_API_KEY','GOOGLE_API_KEY'])){if(env[key])secretValues.push(env[key]);delete env[key];}
     const isolation=readIsolation?codexReadIsolation({privateRoot:readIsolation.privateRoot,workspace,codexPath}):null;
     if(isolation)env=isolation.env;
-    if(remoteSlug)env={PATH:'/opt/node/bin:/usr/bin:/bin',LANG:'C.UTF-8',TMPDIR:'/tmp',MANTA_REMOTE_PROJECT_SLUG:remoteSlug};
+    if(remoteSlug)env={PATH:'/opt/node/bin:/usr/bin:/bin',LANG:'C.UTF-8',TMPDIR:'/tmp',DAIDALIS_REMOTE_PROJECT_SLUG:remoteSlug};
     const redact=value=>{let text=String(value??'');for(const secret of secretValues)if(secret&&secret.length>=6)text=text.split(secret).join('[REDACTED]');return text;};
     const safe=value=>JSON.parse(redact(stringify(value)));
-    let customEnvName=null;if(options.apiKey){customEnvName='SYSPILOT_CODEX_KEY_'+randomUUID().replaceAll('-','').toUpperCase();env[customEnvName]=String(options.apiKey);secretValues.push(String(options.apiKey));}
+    let customEnvName=null;if(options.apiKey){customEnvName='DAIDALIS_CODEX_KEY_'+randomUUID().replaceAll('-','').toUpperCase();env[customEnvName]=String(options.apiKey);secretValues.push(String(options.apiKey));}
     // These per-process overrides isolate unrelated host integrations, while keeping
     // the native programming tools enabled. No config file or credential file is read here.
     const args=['app-server','--stdio','--disable','apps','--disable','plugins','--disable','hooks','--disable','multi_agent','-c','mcp_servers={}','-c','apps._default.enabled=false','-c','approvals_reviewer="user"'];
@@ -132,16 +133,16 @@ export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl
     async function handleServerRequest(message){
       const {id,method,params={}}=message;
       if(method==='item/tool/call'){
-        if(!validScope(params)||params.namespace&&params.namespace!==NAMESPACE||!allowedTools.has(params.tool)){reply(id,{success:false,contentItems:[{type:'inputText',text:'Unknown, stale or unauthorized Manta dynamic tool'}]});return;}
+        if(!validScope(params)||params.namespace&&params.namespace!==NAMESPACE&&!(options.sessionId&&options.legacyToolNamespace===legacyToolNamespace&&params.namespace===legacyToolNamespace)||!allowedTools.has(params.tool)){reply(id,{success:false,contentItems:[{type:'inputText',text:'Unknown, stale or unauthorized Daidalis dynamic tool'}]});return;}
         const invocation=new AbortController(),invocationSignal=AbortSignal.any([signal,invocation.signal,...(options.signal?[options.signal]:[])]);toolControllers.add(invocation);
-        const execute=()=>withToolAbort(()=>{if(typeof options.executeTool!=='function')throw new Error('Manta tool bridge is unavailable');return options.executeTool(params.tool,params.arguments,{signal:invocationSignal});},invocationSignal);
+        const execute=()=>withToolAbort(()=>{if(typeof options.executeTool!=='function')throw new Error('Daidalis tool bridge is unavailable');return options.executeTool(params.tool,params.arguments,{signal:invocationSignal});},invocationSignal);
         const task=toolQueue.then(execute);toolQueue=task.catch(()=>{});
         try{const output=await withToolAbort(()=>task,invocationSignal);if(!signal.aborted&&!settled&&!cancelled)reply(id,nativeOutput(output));}
         catch(e){if(!signal.aborted&&!settled&&!cancelled)reply(id,{success:false,contentItems:[{type:'inputText',text:stringify({error:redact(e.message)})}]});}
         finally{toolControllers.delete(invocation);}return;
       }
       if(['item/commandExecution/requestApproval','item/fileChange/requestApproval'].includes(method)){await nativeApproval(id,method,params);return;}
-      if(method==='item/permissions/requestApproval'){reply(id,{permissions:{},scope:'turn'});emit('runtime.approval.denied','Additional native permissions are not granted by Manta',{method,itemId:params.itemId});return;}
+      if(method==='item/permissions/requestApproval'){reply(id,{permissions:{},scope:'turn'});emit('runtime.approval.denied','Additional native permissions are not granted by Daidalis',{method,itemId:params.itemId});return;}
       if(['item/tool/requestUserInput','tool/requestUserInput'].includes(method)){
         if(!validScope(params)){reply(id,{answers:{}});return;}
         const answers=await options.requestUserInput?.(params.questions||[]);reply(id,{answers:answers?.answers||answers||{}});return;
@@ -210,13 +211,13 @@ export function createCodexRuntime({codexPath=resolveCodexExecutable(),spawnImpl
         child.stderr.on('data',chunk=>{stderr=(stderr+stderrDecoder.write(chunk)).slice(-16000);});
         child.once('error',e=>finish(new Error(`Could not start Codex app-server: ${e.message}`)));
         child.once('close',(code)=>{if(!settled)finish(cancelled?abortError():new Error(`Codex app-server closed (${code})${stderr?': '+redact(stderr.slice(-2000)):''}`));});
-        await request('initialize',{clientInfo:{name:'syspilot',title:'Manta',version:'0.5.0'},capabilities:{experimentalApi:true,optOutNotificationMethods:REASONING_NOTIFICATIONS}});send({method:'initialized',params:{}});
+        await request('initialize',{clientInfo:{name:'daidalis',title:'Daidalis',version:'0.5.0'},capabilities:{experimentalApi:true,optOutNotificationMethods:REASONING_NOTIFICATIONS}});send({method:'initialized',params:{}});
         if(cancelled)throw abortError();
         const config={'features.apps':false,'features.plugins':false,'features.hooks':false,'features.multi_agent':false,'mcp_servers':{},'sandbox_workspace_write.network_access':false,'sandbox_workspace_write.exclude_tmpdir_env_var':true,'sandbox_workspace_write.exclude_slash_tmp':true,shell_environment_policy:{inherit:'none',experimental_use_profile:false,ignore_default_excludes:false,set:{PATH:env.PATH||'/usr/bin:/bin',LANG:env.LANG||'en_US.UTF-8',TMPDIR:env.TMPDIR||os.tmpdir()}}};
         const threadParams={cwd:nativeWorkspace,sandbox:permissionMode==='auto'?'workspace-write':'read-only',approvalPolicy:'on-request',approvalsReviewer:'user',developerInstructions:String(options.instructions||''),config,...(options.model?{model:options.model}:{})};
-        if(baseUrl){threadParams.modelProvider='syspilot_runtime';config.model_providers={syspilot_runtime:{name:'Manta Responses endpoint',base_url:baseUrl,wire_api:'responses',requires_openai_auth:false,...(customEnvName?{env_key:customEnvName}:{})}};}
+        if(baseUrl){threadParams.modelProvider='daidalis_runtime';config.model_providers={daidalis_runtime:{name:'Daidalis Responses endpoint',base_url:baseUrl,wire_api:'responses',requires_openai_auth:false,...(customEnvName?{env_key:customEnvName}:{})}};}
         if(sessionId){const resumed=await request('thread/resume',{...threadParams,threadId:sessionId,excludeTurns:true});setSession(resumed.thread?.id||sessionId,{model:resumed.model});}
-        else{const started=await request('thread/start',{...threadParams,ephemeral:false,serviceName:'syspilot',dynamicTools:tools.length?[{type:'namespace',name:NAMESPACE,description:'Manta project coordination, engineering and computer tools',tools:tools.map(t=>({type:'function',name:t.name,description:t.description||'',inputSchema:t.parameters||{type:'object',properties:{}}}))}]:[]});setSession(started.thread?.id,{model:started.model});if(!sessionId)throw new Error('Codex thread/start returned no session identifier');const history=oldHistory(options.history);if(history.length)await request('thread/inject_items',{threadId:sessionId,items:history});}
+        else{const started=await request('thread/start',{...threadParams,ephemeral:false,serviceName:'daidalis',dynamicTools:tools.length?[{type:'namespace',name:NAMESPACE,description:'Daidalis project coordination, engineering and computer tools',tools:tools.map(t=>({type:'function',name:t.name,description:t.description||'',inputSchema:t.parameters||{type:'object',properties:{}}}))}]:[]});setSession(started.thread?.id,{model:started.model});if(!sessionId)throw new Error('Codex thread/start returned no session identifier');const history=oldHistory(options.history);if(history.length)await request('thread/inject_items',{threadId:sessionId,items:history});}
         if(cancelled)throw abortError();
         const sandboxPolicy=externalSandbox&&permissionMode==='auto'?{type:'externalSandbox',networkAccess:'restricted'}:permissionMode==='auto'?{type:'workspaceWrite',writableRoots:[nativeWorkspace],networkAccess:false,excludeSlashTmp:true,excludeTmpdirEnvVar:true}:{type:'readOnly',networkAccess:false};
         // A remote guest can need extra time to initialize a native turn under VM contention.

@@ -15,11 +15,13 @@ import signal
 import subprocess
 import sys
 import threading
+from name_compat import profile, guest_command, ssh_command
 
 
 BASE = pathlib.Path(__file__).resolve().parent.parent
 STATE = BASE / 'state'
-SLUG = os.environ.get('MANTA_REMOTE_PROJECT_SLUG', '')
+NAMES = profile(STATE)
+SLUG = os.environ.get('DAIDALIS_REMOTE_PROJECT_SLUG', '')
 if not re.fullmatch(r'[A-Za-z0-9_-]{8,100}', SLUG):
     raise SystemExit('Missing isolated project identifier')
 MODE = sys.argv[1:]
@@ -35,7 +37,7 @@ SSH_OPTIONS = [
     '-o', f'ProxyCommand=/usr/bin/nc -U {SOCKET}',
     '-o', f'UserKnownHostsFile={STATE}/known_hosts',
     '-o', 'GlobalKnownHostsFile=/dev/null',
-    '-o', 'HostKeyAlias=manta-nos3-local-vm',
+    '-o', 'HostKeyAlias=' + NAMES['alias'],
     '-o', 'StrictHostKeyChecking=yes',
     '-o', 'IdentitiesOnly=yes',
     '-o', 'BatchMode=yes',
@@ -48,10 +50,10 @@ SSH_ENV = {
     'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
     'LANG': 'C.UTF-8',
     'HOME': os.path.expanduser('~'),
-    'MANTA_REMOTE_PROJECT_SLUG': SLUG,
+    'DAIDALIS_REMOTE_PROJECT_SLUG': SLUG,
 }
-COMMAND = ('python3 /srv/manta/agent-eval/claude/claude-remote-launch.py '
-           + ('--probe ' if MODE == ['--probe'] else '--transport-probe ' if MODE == ['--transport-probe'] else '') + SLUG)
+COMMAND = ssh_command('python3 /srv/daidalis/agent-eval/claude/claude-remote-launch.py '
+           + ('--probe ' if MODE == ['--probe'] else '--transport-probe ' if MODE == ['--transport-probe'] else '') + SLUG, NAMES)
 LOCAL_LAUNCHER = BASE / 'worker/claude-remote-launch.py'
 if not LOCAL_LAUNCHER.is_file() or LOCAL_LAUNCHER.is_symlink():
     raise SystemExit('Pinned Claude worker source is unavailable')
@@ -62,7 +64,7 @@ if MODE == ['--stage']:
     # verifies it inside the VM, then atomically replaces its private copy.
     installer = (
         'import hashlib,os,pathlib,sys,tempfile; '
-        'p=pathlib.Path("/srv/manta/agent-eval/claude/claude-remote-launch.py"); '
+        'p=pathlib.Path("/srv/daidalis/agent-eval/claude/claude-remote-launch.py"); '
         'd=p.parent; s=d.stat(); '
         'assert not d.is_symlink() and d.resolve()==d and s.st_uid==os.getuid() and not s.st_mode&0o077; '
         'b=sys.stdin.buffer.read(1048577); '
@@ -72,8 +74,8 @@ if MODE == ['--stage']:
         'os.replace(n,p); print(sys.argv[1])'
     )
     staged = subprocess.run(
-        ['/usr/bin/ssh', *SSH_OPTIONS, 'manta@localhost',
-         'python3 -c ' + shlex.quote(installer) + ' ' + EXPECTED_LAUNCHER_SHA256],
+        ['/usr/bin/ssh', *SSH_OPTIONS, NAMES['user']+'@localhost',
+         'python3 -c ' + shlex.quote(guest_command(installer, NAMES)) + ' ' + EXPECTED_LAUNCHER_SHA256],
         input=launcher_source, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         env=SSH_ENV, timeout=30,
     )
@@ -83,15 +85,15 @@ if MODE == ['--stage']:
 # The VM's shared transfer mount is a snapshot. Refuse to run a stale private
 # launcher after the source changes; staging is an explicit, atomic operation.
 check = subprocess.run(
-    ['/usr/bin/ssh', *SSH_OPTIONS, 'manta@localhost',
-     'sha256sum /srv/manta/agent-eval/claude/claude-remote-launch.py'],
+    ['/usr/bin/ssh', *SSH_OPTIONS, NAMES['user']+'@localhost',
+     guest_command('sha256sum /srv/daidalis/agent-eval/claude/claude-remote-launch.py', NAMES)],
     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
     stderr=subprocess.DEVNULL, env=SSH_ENV, timeout=20,
 )
 if check.returncode or check.stdout.split(b' ', 1)[0].decode('ascii', errors='ignore') != EXPECTED_LAUNCHER_SHA256:
     raise SystemExit('Private Claude launcher differs from the reviewed source; stage the pinned worker before use')
 CHILD = subprocess.Popen(
-    ['/usr/bin/ssh', *SSH_OPTIONS, 'manta@localhost', COMMAND],
+    ['/usr/bin/ssh', *SSH_OPTIONS, NAMES['user']+'@localhost', COMMAND],
     stdin=subprocess.DEVNULL if MODE == ['--probe'] else subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,

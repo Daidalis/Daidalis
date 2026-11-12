@@ -12,7 +12,7 @@ import {publicFetch,lookupBeforeDeadline} from '../server/sandbox.mjs';
 import {savePublicAsset,PUBLIC_ASSET_MAX_BYTES} from '../server/public-assets.mjs';
 import {createToolRuntime,TOOL_DEFINITIONS} from '../server/tools.mjs';
 
-async function workspace(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-public-asset-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));return root;}
+async function workspace(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-public-asset-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));return root;}
 const zip=Buffer.from([0x50,0x4b,0x03,0x04,0x01,0x02,0x03,0x04]);
 
 test('project-only public ZIP import is content-addressed, repeatable and never extracted',async t=>{

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Credential-free end-to-end checks for the private Claude Linux VM transport.
 
-Run with MANTA_CLAUDE_VM_TEST_SLUG set to an existing isolated project slug.
+Run with DAIDALIS_CLAUDE_VM_TEST_SLUG set to an existing isolated project slug.
 The tests never read a real API key or contact a model endpoint.
 """
 import json
@@ -15,12 +15,12 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 TRANSPORT = ROOT / 'host/claude-remote.py'
-SLUG = os.environ.get('MANTA_CLAUDE_VM_TEST_SLUG')
+SLUG = os.environ.get('DAIDALIS_CLAUDE_VM_TEST_SLUG')
 ENV = {
     'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
     'LANG': 'C.UTF-8',
     'HOME': str(Path.home()),
-    'MANTA_REMOTE_PROJECT_SLUG': SLUG or '',
+    'DAIDALIS_REMOTE_PROJECT_SLUG': SLUG or '',
 }
 SDK_ARGS = [
     '--output-format', 'stream-json', '--verbose', '--input-format', 'stream-json',
@@ -38,7 +38,7 @@ GUEST_ENV = {
 }
 
 
-@unittest.skipUnless(SLUG, 'Set MANTA_CLAUDE_VM_TEST_SLUG for live VM checks')
+@unittest.skipUnless(SLUG, 'Set DAIDALIS_CLAUDE_VM_TEST_SLUG for live VM checks')
 class ClaudeTransportTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

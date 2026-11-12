@@ -8,8 +8,8 @@ import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url),root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(process.env.MBSE_NODE_MODULES||path.join(root,'node_modules'),'playwright'));}
-const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'manta-ui-integrations-'));
+let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(process.env.DAIDALIS_NODE_MODULES||path.join(root,'node_modules'),'playwright'));}
+const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-ui-integrations-'));
 const projects=[{id:'project_aaaa',name:'NOS3 UI fixture',coordinatorThreadId:'thread_a',folderPath:'/fixture/nos3'},{id:'project_bbbb',name:'Other project',coordinatorThreadId:'thread_b',folderPath:'/fixture/other'}];
 const threads=projects.map(project=>({id:project.coordinatorThreadId,projectId:project.id,kind:'coordinator',title:'项目主对话',status:'open'}));
 const artifacts=[{id:'artifact_manifest',projectId:projects[0].id,name:'manifest.json',path:'engineering/nos3/nos3_completed/manifest.json',type:'application/json'}];
@@ -88,7 +88,7 @@ try{
     await click('delete-mcp-connector');await click('confirm-action');await page.waitForFunction(()=>document.querySelector('.settings-main').textContent.includes('尚未添加 MCP 连接'));
   });
   await step('NOS3 worker configuration and scoped results preserve evidence without claiming full simulation',async()=>{
-    await click('edit-nos3-worker');await page.locator('#nos3-worker-endpoint').fill('https://engineering.example.org/nos3');await page.locator('#nos3-worker-token-env').fill('MANTA_NOS3_UI_TOKEN');await page.locator('[form="nos3-worker-form"]').click();await page.locator('#nos3-worker-form').waitFor({state:'detached'});assert.equal(calls.find(call=>call.kind==='worker-save').body.worker.tokenEnv,'MANTA_NOS3_UI_TOKEN');
+    await click('edit-nos3-worker');await page.locator('#nos3-worker-endpoint').fill('https://engineering.example.org/nos3');await page.locator('#nos3-worker-token-env').fill('DAIDALIS_NOS3_UI_TOKEN');await page.locator('[form="nos3-worker-form"]').click();await page.locator('#nos3-worker-form').waitFor({state:'detached'});assert.equal(calls.find(call=>call.kind==='worker-save').body.worker.tokenEnv,'DAIDALIS_NOS3_UI_TOKEN');
     await page.locator('[data-action="view-nos3-job"][data-id="nos3_completed"]:visible').click();await page.locator('.integration-job-result').waitFor();assert.match(await page.locator('.integration-result-scope').innerText(),/未执行完整 NOS3/);assert.match(await page.locator('.integration-pending-requirements').innerText(),/R-SENSOR-SEPARATION · 未验证/);assert.match(await page.locator('.integration-pending-requirements').innerText(),/telemetry path was not executed/);assert.equal(await page.locator('.integration-pending-requirements').locator('xpath=ancestor::details').count(),0);assert.equal(await page.locator('.integration-result-files [data-action="read-artifact"]').count(),1);await click('close-modal');
     await page.locator('[data-action="cancel-nos3-job"][data-id="nos3_running"]:visible').click();await page.waitForFunction(()=>document.querySelector('.settings-main .integration-jobs')?.textContent.includes('已停止'));assert.ok(calls.some(call=>call.kind==='job-cancel'));
     await page.screenshot({path:path.join(temporary,'connections-desktop.png'),fullPage:true});

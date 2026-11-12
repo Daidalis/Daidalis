@@ -1,21 +1,31 @@
 #!/usr/bin/env python3
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import pathlib,json,hashlib,fcntl
-_root=pathlib.Path('/srv/manta/stf-low-power');_root.mkdir(exist_ok=True);_lock=(_root/'native-run.lock').open('a');fcntl.flock(_lock,fcntl.LOCK_EX)
+_root=pathlib.Path(_vm_name_path('/srv/daidalis/stf-low-power'));_root.mkdir(exist_ok=True);_lock=(_root/'native-run.lock').open('a');fcntl.flock(_lock,fcntl.LOCK_EX)
 try:
  _r=json.loads((_root/'ready.json').read_text())
  if _r.get('recipeVersion')==1 and _r.get('ready') and _r.get('prepareRecipeSha256')==hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest() and all(hashlib.sha256(pathlib.Path(x['path']).read_bytes()).hexdigest()==x['sha256'] for x in _r['binaries']):
   print('STF_NATIVE_READY unchanged',flush=True);raise SystemExit(0)
 except (FileNotFoundError,KeyError,ValueError):pass
 import pathlib,shutil,re,urllib.request,tarfile,io,json,hashlib,subprocess
-root=pathlib.Path('/srv/manta/stf-low-power');src=pathlib.Path('/srv/manta/nos3')
+root=pathlib.Path(_vm_name_path('/srv/daidalis/stf-low-power'));src=pathlib.Path(_vm_name_path('/srv/daidalis/nos3'))
 root.mkdir(exist_ok=True)
 if not (root/'.source-copied').exists():
- shutil.copytree(src,root,dirs_exist_ok=True,symlinks=True,ignore=shutil.ignore_patterns('build','exe','.git','.manta','engineering'))
+ shutil.copytree(src,root,dirs_exist_ok=True,symlinks=True,ignore=shutil.ignore_patterns('build','exe','.git','.daidalis','engineering'))
  (root/'.source-copied').write_text('Copied private existing NOS3 subset; no original mutation.\n')
 pins={'fsw/apps/ds':('DS','568b29324ff58b3af287e5138182c817810055f8'),'fsw/apps/to':('CFS_TO','666a8d17c87ac4f5dae1719dc218f9146468d062'),'fsw/apps/lc':('LC','5daef363c95d71c1ff3c5e9dcd4dddab560e8b39'),'fsw/apps/sc':('SC','4ff66c2b7f9d02eb7806bb3d085e1cfeb1f4ae72'),'components/generic_eps':('generic_eps','1aad19930ada314091d5be0b75bfd4379a39765d'),'components/mgr':('mgr','e4f56752df4549ffe074b79d768374f51099357b'),'components/sample':('sample','9d1a76dc391fefe7a42314052c1f10fa527f526b'),'components/arducam':('arducam','d123f505885e8796e645c21550422340804c911d'),'components/generic_radio':('generic_radio','a2effa73715ab4fe2fdc41e549ae2dca81214d98'),'components/generic_thruster':('generic_thruster','0ff68370fbac15291e67316ac60aff3a89115f70'),'components/syn':('syn','721c8d1756559aa3374a90c3cd2887b52405ee8d')}
 receipts=[]
 for dest,(repo,commit) in pins.items():
- target=root/dest;marker=target/'.manta-source-pin'
+ target=root/dest;marker=target/'.daidalis-source-pin'
  if marker.exists() and marker.read_text().strip()==commit:continue
  url=f'https://codeload.github.com/nasa-itc/{repo}/tar.gz/{commit}';print('Fetch',url,flush=True)
  data=urllib.request.urlopen(url,timeout=90).read();archive=tarfile.open(fileobj=io.BytesIO(data),mode='r:gz');members=archive.getmembers();prefix=pathlib.PurePosixPath(members[0].name).parts[0]
@@ -67,7 +77,7 @@ to=to.replace('/* CFE_SB_MSGID_RESERVED entry',extra+'/* CFE_SB_MSGID_RESERVED e
 print('PREPARED',root,flush=True)
 
 import pathlib,re,shutil
-root=pathlib.Path('/srv/manta/stf-low-power');build=root/'cfg/build';defs=build/'nos3_defs'
+root=pathlib.Path(_vm_name_path('/srv/daidalis/stf-low-power'));build=root/'cfg/build';defs=build/'nos3_defs'
 p=root/'sims/CMakeLists.txt';text=p.read_text();text=text.replace('IF(EXISTS ${_FILE}/sim/CMakeLists.txt)', 'IF(EXISTS ${_FILE}/sim/CMakeLists.txt AND (_FILE MATCHES "/generic_eps$" OR _FILE MATCHES "/generic_star_tracker$" OR _FILE MATCHES "/sample$"))');p.write_text(text)
 xml=(build/'sims/nos3-simulator.xml').read_text()
 def select(m):
@@ -83,7 +93,7 @@ if '<name>udp-terminal</name>' not in xml:
 f42=root/'42run';f42.mkdir(exist_ok=True)
 for name in ['42','World','Model']:
  p=f42/name
- if not p.exists():p.symlink_to(pathlib.Path('/srv/manta/42')/name)
+ if not p.exists():p.symlink_to(pathlib.Path(_vm_name_path('/srv/daidalis/42'))/name)
 shutil.copytree(root/'cfg/InOut',f42/'InOut',dirs_exist_ok=True)
 p=f42/'InOut/Inp_Sim.txt';text=(root/'cfg/InOut/Inp_Sim_STF1.txt').read_text();text=re.sub(r'^TRUE\s+!\s+Graphics Front End\?', 'FALSE                           !  Graphics Front End?',text,flags=re.M);text=re.sub(r'^604800\.0\s+0\.01','180.0  0.01',text,flags=re.M);p.write_text(text)
 p=f42/'InOut/Inp_IPC.txt';lines=p.read_text().splitlines(True);enabled=False
@@ -104,7 +114,7 @@ for index,command in enumerate(commands):
  with (root/f'prepare-{index}.log').open('w') as log:
   result=subprocess.run(command,cwd=root,env=env,stdout=log,stderr=subprocess.STDOUT,timeout=360)
  if result.returncode:raise RuntimeError('Native STF preparation failed: '+str(root/f'prepare-{index}.log'))
-binaries=[root/'fsw/build/exe/cpu1/core-cpu1',root/'fsw/build/exe/cpu1/cf/lc.so',root/'fsw/build/exe/cpu1/cf/sc.so',root/'fsw/build/exe/cpu1/cf/generic_eps.so',root/'fsw/build/exe/cpu1/cf/mgr.so',root/'sims/build/bin/nos3-single-simulator',root/'sims/build/lib/libgeneric_eps_sim.so',pathlib.Path('/srv/manta/42/42')]
-receipt={'schema':'manta-stf-low-power-ready-v1','recipeVersion':1,'prepareRecipeSha256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'ready':True,'tool':{'id':'nos3-stf','version':'NOS3 STF 5a3bdee6 / LC 5daef363 / SC 4ff66c2b / EPS 1aad1993'},'binaries':[{'path':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}for p in binaries]}
+binaries=[root/'fsw/build/exe/cpu1/core-cpu1',root/'fsw/build/exe/cpu1/cf/lc.so',root/'fsw/build/exe/cpu1/cf/sc.so',root/'fsw/build/exe/cpu1/cf/generic_eps.so',root/'fsw/build/exe/cpu1/cf/mgr.so',root/'sims/build/bin/nos3-single-simulator',root/'sims/build/lib/libgeneric_eps_sim.so',pathlib.Path(_vm_name_path('/srv/daidalis/42/42'))]
+receipt={'schema':'daidalis-stf-low-power-ready-v1','recipeVersion':1,'prepareRecipeSha256':hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),'ready':True,'tool':{'id':'nos3-stf','version':'NOS3 STF 5a3bdee6 / LC 5daef363 / SC 4ff66c2b / EPS 1aad1993'},'binaries':[{'path':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}for p in binaries]}
 (root/'ready.json').write_text(json.dumps(receipt,indent=2))
 print('STF_NATIVE_READY',flush=True)

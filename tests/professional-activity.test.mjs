@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {describeProfessionalActivity} from '../public/professional-activity.mjs';
 import {visibleRunWork} from '../shared/run-presentation.mjs';
 test('native Modelica card names the actual model/backend and separates execution from failed criteria',()=>{
- const activity={tool:'mcp__manta__wait_professional_job',status:'completed',result:{jobId:'professional_'+'a'.repeat(32),status:'completed',executionSucceeded:true,operation:'simulate',model:{path:'engineering/models/STFDataDelivery.mo'},tool:{id:'openmodelica',name:'OpenModelica',version:'1.27.1'},passed:false,verification:{status:'failed',checks:[{passed:true},{passed:true},{passed:false}]}}},before=JSON.stringify(activity),view=describeProfessionalActivity(activity);
+ const activity={tool:'mcp__daidalis__wait_professional_job',status:'completed',result:{jobId:'professional_'+'a'.repeat(32),status:'completed',executionSucceeded:true,operation:'simulate',model:{path:'engineering/models/STFDataDelivery.mo'},tool:{id:'openmodelica',name:'OpenModelica',version:'1.27.1'},passed:false,verification:{status:'failed',checks:[{passed:true},{passed:true},{passed:false}]}}},before=JSON.stringify(activity),view=describeProfessionalActivity(activity);
  assert.equal(view.title,'仿真 · STFDataDelivery.mo');assert.match(view.detail,/OpenModelica · 1.27.1/);assert.equal(view.executionLabel,'执行完成');assert.equal(view.verificationLabel,'判据 2/3 通过 · 1 项未通过');assert.equal(view.attention,true);assert.equal(JSON.stringify(activity),before);assert.doesNotMatch(JSON.stringify(view),/项目完成|工程批准|场景/);
 });
 test('an ended tool call is not mistaken for finished solver execution or missing validation success',()=>{

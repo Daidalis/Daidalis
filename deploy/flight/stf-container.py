@@ -1,7 +1,7 @@
 """Execute the existing STF controller inside the dedicated, networkless flight container."""
 import ast,hashlib,io,json,os,pathlib,sys
-if os.getuid()==0 or os.environ.get('MANTA_FLIGHT_CONTAINER')!='1':raise RuntimeError('Dedicated non-root flight container required')
-root=pathlib.Path('/opt/manta');reference=root/'vm/worker/stf-low-power-run.py'
+if os.getuid()==0 or os.environ.get('DAIDALIS_FLIGHT_CONTAINER')!='1':raise RuntimeError('Dedicated non-root flight container required')
+root=pathlib.Path('/opt/daidalis');reference=root/'vm/worker/stf-low-power-run.py'
 source=reference.read_text();tree=ast.parse(source)
 # Docker supplies the outer namespace. Preserve all model, hash, build and telemetry checks.
 found=0
@@ -16,7 +16,7 @@ class DescribeIsolation(ast.NodeTransformer):
         return node
 tree=ast.fix_missing_locations(DescribeIsolation().visit(tree))
 os.environ.clear();os.environ.update(PATH='/usr/bin:/bin',LANG='C.UTF-8',HOME='/tmp',TMPDIR='/tmp',CFS_APP_PATH='../components',MISSION_DEFS='../cfg/build/',MISSIONCONFIG='../cfg/build/nos3',OMP_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1')
-os.chdir('/srv/manta/stf-low-power')
+os.chdir('/srv/daidalis/stf-low-power')
 stdout=sys.stdout;output=io.StringIO();sys.stdout=output
 try:
     try:exec(compile(tree,str(reference),'exec'),{'__name__':'__main__','__file__':str(reference)})

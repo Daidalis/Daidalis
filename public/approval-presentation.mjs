@@ -23,7 +23,7 @@ const string = value => typeof value === 'string' ? value : '';
 const record = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 function json(value) { const result=JSON.stringify(value, null, 2); return result === undefined ? '' : result; }
 function display(value) { return typeof value === 'string' ? value : value === undefined ? '' : json(value); }
-function source(tool) { return tool.startsWith('codex.') ? 'Codex' : CLAUDE_TOOLS.has(tool) ? 'Claude Code' : 'Manta'; }
+function source(tool) { return tool.startsWith('codex.') ? 'Codex' : CLAUDE_TOOLS.has(tool) ? 'Claude Code' : 'Daidalis'; }
 function remaining(args, omitted, native=false) {
   return Object.fromEntries(Object.entries(args).filter(([key])=>!omitted.has(key)&&!(native&&TRANSPORT.has(key))));
 }

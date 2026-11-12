@@ -36,7 +36,7 @@ test('relative report links resolve to project files and never escape the projec
   assert.match(renderMarkdown('[模型](../models/demo.sysml#L23)',{path:'reports/result.md'}),/data-document-path="models\/demo.sysml" data-document-line="23"/);
 });
 
-test('images require Manta project routes and remote images stay explicit file links',() => {
+test('images require Daidalis project routes and remote images stay explicit file links',() => {
   const html = renderMarkdown('![曲线](../plots/result.png)\n\n![远程](https://example.org/tracker.png)',{path:'reports/test.md',resolveImage:file => '/api/project/image?path=' + encodeURIComponent(file)});
   assert.match(html,/<img src="\/api\/project\/image\?path=plots%2Fresult.png"/);
   assert.equal((html.match(/<img /g) || []).length,1);
@@ -55,7 +55,7 @@ test('model diagram maps the real SysML kernel graph, includes typed members and
   assert.equal(layout.nodes.length,graph.nodes.length);assert.ok(layout.nodes.every(node => Number.isFinite(node.x) && Number.isFinite(node.y)));
   const html = renderDocumentViewer({file:{path:'models/example.sysml',content:source},model:semantic});
   assert.match(html,/class="semantic-svg"/);assert.match(html,/sensor : Sensor/);assert.match(html,/data-document-element=/);
-  assert.doesNotMatch(html,/Manta trace|JSON 追溯/);
+  assert.doesNotMatch(html,/Daidalis trace|JSON 追溯/);
   const definitions = renderDocumentViewer({file:{path:'models/example.sysml',content:source},model:semantic,filter:'all'});
   assert.match(definitions,/«part def»/);assert.match(definitions,/typing/);
 });

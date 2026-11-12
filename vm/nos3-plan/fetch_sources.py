@@ -33,7 +33,7 @@ MANIFEST = []
 
 def archive(repo, revision, dest):
     dest.mkdir(parents=True, exist_ok=True)
-    stamp = dest / '.manta-source.json'
+    stamp = dest / '.daidalis-source.json'
     if stamp.exists():
         return json.loads(stamp.read_text())
     url = f'https://codeload.github.com/{repo}/tar.gz/{revision}'

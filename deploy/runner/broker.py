@@ -62,13 +62,13 @@ def validate(payload):
 
 class Broker:
     def __init__(self):
-        endpoint = os.environ['MANTA_TASK_DOCKER_HOST']
+        endpoint = os.environ['DAIDALIS_TASK_DOCKER_HOST']
         if not endpoint.startswith('unix://'):
             raise ValueError('A local rootless Docker Unix socket is required')
         self.cli = ['docker', '--host', endpoint]
-        self.env = {'PATH': os.environ['PATH'], 'HOME': '/tmp', 'DOCKER_CONFIG': '/tmp/manta-docker-config', 'GOMAXPROCS': '2'}
-        self.volume = os.environ['MANTA_TASK_PROJECTS_VOLUME']
-        self.owner = os.environ.get('MANTA_BROKER_ID', 'manta')
+        self.env = {'PATH': os.environ['PATH'], 'HOME': '/tmp', 'DOCKER_CONFIG': '/tmp/daidalis-docker-config', 'GOMAXPROCS': '2'}
+        self.volume = os.environ['DAIDALIS_TASK_PROJECTS_VOLUME']
+        self.owner = os.environ.get('DAIDALIS_BROKER_ID', 'daidalis')
         if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}', self.volume) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', self.owner):
             raise ValueError('Invalid deployment identity')
         info = json.loads(self.docker('info', '--format', '{{json .}}'))
@@ -76,21 +76,21 @@ class Broker:
             raise RuntimeError('Broker refuses a rootful Docker daemon')
         if info.get('CgroupVersion') != '2' or info.get('CgroupDriver') != 'systemd' or any(not info.get(k) for k in ('MemoryLimit', 'PidsLimit')):
             raise RuntimeError('Rootless cgroup v2 memory and PID limits are required')
-        self.cpus = os.environ.get('MANTA_TASK_CPUS', '2')
+        self.cpus = os.environ.get('DAIDALIS_TASK_CPUS', '2')
         if self.cpus not in ('0', '1', '2', '4'):
-            raise ValueError('MANTA_TASK_CPUS must be 0, 1, 2 or 4')
+            raise ValueError('DAIDALIS_TASK_CPUS must be 0, 1, 2 or 4')
         if self.cpus != '0' and not info.get('CpuCfsQuota'):
-            raise RuntimeError('CPU controller not delegated; explicitly set MANTA_TASK_CPUS=0 to run without a CPU quota')
+            raise RuntimeError('CPU controller not delegated; explicitly set DAIDALIS_TASK_CPUS=0 to run without a CPU quota')
         self.isolation = {**ISOLATION, 'resources': {'memoryBytes': 2*1024**3, 'pids': 256,
                           'cpuQuota': int(self.cpus) or None, 'concurrentTasks': 4}}
-        self.image = self.docker('image', 'inspect', os.environ['MANTA_TASK_IMAGE'], '--format', '{{.Id}}').strip()
+        self.image = self.docker('image', 'inspect', os.environ['DAIDALIS_TASK_IMAGE'], '--format', '{{.Id}}').strip()
         if not re.fullmatch(r'sha256:[0-9a-f]{64}', self.image):
             raise RuntimeError('Task image must already exist locally')
         self.docker('volume', 'inspect', self.volume)
-        self.model_volume = os.environ.get('MANTA_MODEL_VOLUME', '')
+        self.model_volume = os.environ.get('DAIDALIS_MODEL_VOLUME', '')
         self.flight_image = None
-        if os.environ.get('MANTA_TASK_FLIGHT_IMAGE'):
-            self.flight_image = self.docker('image','inspect',os.environ['MANTA_TASK_FLIGHT_IMAGE'],'--format','{{.Id}}').strip()
+        if os.environ.get('DAIDALIS_TASK_FLIGHT_IMAGE'):
+            self.flight_image = self.docker('image','inspect',os.environ['DAIDALIS_TASK_FLIGHT_IMAGE'],'--format','{{.Id}}').strip()
         self.slots = threading.BoundedSemaphore(4)
         self.probe_slots = threading.BoundedSemaphore(1)
         # Include the coordinator plus the default four workers; still a fixed deployment limit.
@@ -99,7 +99,7 @@ class Broker:
         self.lock = threading.Lock()
         self.active = set()
         # Only containers in this deployment's dedicated label namespace.
-        for name in self.docker('ps', '-aq', '--filter', 'label=manta.broker='+self.owner).split():
+        for name in self.docker('ps', '-aq', '--filter', 'label=daidalis.broker='+self.owner).split():
             self.docker('rm', '-f', name)
 
     def docker(self, *args):
@@ -113,7 +113,7 @@ class Broker:
             raise ValueError('Invalid managed project')
 
     def container_args(self,name,flight=False):
-        args=['create','--name',name,'--label','manta.broker='+self.owner,
+        args=['create','--name',name,'--label','daidalis.broker='+self.owner,
               '--interactive','--network','none','--user','1000:1000','--cap-drop','ALL',
               '--security-opt','no-new-privileges=true','--pids-limit','512' if flight else '256',
               '--memory','8g' if flight else '2g','--memory-swap','8g' if flight else '2g',
@@ -123,7 +123,7 @@ class Broker:
         else:args+=['--sysctl','fs.mqueue.msg_max=128','--ulimit','msgqueue=819200:819200',
                     '--add-host','nos-engine-server:127.0.0.1','--add-host','truth42sim:127.0.0.1','--add-host','fortytwo:127.0.0.1']
         if self.cpus!='0':args+=['--cpus',self.cpus]
-        for value in ['MANTA_BROKER_TASK=1','HOME=/task-home','TMPDIR=/tmp','LANG=C.UTF-8','OMP_NUM_THREADS=1',
+        for value in ['DAIDALIS_BROKER_TASK=1','HOME=/task-home','TMPDIR=/tmp','LANG=C.UTF-8','OMP_NUM_THREADS=1',
                       'OPENBLAS_NUM_THREADS=1','MKL_NUM_THREADS=1','QT_QPA_PLATFORM=offscreen','LIBGL_ALWAYS_SOFTWARE=1']:
             args+=['--env',value]
         return args
@@ -135,7 +135,7 @@ class Broker:
         while not slots.acquire(timeout=.1):
             if disconnected():raise RuntimeError('Cancelled while queued')
             if time.monotonic()>queue_deadline:raise RuntimeError('Task queue wait exceeded 30 seconds')
-        name = 'manta-task-'+uuid.uuid4().hex
+        name = 'daidalis-task-'+uuid.uuid4().hex
         process = None
         created = False
         try:
@@ -149,7 +149,7 @@ class Broker:
                 args += ['--mount', f'type=volume,src={self.volume},dst=/work,volume-subpath={payload["project"]},volume-nocopy']
             else:
                 args += ['--tmpfs', '/work:rw,nosuid,nodev,exec,size=512m,uid=1000,gid=1000,mode=700']
-            args += [self.flight_image if flight else self.image, '-B', '/opt/manta/deploy/runner/task-worker.py']
+            args += [self.flight_image if flight else self.image, '-B', '/opt/daidalis/deploy/runner/task-worker.py']
             # Track before create so shutdown also covers container creation.
             with self.lock:
                 self.active.add(name)
@@ -259,7 +259,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def main():
     if os.geteuid() == 0:
         raise RuntimeError('Broker must run as a non-root user')
-    endpoint = Path(os.environ.get('MANTA_BROKER_SOCKET', '/broker-control/broker.sock'))
+    endpoint = Path(os.environ.get('DAIDALIS_BROKER_SOCKET', '/broker-control/broker.sock'))
     lock = open(str(endpoint)+'.lock', 'w')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     # Never remove another live broker's socket.

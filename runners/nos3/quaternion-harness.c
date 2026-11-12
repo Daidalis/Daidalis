@@ -1,4 +1,4 @@
-/* Manta verification harness: executes upstream NOS3 ADCS primitives.
+/* Daidalis verification harness: executes upstream NOS3 ADCS primitives.
  * Independent oracle: passive Rodrigues rotation matrices, not simulator truth.
  * This does NOT execute the 42 telemetry transport, star tracker, or cFS task. */
 #include <math.h>
@@ -23,6 +23,6 @@ int main(void) {
     QxQ(a,b,q);QxV(q,v,out);for(int i=0;i<4;i++)negative[i]=-q[i];QxV(negative,v,negout);QTxV(q,out,recovered);
     max_comp=fmax(max_comp,error(out,expect));max_sign=fmax(max_sign,error(out,negout));max_inv=fmax(max_inv,error(recovered,v));count++;
   }
-  printf("{\"schema\":\"manta-nos3-component-results-v1\",\"cases\":%d,\"tolerance\":1e-12,\"compositionMaxError\":%.17g,\"signMaxError\":%.17g,\"inverseMaxError\":%.17g,\"passed\":%s}\n",count,max_comp,max_sign,max_inv,(max_comp<1e-12&&max_sign<1e-12&&max_inv<1e-12)?"true":"false");
+  printf("{\"schema\":\"daidalis-nos3-component-results-v1\",\"cases\":%d,\"tolerance\":1e-12,\"compositionMaxError\":%.17g,\"signMaxError\":%.17g,\"inverseMaxError\":%.17g,\"passed\":%s}\n",count,max_comp,max_sign,max_inv,(max_comp<1e-12&&max_sign<1e-12&&max_inv<1e-12)?"true":"false");
   return (max_comp<1e-12&&max_sign<1e-12&&max_inv<1e-12)?0:1;
 }

@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
-"""Bounded 42 W-frame/NAD83 state-point cross-check in Manta's private Linux VM.
+"""Bounded 42 W-frame/NAD83 state-point cross-check in Daidalis's private Linux VM.
 
 This is a geodetic screening product for native 42 spacecraft *positions*.
 It does not calculate sensor footprints, imaging permission, orbit coverage,
 revisit, ground contact, delivery, or a certified ITRF transformation.
 """
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import base64
 import csv
 import datetime as dt
@@ -22,7 +37,7 @@ import zipfile
 
 from osgeo import gdal, ogr, osr
 
-JOBS = pathlib.Path('/srv/manta/orbit42/jobs')
+JOBS = pathlib.Path(_vm_name_path('/srv/daidalis/orbit42/jobs'))
 SHA = re.compile(r'^[a-f0-9]{64}$')
 ORBIT_ID = re.compile(r'^orbit42_[a-f0-9]{32}$')
 JOB_ID = re.compile(r'^orbitground_[a-f0-9]{32}$')
@@ -64,7 +79,7 @@ def read_request():
     require(len(raw) <= MAX_REQUEST, 'Orbit-ground input exceeds bounded transport size')
     request = json.loads(raw)
     keys(request, ('schema', 'jobId', 'inputHash', 'orbit', 'census', 'maxSamples'), 'job')
-    require(request['schema'] == 'manta-orbit-ground-input-v1' and isinstance(request['jobId'], str)
+    require(_product_schema_matches(request['schema'], 'daidalis-orbit-ground-input-v1') and isinstance(request['jobId'], str)
             and JOB_ID.fullmatch(request['jobId']), 'Invalid orbit-ground schema or job ID')
     require(isinstance(request['inputHash'], str) and SHA.fullmatch(request['inputHash']), 'Invalid job input SHA-256')
     orbit = request['orbit']
@@ -127,7 +142,7 @@ def read_native(orbit):
     receipt_raw = regular_bytes(work / 'receipt.json', 256 * 1024)
     require(digest(receipt_raw) == orbit['receiptSha256'], 'Native 42 receipt SHA-256 mismatch')
     receipt = json.loads(receipt_raw)
-    require(receipt.get('schema') == 'manta-orbit42-receipt-v1' and receipt.get('jobId') == orbit['jobId']
+    require(_product_schema_matches(receipt.get('schema'), 'daidalis-orbit42-receipt-v1') and receipt.get('jobId') == orbit['jobId']
             and receipt.get('inputHash') == orbit['modelSha256'] and receipt.get('sourceFile', {}).get('sha256') == orbit['modelSha256']
             and receipt.get('tool', {}).get('id') == 'nasa-42', 'Native 42 receipt does not match the pinned completed job')
     raw_outputs = receipt.get('rawOutputs')
@@ -178,7 +193,7 @@ def census_layer(source):
     stems = {pathlib.PurePosixPath(name).stem for name in names if pathlib.PurePosixPath(name).suffix.lower() in CORE}
     require(len(stems) == 1 and {'.shp', '.shx', '.dbf', '.prj'} <= {pathlib.PurePosixPath(name).suffix.lower() for name in names},
             'Census ZIP must contain one complete state layer')
-    with tempfile.TemporaryDirectory(prefix='manta-orbit-ground-') as temp:
+    with tempfile.TemporaryDirectory(prefix='daidalis-orbit-ground-') as temp:
         folder = pathlib.Path(temp)
         for entry in entries:
             data = archive.read(entry)
@@ -365,7 +380,7 @@ def run(request, source):
                                     'asymmetricRecovered': recovered},
                'controls': controls,
                'startSeconds': seconds[0], 'stopSeconds': seconds[-1]}
-    receipt = {'schema': 'manta-orbit-ground-receipt-v1', 'jobId': request['jobId'], 'inputHash': request['inputHash'],
+    receipt = {'schema': 'daidalis-orbit-ground-receipt-v1', 'jobId': request['jobId'], 'inputHash': request['inputHash'],
                'workerSha256': digest(pathlib.Path(__file__).read_bytes()),
                'orbit': {'jobId': orbit['jobId'], 'receiptSha256': orbit['receiptSha256'], 'modelSha256': orbit['modelSha256'],
                          'posWSha256': native_hashes['PosW.42'], 'timeSha256': native_hashes['time.42'],
@@ -388,7 +403,7 @@ def run(request, source):
              encoded_file('ground-track.geojson', 'application/geo+json', geo_data),
              encoded_file('report.md', 'text/markdown', report_data),
              encoded_file('receipt.json', 'application/json', receipt_data)]
-    return {'schema': 'manta-orbit-ground-response-v1', 'success': True, 'exitCode': 0,
+    return {'schema': 'daidalis-orbit-ground-response-v1', 'success': True, 'exitCode': 0,
             'receipt': receipt, 'metrics': metrics, 'scope': scope, 'files': files,
             'diagnostics': f'Native 42 W-frame and supplied state-point screening completed: {len(samples)} bounded samples; no coverage claim'}
 
@@ -401,7 +416,7 @@ def main():
         request, source = read_request()
         print(json.dumps(run(request, source), ensure_ascii=False, separators=(',', ':')))
     except Exception as error:
-        print(json.dumps({'schema': 'manta-orbit-ground-response-v1', 'success': False, 'exitCode': 1,
+        print(json.dumps({'schema': 'daidalis-orbit-ground-response-v1', 'success': False, 'exitCode': 1,
                           'diagnostics': str(error)[:2000], 'files': []}, ensure_ascii=False))
 
 

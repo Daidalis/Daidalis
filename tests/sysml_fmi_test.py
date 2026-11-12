@@ -46,7 +46,7 @@ class RealFmiRun(unittest.TestCase):
     def setUp(self):
         self.model = MODEL.read_bytes()
         self.fmu = FMU.read_bytes()
-        self.work = Path(tempfile.mkdtemp(prefix='manta-sysml-fmi-'))
+        self.work = Path(tempfile.mkdtemp(prefix='daidalis-sysml-fmi-'))
         tool_home = self.work / 'opensysml'
         (tool_home / 'bin').mkdir(parents=True)
         (tool_home / 'bin' / 'sysml-grpc').symlink_to(

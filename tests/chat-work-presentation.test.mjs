@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {buildRunPresentation,visibleRunWork,describeTaskDelivery} from '../shared/run-presentation.mjs';
-const run={id:'r',threadId:'main',status:'running',startedAt:'2026-10-23T01:00:00Z'},events=[{id:'read',type:'tool.completed',runId:'r',data:{tool:'read_file',result:{content:'source'}}},{id:'job',type:'tool.started',runId:'r',data:{tool:'mcp__manta__submit_professional_job',args:{path:'model.mo'}}},{id:'fail',type:'tool.completed',runId:'r',data:{tool:'run_command',result:{code:2}}}];
+const run={id:'r',threadId:'main',status:'running',startedAt:'2026-10-23T01:00:00Z'},events=[{id:'read',type:'tool.completed',runId:'r',data:{tool:'read_file',result:{content:'source'}}},{id:'job',type:'tool.started',runId:'r',data:{tool:'mcp__daidalis__submit_professional_job',args:{path:'model.mo'}}},{id:'fail',type:'tool.completed',runId:'r',data:{tool:'run_command',result:{code:2}}}];
 test('active native tool and failures stay visible while routine file reads fold',()=>{
  const row=buildRunPresentation({runs:[run],events,messages:[{id:'p',runId:'r',threadId:'main',role:'assistant',content:'正在比较电源方案'}]})[0],shown=visibleRunWork(row);
  assert.deepEqual(shown.activities.map(a=>a.id),['job','fail']);assert.equal(shown.activities[0].label,'提交专业求解');assert.equal(shown.messages[0].content,'正在比较电源方案');

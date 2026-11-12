@@ -12,7 +12,7 @@ const MODEL='model Thermal\n parameter Real heater=10;\n Real temperature(start=
 const CSV='"time","temperature","heater"\n0,290,10\n1,290.1,10\n2,290.2,10\n';
 function output(args,patch={}){const bytes=Buffer.from(CSV);return {exitCode:0,success:true,tool:{id:'openmodelica',name:'OpenModelica test fixture',version:'fixture-1'},diagnostics:'fixture execution',receipt:{inputHash:args.inputHash,sourceHashes:args.sourceFiles.map(({path,sha256})=>({path,sha256}))},files:args.operation==='check'?[]:[{path:'Thermal_res.csv',contentBase64:bytes.toString('base64'),sha256:hash(bytes),mimeType:'text/csv'}],...patch};}
 async function fixture(t,{run,sysmlBackend,maxJobMs}={}){
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-professional-test-')),dataDir=path.join(root,'data'),store=createStore({dataDir,seed:false}),project=store.createProject({name:'Native models'}),ws=store.workspace(project.id);
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-professional-test-')),dataDir=path.join(root,'data'),store=createStore({dataDir,seed:false}),project=store.createProject({name:'Native models'}),ws=store.workspace(project.id);
  const calls=[],runner={status:async()=>({ready:true,state:'ready'}),prepare:async()=>({ready:true,isolated:true}),run:async(args,ctx)=>{calls.push(args);return run?run(args,ctx):output(args);}};
  const state={root,dataDir,store,projectId:project.id,workspace:ws,runner,calls};state.service=await createProfessionalModelsService({store,dataDir,runner,sysmlBackend,maxJobMs});
  t.after(async()=>{await state.service.close();await fs.rm(root,{recursive:true,force:true});});
@@ -24,7 +24,7 @@ async function fixture(t,{run,sysmlBackend,maxJobMs}={}){
 test('native Modelica drafts save, reopen, list and preserve a prior revision without claiming validation',async t=>{
  const f=await fixture(t),saved=await f.service.saveModel({projectId:f.projectId,path:f.model.path,expectedHash:f.model.sha256,content:MODEL+'// design change\n'});
  assert.equal(saved.saved,true);assert.equal(saved.validationStatus,'not-checked');assert.equal(saved.previousSha256,hash(MODEL));assert.equal((await f.service.readModel({projectId:f.projectId,path:f.model.path})).content,MODEL+'// design change\n');
- assert.equal(await fs.readFile(path.join(f.workspace,'.manta/professional-model-history/'+hash(MODEL)+'.mo'),'utf8'),MODEL);assert.equal((await f.service.listModels({projectId:f.projectId})).models.length,1);
+ assert.equal(await fs.readFile(path.join(f.workspace,'.daidalis/professional-model-history/'+hash(MODEL)+'.mo'),'utf8'),MODEL);assert.equal((await f.service.listModels({projectId:f.projectId})).models.length,1);
 });
 
 test('optimistic source guards prevent lost updates and missing submission hashes',async t=>{

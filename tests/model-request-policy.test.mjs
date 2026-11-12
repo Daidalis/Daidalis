@@ -7,7 +7,7 @@ import {createStore} from '../server/store.mjs';
 import {createProviderManager} from '../server/providers.mjs';
 import {withModelRequestPolicy} from '../server/model-request-policy.mjs';
 
-async function fixture(t,fetchImpl){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'manta-request-policy-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return createProviderManager({store:createStore({dataDir:dir,seed:false}),fetchImpl});}
+async function fixture(t,fetchImpl){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-request-policy-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return createProviderManager({store:createStore({dataDir:dir,seed:false}),fetchImpl});}
 const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json',...headers}});
 const config={name:'Test API',type:'openai-compatible',model:'test',apiKey:'private-test-key'};
 const request={messages:[{role:'user',content:'continue'}]};

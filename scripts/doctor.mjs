@@ -11,10 +11,10 @@ add('Node.js',(v=>v[0]>22||(v[0]===22&&v[1]>=13))(process.versions.node.split('.
 for(const name of ['openai','@openai/agents','@anthropic-ai/sdk','@anthropic-ai/claude-agent-sdk','@modelcontextprotocol/sdk','zod']) {
   try{require.resolve(name==='@modelcontextprotocol/sdk'?'@modelcontextprotocol/sdk/client/index.js':name);add(name,'ok','Project dependency installed');}catch{add(name,'error','Missing dependency; run npm ci in this checkout');}
 }
-add('Codex',resolveCodexExecutable()?'ok':'optional',resolveCodexExecutable()?'Executable detected; authentication and protocol still need testing':'Install Codex on PATH or set MBSE_CODEX_PATH; Claude Code is an alternative');
+add('Codex',resolveCodexExecutable()?'ok':'optional',resolveCodexExecutable()?'Executable detected; authentication and protocol still need testing':'Install Codex on PATH or set DAIDALIS_CODEX_PATH; Claude Code is an alternative');
 try{require.resolve('playwright');add('Browser automation','optional','Playwright package detected; Chromium/Chrome installation must be checked separately');}catch{add('Browser automation','optional','Install optional Playwright dependencies only if needed');}
 const kernel=path.join(root,'toolchains/sysml/package');add('SysML kernel',fs.existsSync(path.join(kernel,'package.json'))?'ok':'error','Pinned package must remain inside the checkout');
-const vm=process.env.MANTA_NOS3_VM_ROOT;
+const vm=process.env.DAIDALIS_NOS3_VM_ROOT;
 if(!vm)add('Professional runners','optional','No VM configured. Basic chat, documents and SysML remain available; see docs/installation.md for runner limits.');
 else {const missing=['host/vm-prepare.sh','worker/native-inputs.json',...Object.keys(JSON.parse(fs.readFileSync(path.join(root,'vm/worker/native-inputs.json'))).stagedFiles).map(x=>'handoff/'+x)].filter(x=>!fs.existsSync(path.join(vm,x)));add('Professional runners',missing.length?'optional':'ok',missing.length?'Configured VM lacks frozen input assets; use an explicitly provisioned runner. Missing: '+missing.join(', '):'Frozen input files detected; preparation and runtime integrity still need verification');}
 for(const c of checks)console.log(c.status.toUpperCase().padEnd(8)+' '+c.name+': '+c.detail);

@@ -44,7 +44,7 @@ test('OpenModelica executes from a temporary workspace with bundled libraries an
   const result=await createSharedContainerRunner().run({toolId:'openmodelica',operation:'simulate',mainFile:'Decay.mo',modelName:'Decay',inputHash:sha,
     sourceFiles:[{path:'Decay.mo',content,sha256:sha}],simulation:{startTime:0,stopTime:1,numberOfIntervals:100,tolerance:1e-6}});
   assert.equal(result.success,true,result.diagnostics);
-  const output=result.files.find(f=>f.path==='manta_result_res.csv');assert.ok(output);
+  const output=result.files.find(f=>f.path==='daidalis_result_res.csv');assert.ok(output);
   const lines=Buffer.from(output.contentBase64,'base64').toString().trim().split('\n');
   const columns=lines[0].replaceAll('"','').split(','),last=lines.at(-1).split(',');
   assert.ok(Math.abs(Number(last[columns.indexOf('x')])-Math.exp(-1))<1e-4);
@@ -68,7 +68,7 @@ test('second-order Modelica compiles within a constrained process budget',{
  const sha=createHash('sha256').update(content).digest('hex');
  const result=await createSharedContainerRunner().run({toolId:'openmodelica',operation:'simulate',mainFile:'MassSpring.mo',modelName:'MassSpring',inputHash:sha,sourceFiles:[{path:'MassSpring.mo',content,sha256:sha}],simulation:{startTime:0,stopTime:4,numberOfIntervals:400,tolerance:1e-8}});
  assert.equal(result.success,true,result.diagnostics);
- const rows=Buffer.from(result.files.find(f=>f.path==='manta_result_res.csv').contentBase64,'base64').toString().trim().split('\n');
+ const rows=Buffer.from(result.files.find(f=>f.path==='daidalis_result_res.csv').contentBase64,'base64').toString().trim().split('\n');
  const names=rows[0].replaceAll('"','').split(','),last=rows.at(-1).split(',');
  assert.ok(Math.abs(Number(last[names.indexOf('x')])-.4)<.005);
  assert.ok(Math.abs(Number(last[names.indexOf('v')]))<.005);

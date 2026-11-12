@@ -6,7 +6,7 @@ import path from 'node:path';
 import {createStudioServer} from '../server/index.mjs';
 
 // This check never invokes a model, starts a solver, or uses a saved workspace.
-const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'manta-smoke-'));
+const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-smoke-'));
 let app;
 const checks=[];
 try {
@@ -48,7 +48,7 @@ try {
   checks.push({route:'Host protection',status:invalidHost});
   console.log(JSON.stringify({passed:true,node:process.version,platform:process.platform,checks},null,2));
 } catch(error) {
-  console.error('Manta smoke failed: '+error.message);
+  console.error('Daidalis smoke failed: '+error.message);
   process.exitCode=1;
 } finally {
   try {await app?.close();} finally {await fs.rm(temporary,{recursive:true,force:true});}

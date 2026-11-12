@@ -13,8 +13,8 @@ const stf=JSON.parse(await fs.readFile(fixturePath,'utf8'));
 const resultScope='The test harness read six source-attributed L0 fixture rows. This is an application input-format check, not science, simulation, physical, or STF mission acceptance.';
 
 async function fixture(t){
-  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-engineering-state-http-')));
-  const dataDir=path.join(root,'data'),folder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-stf-engineering-project-'))),otherFolder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-other-engineering-project-')));
+  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-engineering-state-http-')));
+  const dataDir=path.join(root,'data'),folder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-stf-engineering-project-'))),otherFolder=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-other-engineering-project-')));
   await fs.mkdir(path.join(folder,'source'));await fs.mkdir(path.join(folder,'analysis'));
   await fs.writeFile(path.join(folder,'source/stf-conops-extract.md'),stf.sourceExtract,'utf8');
   await fs.writeFile(path.join(folder,'source/stf-fixture.json'),JSON.stringify(stf,null,2),'utf8');
@@ -68,7 +68,7 @@ function recordedEvidence(state,id){const row=state.evidence.find(item=>item.id=
 function applicability(state,id){const value=recordedEvidence(state,id).applicability?.status;assert.ok(['current','needs_review','invalid','unknown'].includes(value),`Invalid evidence applicability: ${value}`);return value;}
 
 test('STF fixture preserves original objectives and unresolved real engineering conditions',()=>{
-  assert.equal(stf.schema,'manta-stf-engineering-takeover-fixture-v1');assert.equal(stf.caseCompleted,false);assert.equal(stf.simulationExecuted,false);
+  assert.equal(stf.schema,'daidalis-stf-engineering-takeover-fixture-v1');assert.equal(stf.caseCompleted,false);assert.equal(stf.simulationExecuted,false);
   assert.equal(stf.baselineCommit,'5a3bdee6be9a2c67fdf994ae6db56d5c60395302');assert.equal(stf.requirements.length,6);
   for(const row of stf.requirements){assert.equal(row.approval,'not_approved');assert.equal(row.verification,'not_executed');assert.ok(row.original);assert.ok(row.gaps.length);}
   for(const topic of ['hardware','HIL','environment','lifetime','science-quality','contact-limited-downlink'])assert.ok(stf.unfinishedConditions.some(row=>row.topic===topic));

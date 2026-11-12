@@ -4,7 +4,7 @@ import {TOOL_DEFINITIONS,createToolRuntime} from '../server/tools.mjs';
 import {ENGINEERING_ENTRY_GUIDANCE} from '../server/engineering-entry-guidance.mjs';
 import {createStfCaseService} from '../server/stf-case.mjs';
 
-test('a fresh native Agent cannot import the evaluator STF design through its Manta tool bridge',async()=>{
+test('a fresh native Agent cannot import the evaluator STF design through its Daidalis tool bridge',async()=>{
   const names=new Set(TOOL_DEFINITIONS.map(tool=>tool.name));
   assert.equal(names.has('stf_case_catalog'),false);
   assert.equal(names.has('create_stf_case'),false);

@@ -9,4 +9,4 @@ old="'Kit', 'InOut', 'License', 'Makefile'"
 assert text.count(old)==1
 text=text.replace(old,"'Kit', 'InOut', 'License', 'MetaCode', 'Makefile'")
 adapted=root/'configure-container.py';adapted.write_text(text)
-subprocess.run(['python3',str(adapted),'--source','/srv/manta/source/nos3','--fortytwo','/srv/manta/source/42','--work','/srv/manta/nos3'],check=True)
+subprocess.run(['python3',str(adapted),'--source','/srv/daidalis/source/nos3','--fortytwo','/srv/daidalis/source/42','--work','/srv/daidalis/nos3'],check=True)

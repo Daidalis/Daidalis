@@ -26,16 +26,16 @@ test('MCP execution errors are preserved as failed public tool evidence',async()
 test('model-bound jobs require real semantic acceptance, exact revision and diagnostic evidence',async()=>{
   const calls=[],modelHash='a'.repeat(64),receiptHash='b'.repeat(64);
   const nos3={submit:async(input,context)=>{calls.push({input,context});return {status:'queued'};}};
-  const modelBackend={validate:async input=>{assert.equal(input.expectedHash,modelHash);return {valid:true,model:{sha256:modelHash},evidence:{path:'.manta/check.json',sha256:receiptHash}};}};
+  const modelBackend={validate:async input=>{assert.equal(input.expectedHash,modelHash);return {valid:true,model:{sha256:modelHash},evidence:{path:'.daidalis/check.json',sha256:receiptHash}};}};
   await assert.rejects(submitValidatedNos3Job({nos3,modelBackend},{...ctx,scope:'component',modelFile:'model.sysml'}),/expectedModelHash/);
   assert.equal(calls.length,0);
   await submitValidatedNos3Job({nos3,modelBackend},{...ctx,scope:'component',modelFile:'model.sysml',expectedModelHash:modelHash},ctx);
-  assert.deepEqual(calls[0].input.modelEvidence,[{path:'.manta/check.json',sha256:receiptHash}]);
+  assert.deepEqual(calls[0].input.modelEvidence,[{path:'.daidalis/check.json',sha256:receiptHash}]);
   await assert.rejects(submitValidatedNos3Job({nos3,modelBackend:{validate:async()=>({valid:false,model:{sha256:modelHash}})}},{...ctx,modelFile:'model.sysml',expectedModelHash:modelHash}),/semantic gate/);
   assert.equal(calls.length,1);
 });
 test('result handoff refuses edited measurements and unrelated model revisions',async t=>{
-  const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'manta-result-integrity-'));t.after(()=>fs.rm(workspace,{recursive:true,force:true}));
+  const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-result-integrity-'));t.after(()=>fs.rm(workspace,{recursive:true,force:true}));
   const modelHash='c'.repeat(64),body=JSON.stringify({metrics:{compositionMaxError:0}});await fs.writeFile(path.join(workspace,'result.json'),body);
   const report={ready:true,status:'completed',scope:'component',metrics:{compositionMaxError:0},modelEvidence:[{path:'model.sysml',sha256:modelHash}],resultPath:'result.json',resultSha256:hash(body)};
   let bound=0;const services={nos3:{result:async()=>report},store:{workspace:()=>workspace},modelBackend:{bindNos3Results:async args=>{bound++;return args;}}};

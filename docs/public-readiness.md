@@ -95,7 +95,7 @@ hop with Chromium CDP rather than relying on first-request-only routing.
 Actual non-root, offline GUI containers with a read-only root filesystem, 2 GiB
 memory and 256 PID limits opened OpenSCAD, OMEdit, FreeCAD and Scilab. Main-window
 screenshots were inspected: OMEdit loaded the supplied Modelica model; FreeCAD
-opened a generated native CAD document and displayed its box through Manta's
+opened a generated native CAD document and displayed its box through Daidalis's
 click/key/type driver; Scilab computed and wrote the expected result into the
 project directory. The desktop clears the solver's offscreen Qt setting so these
 are visible X11 applications. These checks do not establish arbitrary third-party
@@ -193,7 +193,7 @@ is not a clean-machine, cold-cache installation or other-platform certification.
 All ten deployed acceptance scripts completed successfully. Actual task inspection
 confirmed non-root UID 1000, network `none`, a read-only root, 2 GiB memory and
 256 PIDs for ordinary tasks. NOS3 uses its separately documented flight limits.
-This host lacks delegated CPU quota control, so `MANTA_TASK_CPUS=0` was explicit;
+This host lacks delegated CPU quota control, so `DAIDALIS_TASK_CPUS=0` was explicit;
 CPU quota enforcement was not accepted here.
 
 Acceptance exposed a Docker Go-template field mismatch in the installer:
@@ -256,9 +256,9 @@ The minimum Node version is 22.13.0 because the SysML wrapper uses the stable pe
 ## Remaining release decisions and limits
 
 1. The advertised history replacement is complete. Any cached old GitHub views or undiscovered third-party clones require separate handling; the external private backup must not be published.
-2. The owner selected Apache 2.0 for Manta-owned code and original documentation on 27 October 2026. See the root LICENSE, NOTICE and THIRD_PARTY_NOTICES.md; upstream terms remain in place.
+2. The owner selected Apache 2.0 for Daidalis-owned code and original documentation on 27 October 2026. See the root LICENSE, NOTICE and THIRD_PARTY_NOTICES.md; upstream terms remain in place.
 3. Basic installation does not provision every professional solver. The exact managed NOS3/cFS/42 environment still needs the frozen archives, packages and manifests named in `vm/worker/native-inputs.json`; a verified public installer that recreates that entire bundle is not included. See [installation](installation.md) and [runner contract](nos3-runner.md).
-4. Manta is a local workspace, not an authenticated multi-user hosted service. The public marketing site is independent of the local application. See [security scope](../SECURITY.md).
+4. Daidalis is a local workspace, not an authenticated multi-user hosted service. The public marketing site is independent of the local application. See [security scope](../SECURITY.md).
 
 These checks do not complete STF development, physical qualification or independent mission acceptance. The case priority remains complete STF, then Apollo.
 

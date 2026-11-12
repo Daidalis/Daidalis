@@ -48,7 +48,7 @@ function fmiOutput(args,patch={}){
 }
 
 async function fmiFixture(t,{run}={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-sysml-fmi-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-sysml-fmi-'));
   const dataDir=path.join(root,'data');
   const store=createStore({dataDir,seed:false});
   const project=store.createProject({name:'SysML FMI'});
@@ -162,7 +162,7 @@ test('the catalog advertises the SysML FMI backend alongside the semantic kernel
 test('a successful SysML FMI job leaves a replayable manifest beside the model',async t=>{
   const f=await fmiFixture(t),result=await f.runJob();
   const manifest=JSON.parse(await fs.readFile(path.join(f.workspace,'models/FMUDecay.recorded.json'),'utf8'));
-  assert.equal(manifest.schema,'manta-recorded-trajectory-v1');
+  assert.equal(manifest.schema,'daidalis-recorded-trajectory-v1');
   assert.equal(manifest.provenance,'fmu-run');
   assert.equal(manifest.csv,result.tableFile);
   assert.match(manifest.csv,/^engineering\/professional\/professional_[a-f0-9]{32}\/outputs\/trajectory\.csv$/);
@@ -173,7 +173,7 @@ test('a successful SysML FMI job leaves a replayable manifest beside the model',
 test('a rerun keeps hand-written bindings and drive, and a failed job writes nothing',async t=>{
   const f=await fmiFixture(t);
   const target=path.join(f.workspace,'models/FMUDecay.recorded.json');
-  await fs.writeFile(target,JSON.stringify({schema:'manta-recorded-trajectory-v1',provenance:'example',csv:'old.csv',bindings:{x:'Decay'},units:{x:'m'},drive:'x'}));
+  await fs.writeFile(target,JSON.stringify({schema:'daidalis-recorded-trajectory-v1',provenance:'example',csv:'old.csv',bindings:{x:'Decay'},units:{x:'m'},drive:'x'}));
   await f.runJob();
   const manifest=JSON.parse(await fs.readFile(target,'utf8'));
   assert.equal(manifest.provenance,'fmu-run');

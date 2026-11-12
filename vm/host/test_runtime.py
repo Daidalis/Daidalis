@@ -17,7 +17,7 @@ spec.loader.exec_module(runtime)
 
 class RuntimeDirectoryTests(unittest.TestCase):
     def setUp(self):
-        self.workspace = Path(tempfile.mkdtemp(prefix='manta-vm-runtime-test-'))
+        self.workspace = Path(tempfile.mkdtemp(prefix='daidalis-vm-runtime-test-'))
         self.state = self.workspace / 'a very long NAS path 毕业后' / 'state'
         self.state.mkdir(parents=True)
         self.local = runtime.runtime_directory(self.state)
@@ -42,8 +42,8 @@ class RuntimeDirectoryTests(unittest.TestCase):
                 client.connect(address)
                 incoming, _ = server.accept()
                 with incoming:
-                    client.sendall(b'manta')
-                    self.assertEqual(incoming.recv(5), b'manta')
+                    client.sendall(b'daidalis')
+                    self.assertEqual(incoming.recv(len(b'daidalis')), b'daidalis')
         self.assertFalse((self.state / 'ssh.sock').exists())
 
     def test_canonical_alias_uses_same_socket(self):
@@ -65,9 +65,9 @@ class RuntimeDirectoryTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             runtime.prepare_runtime(self.state)
 
-    @unittest.skipUnless(os.environ.get('MANTA_TEST_VM_BINARY'), 'set MANTA_TEST_VM_BINARY to a freshly compiled VM binary')
+    @unittest.skipUnless(os.environ.get('DAIDALIS_TEST_VM_BINARY'), 'set DAIDALIS_TEST_VM_BINARY to a freshly compiled VM binary')
     def test_swift_and_python_resolve_identically(self):
-        binary = os.environ['MANTA_TEST_VM_BINARY']
+        binary = os.environ['DAIDALIS_TEST_VM_BINARY']
         paths = [self.state, self.workspace / 'other-state']
         alias = self.workspace / 'swift-alias'
         alias.symlink_to(self.state, target_is_directory=True)

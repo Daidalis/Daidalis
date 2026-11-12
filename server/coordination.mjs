@@ -6,7 +6,7 @@ const LIVE=new Set(['queued','running','waiting_approval']);
 const terminal=run=>run&&!LIVE.has(run.status);
 const fail=message=>{throw new Error(message);};
 
-// Manta owns task dependencies and result receipts. Native runtimes own inference.
+// Daidalis owns task dependencies and result receipts. Native runtimes own inference.
 export function createTaskCoordination({store,active,emit,setPhase,pauseBudget,resumeBudget,pump}) {
   const latest=threadId=>store.data.runs.findLast(r=>r.threadId===threadId);
   const threadOf=(threadId,ctx)=>{

@@ -36,9 +36,9 @@ def q_angle(a,b):
 def rows(path):
     records=[]
     for number,line in enumerate(path.read_text(errors='replace').splitlines(),1):
-        if 'MANTA_TRACE ' not in line:
+        if 'DAIDALIS_TRACE ' not in line:
             continue
-        text=line.split('MANTA_TRACE ',1)[1]
+        text=line.split('DAIDALIS_TRACE ',1)[1]
         try:
             row=json.loads(text)
         except (ValueError,TypeError):
@@ -115,7 +115,7 @@ def verify(sim,fsw,truth=None,require_nonidentity=True,min_samples=10,tolerance=
         check('real_42_sensor_and_truth_observed_separately',len(truthrows)>=min_samples,samples=len(truthrows))
         check('real_42_sensor_geometry_matches_independent_frames',bool(truth_errors) and max(truth_errors)<=tolerance,
               max_rotation_error_deg=max(truth_errors,default=None),tolerance_deg=tolerance)
-    result={'schema':'manta.nos3.live-startracker.v1','passed':all(r['passed'] for r in checks),'checks':checks,
+    result={'schema':'daidalis.nos3.live-startracker.v1','passed':all(r['passed'] for r in checks),'checks':checks,
             'samples':{'uart_provider':len(provider),'sb_ingest':len(ingest),'adac_valid':len(valid),'adac_invalid':len(invalid),'truth42_valid':len(truthrows)},
             'scope':{'actual_production_uart_simulator':True,'actual_cfs_sb_ingest':True,'actual_production_adac_and_gnc':True,
                      'body_truth_substituted_for_sensor':False,'physical_sensor_qualified':False,

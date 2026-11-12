@@ -156,7 +156,8 @@ test('columns are aliased to model elements when names only share a prefix',()=>
 });
 
 test('a manifest rebuilt after a run keeps hand-written fields and records the run',()=>{
- const manifest=buildRecordedManifest({columns:['time','tank_level'],source:'part tank;',csv:'engineering/x/outputs/t.csv',jobId:'j1',checks:[{variable:'tank_level',passed:true},{id:'native'}],previous:{schema:'manta-recorded-trajectory-v1',bindings:{tank_level:'other'},drive:'tank_level',units:{tank_level:'L'}}});
+ const manifest=buildRecordedManifest({columns:['time','tank_level'],source:'part tank;',csv:'engineering/x/outputs/t.csv',jobId:'j1',checks:[{variable:'tank_level',passed:true},{id:'native'}],previous:{schema:'daidalis-recorded-trajectory-v1',bindings:{tank_level:'other'},drive:'tank_level',units:{tank_level:'L'}}});
+ assert.equal(manifest.schema,'daidalis-recorded-trajectory-v1');
  assert.equal(manifest.provenance,'fmu-run');
  assert.deepEqual(manifest.bindings,{tank_level:'other'});
  assert.deepEqual(manifest.units,{tank_level:'L'});

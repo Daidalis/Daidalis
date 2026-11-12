@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import hashlib,json,os,pathlib,shutil,subprocess,sys,tarfile,time,urllib.request
-root=pathlib.Path('/srv/manta/worker'); root.mkdir(mode=0o700,exist_ok=True)
-if not pathlib.Path('/srv/manta/nos3/fsw/build/exe/cpu1/core-cpu1').is_file():
+root=pathlib.Path(_vm_name_path('/srv/daidalis/worker')); root.mkdir(mode=0o700,exist_ok=True)
+if not pathlib.Path(_vm_name_path('/srv/daidalis/nos3/fsw/build/exe/cpu1/core-cpu1')).is_file():
  raise RuntimeError('Native NOS3 build is not ready. Run the fixed guest provisioning/build recipe first.')
 request=json.loads(sys.stdin.read(4096))
 token=request.get('token'); port=request.get('port',8093)
@@ -29,14 +44,14 @@ if not node.is_file():
   tar.extractall(root)
  target.unlink()
  lock.write_text(json.dumps({'version':version,'url':base+archive,'sha256':actual},indent=2))
-source=pathlib.Path('/mnt/manta-transfer/worker/bundle')
+source=pathlib.Path(_vm_name_path('/mnt/daidalis-transfer/worker/bundle'))
 app=root/'bundle'
 # Copy only the reviewed runtime bundle; no npm install or global Node setup.
-for rel in ['runners/nos3/worker.mjs','runners/nos3/native-worker.mjs','runners/nos3/native-adapter.mjs','server/nos3/core.mjs','server/sandbox.mjs','runners/nos3/quaternion-harness.c']:
+for rel in ['runners/nos3/worker.mjs','runners/nos3/native-worker.mjs','runners/nos3/native-adapter.mjs','server/nos3/core.mjs','shared/legacy-names.mjs','server/sandbox.mjs','runners/nos3/quaternion-harness.c']:
  destination=app/rel; destination.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source/rel,destination)
-inventoryHash=hashlib.sha256(pathlib.Path('/mnt/manta-transfer/source/integrity.json').read_bytes()).hexdigest()
-bundleHash=hashlib.sha256(b''.join((app/rel).read_bytes() for rel in ['runners/nos3/worker.mjs','runners/nos3/native-worker.mjs','runners/nos3/native-adapter.mjs','server/nos3/core.mjs','server/sandbox.mjs'])).hexdigest()
-config={'runtimeBundleSha256':bundleHash,'sourceInventorySha256':inventoryHash,'token':token,'sourceRoot':'/mnt/manta-transfer/source','toolRoot':'/mnt/manta-transfer','workRoot':'/srv/manta/nos3'}
+inventoryHash=hashlib.sha256(pathlib.Path(_vm_name_path('/mnt/daidalis-transfer/source/integrity.json')).read_bytes()).hexdigest()
+bundleHash=hashlib.sha256(b''.join((app/rel).read_bytes() for rel in ['runners/nos3/worker.mjs','runners/nos3/native-worker.mjs','runners/nos3/native-adapter.mjs','server/nos3/core.mjs','shared/legacy-names.mjs','server/sandbox.mjs'])).hexdigest()
+config={'runtimeBundleSha256':bundleHash,'sourceInventorySha256':inventoryHash,'token':token,'sourceRoot':_vm_name_path('/mnt/daidalis-transfer/source'),'toolRoot':_vm_name_path('/mnt/daidalis-transfer'),'workRoot':_vm_name_path('/srv/daidalis/nos3')}
 configfile=root/'config.json';previous=json.loads(configfile.read_text()) if configfile.exists() else {}
 if previous.get('sourceInventorySha256') and previous['sourceInventorySha256']!=inventoryHash:raise RuntimeError('Source inventory changed after provisioning; refusing to silently repin the source')
 def health():
@@ -45,7 +60,7 @@ def health():
   with urllib.request.urlopen(req,timeout=3) as response:return json.load(response)
  except Exception:return None
 if previous==config and health():
- print(json.dumps({'ready':True,'reused':True,'schema':'manta-nos3-worker-v1','port':8093}));sys.exit(0)
+ print(json.dumps({'ready':True,'reused':True,'schema':'daidalis-nos3-worker-v1','port':8093}));sys.exit(0)
 pidfile=root/'worker.pid'
 if pidfile.exists():
  pid=int(pidfile.read_text())
@@ -60,12 +75,12 @@ if pidfile.exists():
 configfile.write_text(json.dumps(config));configfile.chmod(0o600)
 (root/'home').mkdir(exist_ok=True);(root/'tmp').mkdir(exist_ok=True)
 with (root/'worker.log').open('ab',buffering=0) as output:
- child=subprocess.Popen([str(node),str(app/'runners/nos3/native-worker.mjs')],cwd=root,env={'PATH':'/usr/bin:/bin','HOME':str(root/'home'),'TMPDIR':str(root/'tmp'),'LANG':'C.UTF-8'},stdin=subprocess.DEVNULL,stdout=output,stderr=output,start_new_session=True)
+ child=subprocess.Popen([str(node),str(app/'runners/nos3/native-worker.mjs')],cwd=root,env={'PATH':'/usr/bin:/bin','HOME':str(root/'home'),'TMPDIR':str(root/'tmp'),'LANG':'C.UTF-8','DAIDALIS_VM_ROOT':str(_vm_name_path('/srv/daidalis'))},stdin=subprocess.DEVNULL,stdout=output,stderr=output,start_new_session=True)
 pidfile.write_text(str(child.pid))
 for unused in range(80):
  result=health()
- if result and result.get('schema')=='manta-nos3-worker-v1' and result.get('scopes',{}).get('integration'):
+ if result and _product_schema_matches(result.get('schema'), 'daidalis-nos3-worker-v1') and result.get('scopes',{}).get('integration'):
   print(json.dumps({'ready':True,'reused':False,'schema':result['schema'],'port':8093}));sys.exit(0)
- if child.poll() is not None:raise RuntimeError('Native NOS3 worker exited; see guest /srv/manta/worker/worker.log')
+ if child.poll() is not None:raise RuntimeError(_vm_name_path('Native NOS3 worker exited; see guest /srv/daidalis/worker/worker.log'))
  time.sleep(.25)
 raise RuntimeError('Native NOS3 worker readiness timeout')

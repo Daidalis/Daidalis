@@ -5,9 +5,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {chromium} from 'playwright';
 
-const base=process.env.MANTA_ACCEPTANCE_URL;
-const workRoot=process.env.MANTA_UI_WORK_ROOT;
-if(!base||!workRoot||!path.isAbsolute(workRoot))throw Error('Set MANTA_ACCEPTANCE_URL and an absolute dedicated MANTA_UI_WORK_ROOT');
+const base=process.env.DAIDALIS_ACCEPTANCE_URL;
+const workRoot=process.env.DAIDALIS_UI_WORK_ROOT;
+if(!base||!workRoot||!path.isAbsolute(workRoot))throw Error('Set DAIDALIS_ACCEPTANCE_URL and an absolute dedicated DAIDALIS_UI_WORK_ROOT');
 const folder=path.join(workRoot,'projects','workbench-native-'+Date.now());
 const out=path.join(workRoot,'outputs','workbench-native');
 await fs.mkdir(path.join(folder,'models'),{recursive:true});
@@ -19,8 +19,8 @@ const models={
  'FMI.sysml':'package FMI {\n private import ScalarValues::*;\n private import AnalysisTooling::*;\n calc def Decay {\n metadata ToolExecution { toolName = "fmi"; uri = "file:///models/SimpleDecay.fmu"; }\n in stopTime : Real = 1.0 { @ToolVariable { name = "fmi:stopTime"; } }\n return x : Real[1] { @ToolVariable { name = "x"; } }\n }\n analysis def Check {\n return result : Real = Decay();\n assert constraint { result > 0.30 and result < 0.45 }\n }\n}\n'
 };
 for(const [name,source]of Object.entries(models))await fs.writeFile(path.join(folder,'models',name),source);
-if(process.env.MANTA_UI_FMU)await fs.copyFile(process.env.MANTA_UI_FMU,path.join(folder,'models/SimpleDecay.fmu'));
-const browser=await chromium.launch({headless:true,...(process.env.MBSE_CHROME_PATH?{executablePath:process.env.MBSE_CHROME_PATH}:{}),chromiumSandbox:process.env.MANTA_UI_NO_SANDBOX!=='1'});
+if(process.env.DAIDALIS_UI_FMU)await fs.copyFile(process.env.DAIDALIS_UI_FMU,path.join(folder,'models/SimpleDecay.fmu'));
+const browser=await chromium.launch({headless:true,...(process.env.DAIDALIS_CHROME_PATH?{executablePath:process.env.DAIDALIS_CHROME_PATH}:{}),chromiumSandbox:process.env.DAIDALIS_UI_NO_SANDBOX!=='1'});
 const page=await browser.newPage({viewport:{width:1440,height:1000}});
 page.setDefaultTimeout(30000);
 const errors=[],steps=[],jobs=[];
@@ -83,7 +83,7 @@ try{
  await step('SysML FMI controls pin the project FMU and honor execution isolation',async()=>{
   await model('FMI.sysml');assert.equal(await page.locator('[name="modelName"]').inputValue(),'FMI::Check');
   await page.locator('[name="fmuPath"]').fill('models/SimpleDecay.fmu');
-  if(process.env.MANTA_UI_FMU){
+  if(process.env.DAIDALIS_UI_FMU){
    const catalog=await page.request.get(base+'/api/projects/'+projectId+'/professional').then(r=>r.json());
    if(catalog.environment.isolated===true&&catalog.environment.brokerIsolation?.kind==='rootless-task-container'){
     const result=await run();assert.equal(result.passed,true,JSON.stringify(result));assert.equal(result.integrity.verified,true);

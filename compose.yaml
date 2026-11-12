@@ -1,4 +1,4 @@
-name: manta
+name: daidalis
 x-limits: &limits
   read_only: true
   cap_drop: [ALL]
@@ -12,26 +12,26 @@ x-limits: &limits
     driver: json-file
     options: {max-size: "10m", max-file: "3"}
 services:
-  manta:
+  daidalis:
     <<: *limits
-    image: manta-app:${MANTA_TAG:-local}
+    image: daidalis-app:${DAIDALIS_TAG:-local}
     build:
       context: .
       target: application
       entitlements: [network.host]
-      args: {TOOLCHAINS: "${MANTA_TOOLS-scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab}", WITH_MODELICA: "${MANTA_MODELICA:-1}", WITH_ORBIT42: "${MANTA_ORBIT42:-1}", WITH_SYML_SIM: "${MANTA_SYML_SIM:-1}"}
+      args: {TOOLCHAINS: "${DAIDALIS_TOOLS-scipy,ngspice,openscad,browser,desktop,gis,freecad,scilab}", WITH_MODELICA: "${DAIDALIS_MODELICA:-1}", WITH_ORBIT42: "${DAIDALIS_ORBIT42:-1}", WITH_SYML_SIM: "${DAIDALIS_SYML_SIM:-1}"}
     user: "1000:1000"
     env_file:
-      - ${MANTA_ENV_FILE:-.env.example}
+      - ${DAIDALIS_ENV_FILE:-.env.example}
     ports:
-      - "127.0.0.1:${MANTA_PORT:-4317}:8080"
-      - "127.0.0.1:${MANTA_DESKTOP_PORT:-6080}:8081"
+      - "127.0.0.1:${DAIDALIS_PORT:-4317}:8080"
+      - "127.0.0.1:${DAIDALIS_DESKTOP_PORT:-6080}:8081"
     environment:
-      PORT: "${MANTA_PORT:-4317}"
-      MANTA_PROJECTS_ROOT: /projects
-      MANTA_NATIVE_AGENTS: enabled
-      MANTA_EXECUTION_MODE: shared-container
-      MANTA_DESKTOP_SOCKET: /desktop-control/desktop.sock
+      PORT: "${DAIDALIS_PORT:-4317}"
+      DAIDALIS_PROJECTS_ROOT: /projects
+      DAIDALIS_NATIVE_AGENTS: enabled
+      DAIDALIS_EXECUTION_MODE: shared-container
+      DAIDALIS_DESKTOP_SOCKET: /desktop-control/desktop.sock
     volumes:
       - state:/data
       - projects:/projects
@@ -46,7 +46,7 @@ services:
       start_period: 20s
   desktop:
     <<: *limits
-    image: manta-app:${MANTA_TAG:-local}
+    image: daidalis-app:${DAIDALIS_TAG:-local}
     profiles: [desktop]
     user: "1000:1000"
     command: [python3, deploy/desktop/service.py]

@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -32,14 +33,14 @@ export function createProfessionalRunner({vmRoot,execute=executeLocalVm,hostPlat
     try{
       const runtime=decode(await helper('vm-status.sh',[],{timeoutMs:15000}));
       if(runtime.state!=='running')return {available:false,ready:false,status:'not-prepared',reason:'Managed Linux VM is not running',guestReady:false,isolated:true,hostGlobalChanges:false};
-      const result=await command('cat /srv/manta/receipts/openmodelica-ready.json',{timeoutMs:15000});
+      const result=await command('cat /srv/daidalis/receipts/openmodelica-ready.json',{timeoutMs:15000});
       if(result.code!==0)return {available:false,ready:false,status:'not-prepared',reason:'OpenModelica has not been prepared inside the Linux VM',guestReady:true,isolated:true,hostGlobalChanges:false};
       const receipt=decode(result);
-      if(receipt.schema!=='manta-openmodelica-ready-v1'||receipt.ready!==true||receipt.tool?.id!=='openmodelica'||typeof receipt.tool.version!=='string')throw Error('Invalid OpenModelica readiness receipt');
+      if(!productSchemaMatches(receipt.schema,'daidalis-openmodelica-ready-v1')||receipt.ready!==true||receipt.tool?.id!=='openmodelica'||typeof receipt.tool.version!=='string')throw Error('Invalid OpenModelica readiness receipt');
       // Readiness is a live probe, never a receipt alone.
       const version=await command('/usr/bin/omc --version',{timeoutMs:15000});
       if(version.code!==0||version.stdout.trim()!==receipt.tool.version)throw Error('Installed OpenModelica no longer matches its pinned readiness receipt');
-      const tools={openmodelica:{ready:true,version:receipt.tool.version},ngspice:{ready:false},openscad:{ready:false}};try{const design=decode(await command('cat /srv/manta/receipts/design-tools-ready.json',{timeoutMs:15000}));if(design.schema==='manta-design-tools-ready-v1'&&design.ready===true){for(const id of ['ngspice','openscad'])if(design.tools?.[id]?.ready===true&&typeof design.tools[id].version==='string'){const probe=await command(id==='ngspice'?'/usr/bin/ngspice --version':'/usr/bin/openscad --version 2>&1',{timeoutMs:15000});if(probe.code===0&&probe.stdout.includes(design.tools[id].version))tools[id]={...design.tools[id]};}}}catch{}
+      const tools={openmodelica:{ready:true,version:receipt.tool.version},ngspice:{ready:false},openscad:{ready:false}};try{const design=decode(await command('cat /srv/daidalis/receipts/design-tools-ready.json',{timeoutMs:15000}));if(productSchemaMatches(design.schema,'daidalis-design-tools-ready-v1')&&design.ready===true){for(const id of ['ngspice','openscad'])if(design.tools?.[id]?.ready===true&&typeof design.tools[id].version==='string'){const probe=await command(id==='ngspice'?'/usr/bin/ngspice --version':'/usr/bin/openscad --version 2>&1',{timeoutMs:15000});if(probe.code===0&&probe.stdout.includes(design.tools[id].version))tools[id]={...design.tools[id]};}}}catch{}
       return {available:true,ready:true,status:'ready',guestReady:true,tool:receipt.tool,version:receipt.tool.version,tools,receipt,isolated:true,hostGlobalChanges:false};
     }catch(error){return {available:false,ready:false,status:'blocked',reason:String(error.message).slice(-2000),isolated:true,hostGlobalChanges:false};}
   }
@@ -52,7 +53,7 @@ export function createProfessionalRunner({vmRoot,execute=executeLocalVm,hostPlat
       preparing=(async()=>{
         const runtime=decode(await helper('vm-status.sh',[],{signal:controller.signal}));
         if(runtime.state!=='running'){
-          onLog('Preparing and starting Manta’s isolated Linux VM.\n');
+          onLog('Preparing and starting Daidalis’s isolated Linux VM.\n');
           let result=await helper('vm-prepare.sh',[],{signal:controller.signal,timeoutMs:1800000,onLog});
           if(result.code!==0)throw Error((result.stderr||result.stdout||'VM preparation failed').slice(-4000));
           result=await helper('vm-start.sh',[],{signal:controller.signal,timeoutMs:240000,onLog});
@@ -60,9 +61,9 @@ export function createProfessionalRunner({vmRoot,execute=executeLocalVm,hostPlat
         }
         await stageManagedWorkerBundle(root,{signal:controller.signal});
         onLog('Checking the official OpenModelica compiler and standard library inside Linux.\n');
-        const result=await command('bash /mnt/manta-transfer/worker/prepare-openmodelica.sh',{signal:controller.signal,timeoutMs:1800000,onLog});
+        const result=await command('bash /mnt/daidalis-transfer/worker/prepare-openmodelica.sh',{signal:controller.signal,timeoutMs:1800000,onLog});
         if(result.code!==0)throw Error(('OpenModelica guest preparation failed: '+(result.stderr||result.stdout||result.code)).slice(-4000));
-        const design=await command('bash /mnt/manta-transfer/worker/prepare-design-tools.sh',{signal:controller.signal,timeoutMs:1800000,onLog});if(design.code!==0)throw Error(('EDA/CAD guest preparation failed: '+(design.stderr||design.stdout||design.code)).slice(-4000));
+        const design=await command('bash /mnt/daidalis-transfer/worker/prepare-design-tools.sh',{signal:controller.signal,timeoutMs:1800000,onLog});if(design.code!==0)throw Error(('EDA/CAD guest preparation failed: '+(design.stderr||design.stdout||design.code)).slice(-4000));
         ready=await status();if(!ready.ready)throw Error(ready.reason||'OpenModelica preparation did not prove readiness');return ready;
       })().finally(()=>{controllers.delete(controller);preparing=null;});
       preparing.catch(()=>{});
@@ -105,16 +106,16 @@ export function createProfessionalRunner({vmRoot,execute=executeLocalVm,hostPlat
     const request=normalize(args);if(signal?.aborted)throw signal.reason||abortError();await prepare({signal,onLog});if(signal?.aborted)throw signal.reason||abortError();
     const controller=new AbortController();controllers.add(controller);activeJobs.add(request.jobId);const abort=()=>controller.abort(signal.reason||abortError());signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
     try{
-      const response=decode(await command(request.toolId==='openmodelica'?'python3 /mnt/manta-transfer/worker/professional-run.py':'python3 /mnt/manta-transfer/worker/professional-design.py',{input:JSON.stringify(request),signal:controller.signal,timeoutMs:720000,onLog:()=>{}}));
+      const response=decode(await command(request.toolId==='openmodelica'?'python3 /mnt/daidalis-transfer/worker/professional-run.py':'python3 /mnt/daidalis-transfer/worker/professional-design.py',{input:JSON.stringify(request),signal:controller.signal,timeoutMs:720000,onLog:()=>{}}));
       if(!Number.isInteger(response.exitCode)||typeof response.success!=='boolean'||!Array.isArray(response.files))throw Error('Invalid professional execution response');
       if(response.receipt&&(response.receipt.inputHash!==request.inputHash||JSON.stringify(response.receipt.sourceFiles)!==JSON.stringify(request.sourceFiles.map(({path,sha256})=>({path,sha256})))))throw Error('Professional execution receipt differs from pinned model input');
       if(response.diagnostics)onLog(String(response.diagnostics).slice(-16000));return response;
     }catch(error){
-      if(controller.signal.aborted){await command('python3 /mnt/manta-transfer/worker/professional-run.py --cancel '+request.jobId,{timeoutMs:15000}).catch(()=>{});throw controller.signal.reason||abortError();}
+      if(controller.signal.aborted){await command('python3 /mnt/daidalis-transfer/worker/professional-run.py --cancel '+request.jobId,{timeoutMs:15000}).catch(()=>{});throw controller.signal.reason||abortError();}
       throw error;
     }finally{controllers.delete(controller);activeJobs.delete(request.jobId);signal?.removeEventListener('abort',abort);}
   }
-  return {status,prepare,run,execute(args){return run(args,{signal:args.signal,onLog:args.onLog});},async close(){closing=true;await Promise.allSettled([...activeJobs].map(jobId=>command('python3 /mnt/manta-transfer/worker/professional-run.py --cancel '+jobId,{timeoutMs:15000})));for(const controller of controllers)controller.abort(abortError());if(preparing)await preparing.catch(()=>{});closed=true;}};
+  return {status,prepare,run,execute(args){return run(args,{signal:args.signal,onLog:args.onLog});},async close(){closing=true;await Promise.allSettled([...activeJobs].map(jobId=>command('python3 /mnt/daidalis-transfer/worker/professional-run.py --cancel '+jobId,{timeoutMs:15000})));for(const controller of controllers)controller.abort(abortError());if(preparing)await preparing.catch(()=>{});closed=true;}};
 }
 
 export const createProfessionalRunnerService=createProfessionalRunner;

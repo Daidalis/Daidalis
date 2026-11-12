@@ -19,7 +19,7 @@ for(const [p,marker] of [[one,'FIRST'],[two,'SECOND']]){
  await action(p,'open_app',{toolId:'terminal',screenVersion:shot.screenVersion});
  await new Promise(r=>setTimeout(r,800));
  shot=await action(p,'screenshot');
- await action(p,'type',{text:(process.env.MANTA_EXECUTION_MODE==='broker'?'test ! -r '+(p.id===one.id?two:one).folderPath+'/private-boundary.txt && test ! -S /run/task-docker.sock && ':'')+'printf '+marker+' > desktop-proof.txt',screenVersion:shot.screenVersion});
+ await action(p,'type',{text:(process.env.DAIDALIS_EXECUTION_MODE==='broker'?'test ! -r '+(p.id===one.id?two:one).folderPath+'/private-boundary.txt && test ! -S /run/task-docker.sock && ':'')+'printf '+marker+' > desktop-proof.txt',screenVersion:shot.screenVersion});
  shot=await action(p,'screenshot');await action(p,'key',{key:'Enter',screenVersion:shot.screenVersion});
  let content;for(let i=0;i<30;i++){content=await fs.readFile(p.folderPath+'/desktop-proof.txt','utf8').catch(()=>null);if(content===marker)break;await new Promise(r=>setTimeout(r,100));}
  assert.equal(content,marker);
@@ -27,7 +27,7 @@ for(const [p,marker] of [[one,'FIRST'],[two,'SECOND']]){
 await action(one,'enable',{consent:true});assert.ok((await action(one,'screenshot')).imageUrl);
 assert.equal((await api('/api/computer/status')).desktop.projectId,one.id);
 assert.equal(await fs.readFile(two.folderPath+'/desktop-proof.txt','utf8'),'SECOND');
-if(process.env.MANTA_EXECUTION_MODE==='broker'){
+if(process.env.DAIDALIS_EXECUTION_MODE==='broker'){
  const page=await fetch('http://127.0.0.1:8081/vnc.html');assert.equal(page.status,200);assert.match(await page.text(),/noVNC/);
  for(let i=0;i<24;i++){const asset=await fetch('http://127.0.0.1:8081/vnc.html',{headers:{connection:'close'}});assert.equal(asset.status,200);await asset.arrayBuffer();}
  let ws;

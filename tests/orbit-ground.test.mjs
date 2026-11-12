@@ -14,11 +14,11 @@ const ORBIT_ID='orbit42_'+'a'.repeat(32),WORKER='b'.repeat(64),MODEL='c'.repeat(
 const PROJECT_ONE='project_'+'1'.repeat(32),PROJECT_OTHER='project_'+'2'.repeat(32);
 
 async function fixture(){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-orbit-ground-')),ws=path.join(root,'workspace'),dataDir=path.join(root,'data');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-orbit-ground-')),ws=path.join(root,'workspace'),dataDir=path.join(root,'data');
   await fs.mkdir(ws);const orbitRoot=`engineering/orbit/${ORBIT_ID}`;await fs.mkdir(path.join(ws,orbitRoot),{recursive:true});
   const rawBytes={ 'PosW.42':Buffer.from('0 6778137 0 0\n'), 'time.42':Buffer.from('0\n'), 'PosN.42':Buffer.from('0 6778137 0 0\n')};
   for(const [name,bytes] of Object.entries(rawBytes))await fs.writeFile(path.join(ws,orbitRoot,name),bytes);
-  const receipt={schema:'manta-orbit42-receipt-v1',jobId:ORBIT_ID,inputHash:MODEL,epochUtc:'2024-08-04T00:00:00Z',leapSecondsAssumed:37,rawOutputs:Object.entries(rawBytes).map(([name,bytes])=>({path:name,sha256:sha(bytes)}))};
+  const receipt={schema:'daidalis-orbit42-receipt-v1',jobId:ORBIT_ID,inputHash:MODEL,epochUtc:'2024-08-04T00:00:00Z',leapSecondsAssumed:37,rawOutputs:Object.entries(rawBytes).map(([name,bytes])=>({path:name,sha256:sha(bytes)}))};
   const receiptBytes=Buffer.from(JSON.stringify(receipt));await fs.writeFile(path.join(ws,orbitRoot,'receipt.json'),receiptBytes);
   const artifacts=[{path:`${orbitRoot}/receipt.json`,sha256:sha(receiptBytes)},...Object.entries(rawBytes).map(([name,bytes])=>({path:`${orbitRoot}/${name}`,sha256:sha(bytes)}))];
   const orbitResult={status:'completed',executionSucceeded:true,inputHash:MODEL,integrity:{verified:true},receipt,artifacts};
@@ -28,11 +28,11 @@ async function fixture(){
   const geospatialJobs={catalog:async()=>({environment:{ready:true}})};
   let mode='valid',requestSeen;
   const runner={status:async()=>({ready:true}),async run(request){requestSeen=request;const payloads={'ground-track.geojson':Buffer.from('{"type":"FeatureCollection","features":[]}'),'ground-samples.csv':Buffer.from('time_s,relation\n0,outside\n'),'report.md':Buffer.from('# Bounded cross-check\n')};
-    const receipt={schema:'manta-orbit-ground-receipt-v1',jobId:request.jobId,inputHash:request.inputHash,workerSha256:WORKER,orbit:{jobId:request.orbit.jobId,receiptSha256:request.orbit.receiptSha256,modelSha256:request.orbit.modelSha256,posWSha256:sha(rawBytes['PosW.42']),timeSha256:sha(rawBytes['time.42']),epochUtc:'2024-08-04T00:00:00Z',leapSecondsAssumed:37},census:{path:zipPath,sha256:zipHash,expectedSourceEpsg:4269,featureIdField:'STATEFP'},outputSha256:Object.fromEntries(Object.entries(payloads).map(([name,bytes])=>[name,sha(bytes)]))};
+    const receipt={schema:'daidalis-orbit-ground-receipt-v1',jobId:request.jobId,inputHash:request.inputHash,workerSha256:WORKER,orbit:{jobId:request.orbit.jobId,receiptSha256:request.orbit.receiptSha256,modelSha256:request.orbit.modelSha256,posWSha256:sha(rawBytes['PosW.42']),timeSha256:sha(rawBytes['time.42']),epochUtc:'2024-08-04T00:00:00Z',leapSecondsAssumed:37},census:{path:zipPath,sha256:zipHash,expectedSourceEpsg:4269,featureIdField:'STATEFP'},outputSha256:Object.fromEntries(Object.entries(payloads).map(([name,bytes])=>[name,sha(bytes)]))};
     if(mode==='bad-receipt')receipt.orbit.posWSha256='0'.repeat(64);
     if(mode==='bad-output-hash')receipt.outputSha256['report.md']='0'.repeat(64);
     payloads['receipt.json']=Buffer.from(JSON.stringify(receipt));
-    return {schema:'manta-orbit-ground-response-v1',success:true,exitCode:0,workerSha256:WORKER,receipt,metrics:{nativeSamples:11,selectedSamples:2},files:Object.entries(payloads).map(([name,bytes])=>({path:name,mimeType:name.endsWith('.md')?'text/markdown':'application/json',sha256:sha(bytes),contentBase64:bytes.toString('base64')})),diagnostics:'bounded only'};
+    return {schema:'daidalis-orbit-ground-response-v1',success:true,exitCode:0,workerSha256:WORKER,receipt,metrics:{nativeSamples:11,selectedSamples:2},files:Object.entries(payloads).map(([name,bytes])=>({path:name,mimeType:name.endsWith('.md')?'text/markdown':'application/json',sha256:sha(bytes),contentBase64:bytes.toString('base64')})),diagnostics:'bounded only'};
   },async close(){}};
   const service=await createOrbitGroundService({dataDir,store,orbit42Jobs,geospatialJobs,runner,allowedCensusHashes:[zipHash]});
   return {root,ws,dataDir,store,orbit42Jobs,geospatialJobs,runner,service,orbitResult,zipHash,zipPath,added,getRequest:()=>requestSeen,setMode:value=>mode=value};
@@ -89,7 +89,7 @@ test('a persisted job/result status divergence blocks all successful previews af
 });
 
 test('direct artifact HTTP route rechecks orbit-ground job hashes before returning text',async t=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-orbit-ground-http-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-orbit-ground-http-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const store=createStore({dataDir:path.join(root,'state'),seed:false}),project=store.createProject({name:'HTTP evidence'});
   const jobId='orbitground_'+'d'.repeat(32),relative=`engineering/orbit-ground/${jobId}/report.md`,target=path.join(store.workspace(project.id),relative),content='# Bounded result\n';
   await fs.mkdir(path.dirname(target),{recursive:true});await fs.writeFile(target,content);

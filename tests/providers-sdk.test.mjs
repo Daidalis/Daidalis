@@ -6,7 +6,7 @@ import path from 'node:path';
 import {createStore} from '../server/store.mjs';
 import {createProviderManager} from '../server/providers.mjs';
 import {createStudioServer} from '../server/index.mjs';
-async function fixture(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-provider-sdk-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return {dir,store:createStore({dataDir:dir,seed:false})};}
+async function fixture(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-provider-sdk-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return {dir,store:createStore({dataDir:dir,seed:false})};}
 const json=body=>new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
 const messages=[{role:'system',content:'rules'},{role:'user',content:'look'},{role:'assistant',content:'',tool_calls:[{id:'c',type:'function',function:{name:'computer_use',arguments:'{}'}}]},{role:'tool',tool_call_id:'c',content:'screenshot',images:[{mediaType:'image/png',data:'YWN0dWFs'}]}];
 
@@ -52,7 +52,7 @@ test('read-isolated Codex needs an explicitly configured Responses key',async t=
 });
 
 test('isolated Codex connection test uses a disposable folder inside the VM shared root',async t=>{
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-isolated-provider-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-isolated-provider-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
  const shared=path.join(root,'shared'),dataDir=path.join(root,'data');await fs.mkdir(shared);
  let testedWorkspace;
  const app=await createStudioServer({dataDir,seed:false,computer:false,engineering:false,nos3:false,connectors:false,modelBackend:false,localVm:false,professionalRunner:false,professionalModels:false,stfCase:false,codexPath:process.execPath,engineOptions:{codexRemoteWorkspace:{hostRoot:shared},runtimeAdapters:{'codex-app-server':{startTurn(options){testedWorkspace=options.workspace;return {completion:Promise.resolve({content:'OK'})};},close:async()=>{}}}}});

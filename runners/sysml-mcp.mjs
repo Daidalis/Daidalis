@@ -1,5 +1,5 @@
 // Project-scoped, explicitly configured stdio MCP bridge to the pinned kernel.
-// It does not read a user's Codex, Claude or Manta global configuration.
+// It does not read a user's Codex, Claude or Daidalis global configuration.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -14,7 +14,7 @@ if(workspace===path.parse(workspace).root||workspace===process.env.HOME)throw ne
 if(!(await fs.stat(workspace)).isDirectory())throw new Error('Project folder must exist');
 const projectId=args[3]||'project_mcp';
 const backend=await createModelBackendService({store:{workspace(id){if(id!==projectId)throw new Error('Wrong project');return workspace;}}});
-const server=new McpServer({name:'manta-sysml',version:'1.0.0'});
+const server=new McpServer({name:'daidalis-sysml',version:'1.0.0'});
 function result(value){return {content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value};}
 const modelPath=z.string().min(1).max(4096).endsWith('.sysml');
 server.registerTool('sysml_catalog',{description:'Read the pinned real SysML backend version and supported semantic validation scope.',inputSchema:{},annotations:{readOnlyHint:true}},async()=>result(await backend.catalog({projectId})));
