@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {safePath,spawnBounded} from './sandbox.mjs';
+import {readModelSnapshot} from './model-backend/sources.mjs';
 
 const DEFAULT_ROOT=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const WORKER=fileURLToPath(new URL('./model-backend/worker.mjs',import.meta.url));
@@ -48,11 +49,7 @@ export async function createModelBackendService({root=DEFAULT_ROOT,dataDir,store
   async function exclusive(key,fn){const previous=locks.get(key)||Promise.resolve();let unlock;const current=new Promise(r=>{unlock=r;});locks.set(key,current);await previous;try{return await fn();}finally{unlock();if(locks.get(key)===current)locks.delete(key);}}
   function workspace(projectId){if(typeof projectId!=='string'||!projectId)throw Error('projectId required');return store.workspace(projectId);}
   async function readModel(args){
-    const ws=workspace(args.projectId),relative=requireModelPath(args.path),target=safePath(ws,relative);
-    const st=await fs.stat(target);if(!st.isFile()||st.size>MAX_MODEL)throw Error('Model must be a file under 500000 bytes');
-    const content=await fs.readFile(target,'utf8');assertContent(content);
-    if(args.expectedHash&&sha(content)!==args.expectedHash)throw Error('Model revision conflict');
-    return {workspace:ws,path:relative,content,sha256:sha(content)};
+    return readModelSnapshot(workspace(args.projectId),args);
   }
   async function execute(model,operation,args={},ctx={}){
     abort(ctx);await probe();if(!runtimeInfo.available)throw Error('SysML semantic backend unavailable: '+runtimeInfo.detail);
@@ -68,11 +65,11 @@ export async function createModelBackendService({root=DEFAULT_ROOT,dataDir,store
       const profile='(version 1) (deny default) (allow process*) (allow signal (target same-sandbox)) (allow sysctl-read) (allow mach-lookup) (allow file-read-metadata) (allow file-read* (literal "/") '+readRoots.filter(p=>fss.existsSync(p)).map(p=>'(subpath '+JSON.stringify(fss.realpathSync(p))+')').join(' ')+')';
       executable='/usr/bin/sandbox-exec';argsForProcess=['-p',profile,process.execPath,...nodeArgs];
     }
-    const result=await spawnBounded(executable,argsForProcess,{cwd:runtime,env:{LANG:'en_US.UTF-8',NODE_NO_WARNINGS:'1'},timeoutMs:20000,maxBytes:12000000,signal:ctx.signal,input:JSON.stringify({operation,query:args.query,format:args.format,sources:[{name:model.path,text:model.content}]})});
+    const result=await spawnBounded(executable,argsForProcess,{cwd:runtime,env:{LANG:'en_US.UTF-8',NODE_NO_WARNINGS:'1'},timeoutMs:20000,maxBytes:12000000,signal:ctx.signal,input:JSON.stringify({operation,query:args.query,format:args.format,sources:model.sources||[{name:model.path,text:model.content}]})});
     if(result.code!==0)throw Error('SysML backend failed: '+result.stderr.slice(-1500));
     const output=JSON.parse(result.stdout);
     if(output.version!==EXPECTED_VERSION)throw Error('Unexpected SysML kernel version');
-    return {...output,backend:{...runtimeInfo},model:{path:model.path,sha256:model.sha256},limitations:LIMITATIONS};
+    return {...output,backend:{...runtimeInfo},model:{path:model.path,sha256:model.sha256,...(model.sourceSet?{sourceSet:model.sourceSet}:{})},limitations:LIMITATIONS};
   }
   async function sourceEvidence(ws,sources=[]){
     if(!Array.isArray(sources)||sources.length>16)throw Error('sources must contain at most 16 project-relative evidence files');

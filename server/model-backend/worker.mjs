@@ -9,7 +9,7 @@ import {gunzipSync} from 'node:zlib';
 
 try {
   const runtime=process.argv[2];
-  let input='';for await(const chunk of process.stdin){input+=chunk;if(Buffer.byteLength(input)>1100000)throw Error('Model request exceeds limit');}
+  let input='';for await(const chunk of process.stdin){input+=chunk;if(Buffer.byteLength(input)>12500000)throw Error('Model request exceeds limit');}
   const request=JSON.parse(input), api=await import(pathToFileURL(path.join(runtime,'sysmlv2.js')).href);
   await api.default({module_or_path:await fs.readFile(path.join(runtime,'sysmlv2_bg.wasm'))});
   const sourceJSON=JSON.stringify(request.sources);
