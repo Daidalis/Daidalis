@@ -18,7 +18,7 @@ if(process.env.DAIDALIS_VIEWPORT_MODEL_URL){
 const server=http.createServer(async(req,res)=>{
   if(req.url==='/'){res.setHeader('content-type','text/html');return res.end('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/document-viewer.css"><style>body{margin:0;font-family:system-ui;background:#f5f6f2}#viewer{width:550px;height:900px;margin:20px auto;background:white;border:1px solid #e1e4da}</style><div id="viewer"></div><script type="module">import{mountDocumentViewer}from"/document-viewer.mjs";window.fixture=await(await fetch("/fixture.json")).json();window.viewer=mountDocumentViewer(document.querySelector("#viewer"),fixture);window.ready=true;</script>');}
   if(req.url==='/fixture.json'){res.setHeader('content-type','application/json');return res.end(JSON.stringify(fixture));}
-  if(!['/document-viewer.mjs','/document-viewer.css','/vendor/marked/marked.esm.js'].includes(req.url)){res.writeHead(404);return res.end();}
+  if(!['/document-viewer.mjs','/document-viewer.css','/model-navigation.mjs','/model-structure.mjs','/physical-model.mjs','/physical-preview-3d.mjs','/geojson-viewer.mjs','/vendor/marked/marked.esm.js'].includes(req.url)){res.writeHead(404);return res.end();}
   res.setHeader('content-type',req.url.endsWith('.css')?'text/css':'text/javascript');res.end(await fs.readFile(path.join(root,'public',req.url.slice(1))));
 });
 let browser;const errors=[];

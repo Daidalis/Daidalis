@@ -4,6 +4,8 @@ import {id,now} from './store.mjs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {safePath} from './sandbox.mjs';
+import {readModelSnapshot} from './model-backend/sources.mjs';
+import {modelProjects,resolveModelProject} from './model-backend/projects.mjs';
 import {legacyInternalDirectory} from '../shared/legacy-names.mjs';
 
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -175,6 +177,7 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
     }
     if (nos3?.list) found.simulations = [...found.simulations,...(await nos3.list({projectId})).slice(0,100)];
     found.simulations=found.simulations.slice(0,100);
+    found.modelProjects=modelProjects(found.models);
     found.limited = scanned >= 2200 || directories >= 40;
     return found;
   }
@@ -272,22 +275,32 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
       const target=safePath(ws,expected),handle=await fs.open(target,constants.O_RDONLY|(constants.O_NOFOLLOW||0));
       try{const stat=await handle.stat();if(!stat.isFile()||stat.size>MAX_EDIT)throw fail('历史内容不可读',413);const bytes=await handle.readFile();safePath(ws,expected);if(sha(bytes)!==edit.previousSha256)throw fail('历史内容完整性校验失败',409);return {projectId,editId,path:edit.path,name:path.basename(edit.path)+' · 修改前版本',type:edit.type,encoding:'utf8',previewable:true,editable:false,sha256:edit.previousSha256,content:new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes),readOnlyReason:'修改前快照只读',actor:edit.actor,createdAt:edit.createdAt};}finally{await handle.close();}
     },
-    async model({projectId,path:relative} = {}) {
+    async model({projectId,path:relative,sourceRoot,mode} = {}) {
       const file = await service.read({projectId,path:relative});
       if (file.type !== 'sysml') throw fail('Select a SysML or KerML source file');
+      if(sourceRoot)sourceRoot=safeRelative(sourceRoot);
+      if(mode!==undefined&&!['project','file'].includes(mode))throw fail('Select project or file model browsing');
+      const project=await resolveModelProject(workspace(projectId),file.path,sourceRoot);
+      sourceRoot=project.sourceRoot||'';
+      if(sourceRoot)safeRelative(sourceRoot);
+      const context={...project,mode:mode||(project.entryKind==='convention'&&project.entryPath===file.path?'project':'file')};
       let semantic;
       if (path.extname(file.path).toLowerCase() !== '.sysml') semantic = {available:false,valid:null,findings:[],error:'The connected semantic backend currently accepts .sysml source files'};
       else if (!modelBackend?.query) semantic = {available:false,valid:null,findings:[],error:'SysML semantic backend unavailable'};
       else {
-        const key = projectId + ':' + file.path + ':' + file.sha256;
-        semantic = modelCache.get(key);
-        if (!semantic) {
-          try { semantic = {...await modelBackend.query({projectId,path:file.path,expectedHash:file.sha256}), available:true}; }
-          catch (error) { semantic = {available:false,valid:null,findings:[],error:String(error.message).slice(0,1000)}; }
-          if (semantic.available) {if(modelCache.size>=8)modelCache.delete(modelCache.keys().next().value);modelCache.set(key,semantic);}
-        }
+        try{
+          const snapshot=await readModelSnapshot(workspace(projectId),{path:file.path,sourceRoot,expectedHash:file.sha256});
+          for(const source of snapshot.sourceSet.files)safeRelative(source.path);
+          const key=projectId+':'+file.path+':'+snapshot.sourceSet.sha256;
+          semantic=modelCache.get(key);
+          if(!semantic){
+            semantic={...await modelBackend.query({projectId,path:file.path,sourceRoot,expectedHash:file.sha256,expectedSourceSetHash:snapshot.sourceSet.sha256}),available:true};
+            if(modelCache.size>=8)modelCache.delete(modelCache.keys().next().value);
+            modelCache.set(key,semantic);
+          }
+        }catch(error){semantic={available:false,valid:null,findings:[],error:String(error.message).slice(0,1000)};}
       }
-      return {projectId,path:file.path,file,source:file.content,sha256:file.sha256,semantic,graph:semantic.data||null};
+      return {projectId,path:file.path,file,source:file.content,sha256:file.sha256,sourceRoot:sourceRoot||null,context,semantic,graph:semantic.data||null};
     },
     async simulation({projectId,jobId} = {}) {
       workspace(projectId);
@@ -417,7 +430,7 @@ export function createWorkspaceViewerRoutes({viewer,send,jsonBody} = {}) {
       res.writeHead(200,{'content-type':file.mime,'content-length':bytes.length,'cache-control':'no-store','x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; sandbox",'content-disposition':'inline','referrer-policy':'no-referrer'});
       res.end(bytes);return true;
     }
-    else if (parts.length===5 && parts[4]==='model') data = await viewer.model({projectId,path:url.searchParams.get('path')});
+    else if (parts.length===5 && parts[4]==='model') data = await viewer.model({projectId,path:url.searchParams.get('path'),...(url.searchParams.has('sourceRoot')?{sourceRoot:url.searchParams.get('sourceRoot')}:{}),mode:url.searchParams.get('mode')||undefined});
     else if (parts.length===6 && parts[4]==='simulations') data = await viewer.simulation({projectId,jobId:parts[5]});
     else throw fail('Workspace preview route not found',404);
     send(res,200,data);

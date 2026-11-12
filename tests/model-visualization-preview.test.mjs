@@ -57,7 +57,7 @@ test('native preview serves real SysML graph data consumable by the existing SVG
     assert.match(renderDocumentViewer({file: result.file, model: result.model}), /class="semantic-svg"/);
     assert.equal(result.diagrams, undefined);
   }
-  for (const asset of ['styles.css', 'workspace-ui.css', 'document-viewer.css', 'document-viewer.mjs']) {
+  for (const asset of ['styles.css', 'workspace-ui.css', 'document-viewer.css', 'document-viewer.mjs', 'model-navigation.mjs', 'model-structure.mjs', 'physical-model.mjs', 'physical-preview-3d.mjs']) {
     const response = await fetch(`${origin}/${asset}`);
     assert.equal(response.status, 200);
     assert.equal(await response.text(), await fs.readFile(new URL(`../public/${asset}`, import.meta.url), 'utf8'));

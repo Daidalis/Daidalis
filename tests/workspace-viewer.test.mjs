@@ -6,6 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {createStore} from '../server/store.mjs';
 import {createWorkspaceViewer,createWorkspaceViewerRoutes} from '../server/workspace-viewer.mjs';
+import {createModelBackendService} from '../server/model-backend.mjs';
 
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 async function fixture(t, extras={}) {
@@ -86,6 +87,126 @@ test('semantic model view queries exact source revision without recording valida
 test('model source remains readable when semantic backend is unavailable or finds a parse error',async t=>{
   const f=await fixture(t,{modelBackend:{query:async()=>{throw Error('Backend unavailable');}}});await f.put('draft.sysml','package Draft {');
   const r=await f.viewer.model({projectId:f.project.id,path:'draft.sysml'});assert.equal(r.semantic.available,false);assert.match(r.semantic.error,/unavailable/);assert.equal(r.source,'package Draft {');assert.equal(r.graph,null);
+});
+
+test('model browsing detects a conventional entry and loads its folder while an explicit file stays the navigation origin',async t=>{
+  const f=await fixture(t),backend=await createModelBackendService({store:f.store});
+  const viewer=createWorkspaceViewer({store:f.store,modelBackend:backend});
+  await f.put('models/mission/MissionModel.sysml','package Mission { private import Components::*; part vehicle : Vehicle; }');
+  await f.put('models/mission/parts/components.sysml','package Components { part def Vehicle; }');
+  await f.put('models/unrelated.sysml','package Components { part def Different; }');
+  const projectId=f.project.id,entry='models/mission/MissionModel.sysml';
+  const model=await viewer.model({projectId,path:entry});
+  assert.equal(model.semantic.valid,true,JSON.stringify(model.semantic));
+  assert.equal(model.context.sourceRoot,'models/mission');
+  assert.equal(model.context.entryPath,entry);
+  assert.equal(model.context.mode,'project');
+  assert.equal(model.semantic.model.sourceSet.files.length,2);
+  const file=await viewer.model({projectId,path:'models/mission/parts/components.sysml',mode:'file'});
+  assert.equal(file.context.mode,'file');
+  assert.equal(file.context.entryPath,entry);
+  assert.equal(file.semantic.model.sourceSet.files.length,2);
+  const entryFile=await viewer.model({projectId,path:entry,mode:'file'});
+  assert.equal(entryFile.context.mode,'file');
+  const projects=(await viewer.list({projectId})).discovered.modelProjects;
+  assert.equal(projects.find(project=>project.sourceRoot==='models/mission').entryPath,entry);
+  assert.equal(projects.find(project=>project.sourceRoot==='models/mission').entryKind,'convention');
+});
+
+test('a standalone models file compiles alone beside a complete model folder, and both scopes survive switching',async t=>{
+  const f=await fixture(t),backend=await createModelBackendService({store:f.store});
+  const viewer=createWorkspaceViewer({store:f.store,modelBackend:backend}),projectId=f.project.id;
+  await f.put('models/mission/MissionModel.sysml','package Mission { private import Components::*; part vehicle : Vehicle; }');
+  await f.put('models/mission/parts/components.sysml','package Components { part def Vehicle; }');
+  await f.put('models/connected-demo.sysml','package Components { part def Vehicle; part single : Vehicle; }');
+  const standalone=await viewer.model({projectId,path:'models/connected-demo.sysml',mode:'file'});
+  assert.equal(standalone.semantic.valid,true);
+  assert.equal(standalone.context.sourceRoot,null);
+  assert.equal(standalone.context.entryKind,'file');
+  assert.deepEqual(standalone.semantic.model.sourceSet.files.map(file=>file.path),['models/connected-demo.sysml']);
+  const project=await viewer.model({projectId,path:'models/mission/MissionModel.sysml',mode:'project'});
+  assert.equal(project.semantic.valid,true,JSON.stringify(project.semantic.findings));
+  assert.deepEqual(project.semantic.model.sourceSet.files.map(file=>file.path),['models/mission/MissionModel.sysml','models/mission/parts/components.sysml']);
+  const dependency=await viewer.model({projectId,path:'models/mission/parts/components.sysml',mode:'file'});
+  assert.equal(dependency.context.sourceRoot,'models/mission');
+  assert.equal(dependency.semantic.model.sourceSet.files.length,2);
+  const reopened=await viewer.model({projectId,path:'models/connected-demo.sysml',mode:'file'});
+  assert.equal(reopened.semantic.model.sourceSet.sha256,standalone.semantic.model.sourceSet.sha256);
+  assert.equal(reopened.semantic.model.sourceSet.files.length,1);
+});
+
+test('a conventional filename directly under models does not turn the models container into one compilation project',async t=>{
+  const f=await fixture(t),backend=await createModelBackendService({store:f.store});
+  const viewer=createWorkspaceViewer({store:f.store,modelBackend:backend}),projectId=f.project.id;
+  await f.put('models/main.sysml','package Components { part def Vehicle; }');
+  await f.put('models/connected-demo.sysml','package Components { part def Vehicle; }');
+  await f.put('models/mission/MissionModel.sysml','package Mission { private import Components::*; part vehicle : Vehicle; }');
+  await f.put('models/mission/parts/components.sysml','package Components { part def Vehicle; }');
+  for(const relative of ['models/main.sysml','models/connected-demo.sysml']){
+    const result=await viewer.model({projectId,path:relative});
+    assert.equal(result.context.sourceRoot,null);
+    assert.equal(result.context.entryKind,'file');
+    assert.equal(result.semantic.valid,true,JSON.stringify(result.semantic.findings));
+    assert.deepEqual(result.semantic.model.sourceSet.files.map(file=>file.path),[relative]);
+  }
+  const projects=(await viewer.list({projectId})).discovered.modelProjects;
+  assert.equal(projects.find(project=>project.entryPath==='models/main.sysml').sourceRoot,null);
+  assert.equal(projects.find(project=>project.entryPath==='models/connected-demo.sysml').sourceRoot,null);
+  const mission=await viewer.model({projectId,path:'models/mission/MissionModel.sysml'});
+  assert.equal(mission.semantic.valid,true);
+  assert.equal(mission.semantic.model.sourceSet.files.length,2);
+  const explicit=await viewer.model({projectId,path:'models/main.sysml',sourceRoot:'models'});
+  assert.equal(explicit.semantic.model.sourceSet.files.length,4);
+  assert.equal(explicit.context.sourceRoot,'models');
+});
+
+test('entry discovery preserves non-Latin names rather than treating unrelated filenames as a matching main',async t=>{
+  const f=await fixture(t),projectId=f.project.id;
+  await f.put('models/卫星/部件.sysml','package Components {}');
+  let projects=(await f.viewer.list({projectId})).discovered.modelProjects;
+  assert.equal(projects[0].entryKind,'file');
+  await f.put('models/卫星/卫星Model.sysml','package Mission {}');
+  projects=(await f.viewer.list({projectId})).discovered.modelProjects;
+  assert.equal(projects[0].entryKind,'convention');
+  assert.equal(projects[0].entryPath,'models/卫星/卫星Model.sysml');
+});
+
+test('model source-set caching invalidates on changed, added and removed dependencies without changing the entry',async t=>{
+  const f=await fixture(t),backend=await createModelBackendService({store:f.store}),calls=[];
+  const viewer=createWorkspaceViewer({store:f.store,modelBackend:{query:async args=>{calls.push(args);return backend.query(args);}}});
+  await f.put('models/mission/root.sysml','package Mission { private import Components::*; part vehicle : Vehicle; }');
+  await f.put('models/mission/nested/parts.sysml','package Components { part def Vehicle; }');
+  const args={projectId:f.project.id,path:'models/mission/root.sysml',sourceRoot:'models/mission'};
+  const first=await viewer.model(args);
+  assert.equal(first.semantic.valid,true,JSON.stringify(first.semantic));
+  assert.equal(first.semantic.model.sourceSet.files.length,2);
+  await viewer.model(args);
+  assert.equal(calls.length,1);
+  await f.put('models/mission/nested/parts.sysml','package Components { part def Renamed; }');
+  const changed=await viewer.model(args);
+  assert.equal(changed.sha256,first.sha256);
+  assert.notEqual(changed.semantic.model.sourceSet.sha256,first.semantic.model.sourceSet.sha256);
+  assert.equal(changed.semantic.valid,false);
+  await f.put('models/mission/extra.sysml','package Extra {}');
+  assert.equal((await viewer.model(args)).semantic.model.sourceSet.files.length,3);
+  await fs.rm(path.join(f.workspace,'models/mission/nested/parts.sysml'));
+  const removed=await viewer.model(args);
+  assert.equal(removed.semantic.valid,false);
+  assert.equal(removed.semantic.model.sourceSet.files.length,2);
+  assert.equal(calls.length,4);
+  assert.equal((await viewer.model({...args,sourceRoot:''})).semantic.valid,false);
+  assert.equal(f.store.data.artifacts.length,0);
+});
+
+test('a model source root cannot compile dependency paths denied by the viewer file boundary',async t=>{
+  let calls=0;
+  const f=await fixture(t,{modelBackend:{query:async()=>{calls++;return {valid:true,data:{nodes:[],edges:[]}};}}});
+  await f.put('models/root.sysml','package Root {}');
+  await f.put('models/credentials/private.sysml','package Private {}');
+  const result=await f.viewer.model({projectId:f.project.id,path:'models/root.sysml',sourceRoot:'models'});
+  assert.equal(result.semantic.available,false);
+  assert.match(result.semantic.error,/Credential|configuration/);
+  assert.equal(calls,0);
 });
 
 async function simulationFixture(t) {

@@ -5,6 +5,8 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {renderMarkdown,resolveDocumentLink,documentKind,normalizeSemanticGraph,layoutSemanticGraph,layoutCombinedSemanticGraph,renderDocumentViewer} from '../public/document-viewer.mjs';
+import {projectModelStructure} from '../public/model-structure.mjs';
+import {modelNavigation,openModelNavigation,parentModelNavigation,scopeModelGraph} from '../public/model-navigation.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const source = 'package ViewerExample { private import ScalarValues::*; attribute def Quaternion { attribute scalar : Real; } part def Sensor { port sample; } part sensor : Sensor; requirement def CorrectFrame; requirement contract : CorrectFrame; attribute residual : Real = 0.0024; assert constraint framePassed { residual < 0.02 } }';
@@ -254,40 +256,52 @@ test('diagram and diagnostics distinguish checked, unchecked and unavailable sem
   assert.doesNotMatch(empty,/<svg|部分结果|语义后端暂不可用|尚未取得语义校验结果/);
 });
 
-test('graph limits report edge-only truncation at 4801 edges in every graph view',() => {
+test('normalization retains all relationships and only the diagram applies its rendering budget',() => {
   const nodes = [{id:'sender',metaclass:'PartUsage',label:'sender'},{id:'receiver',metaclass:'PartUsage',label:'receiver'}];
   for (const edgeCount of [4801,4800]) {
     const edges = Array.from({length:edgeCount},(_,index) => ({id:'wire-' + index,source:'sender',target:'receiver',kind:'connect'}));
     const data = {nodes,edges,interconnection:{nodes,edges}};
     for (const view of ['structure','interconnection','combined']) {
       const graph = normalizeSemanticGraph({data},{view});
-      assert.equal(graph.edges.length,4800);
-      assert.equal(graph.truncated,edgeCount > 4800,view);
+      assert.equal(graph.edges.length,edgeCount);
+      assert.equal(graph.truncated,false,view);
       assert.equal(graph.nodeCount,2);
       assert.equal(graph.edgeCount,edgeCount);
     }
     for (const filter of ['structure','all']) {
       const html = renderDocumentViewer({file:{path:'models/large.sysml'},model:{valid:true,data},filter});
-      if (edgeCount > 4800) {
-        assert.match(html,/图数据已截断/);
-        assert.match(html,/4800\s*\/\s*4801/);
-      } else assert.doesNotMatch(html,/已截断/);
+      assert.match(html,/当前图/);
+      assert.ok((html.match(/class="semantic-edge semantic-edge-connect"/g)||[]).length<=800);
+      assert.doesNotMatch(html,/图数据已截断/);
     }
   }
 });
 
-test('node-only and combined limits preserve total graph counts and show a truncation notice',() => {
-  const nodes = Array.from({length:1201},(_,index) => ({id:'part-' + index,metaclass:'PartUsage',label:'Part ' + index}));
+test('a late system root remains searchable and can be rendered without the unrelated earlier nodes',() => {
+  const nodes = [
+    ...Array.from({length:1201},(_,index) => ({id:'part-' + index,metaclass:'PartUsage',label:'Part ' + index})),
+    {id:'system',kind:'block',nodeKind:'def',metaclass:'PartDefinition',label:'MissionSystem',qname:'Mission::MissionSystem'},
+    {id:'launcher',parent:'system',metaclass:'PartUsage',label:'launchVehicle'},
+    {id:'craft',parent:'system',metaclass:'PartUsage',label:'spacecraft'},
+    {id:'module',parent:'craft',metaclass:'PartUsage',label:'commandModule'}
+  ];
   for (const edgeCount of [0,4801]) {
     const edges = Array.from({length:edgeCount},(_,index) => ({id:'wire-' + index,source:'part-0',target:'part-1',kind:'connect'}));
     const model = {valid:true,data:{nodes,edges}}, graph = normalizeSemanticGraph(model,{view:'combined'});
-    assert.equal(graph.nodes.length,1200);
-    assert.equal(graph.truncated,true);
-    assert.equal(graph.nodeCount,1201);
+    assert.equal(graph.nodes.length,1205);
+    assert.equal(graph.truncated,false);
+    assert.equal(graph.nodeCount,1205);
     assert.equal(graph.edgeCount,edgeCount);
-    const html = renderDocumentViewer({file:{path:'models/large.sysml'},model});
-    assert.match(html,/图数据已截断/);
-    assert.match(html,/1200\s*\/\s*1201/);
+    const html = renderDocumentViewer({file:{path:'models/large.sysml'},model,navigation:{rootId:'system'}});
+    assert.match(html,/data-document-element="system"/);
+    assert.match(html,/data-document-element="launcher"/);
+    assert.match(html,/data-document-element="craft"/);
+    assert.doesNotMatch(html,/data-document-element="part-0"/);
+    assert.match(html,/data-document-element="module"/);
+    const expanded=renderDocumentViewer({file:{path:'models/large.sysml'},model,navigation:{rootId:'craft',trail:['system']}});
+    assert.match(expanded,/data-document-element="module"/);
+    const outline=renderDocumentViewer({file:{path:'models/large.sysml'},model,tab:'outline',navigation:{query:'MissionSystem'}});
+    assert.match(outline,/data-document-element="system"/);
   }
 });
 
@@ -296,8 +310,168 @@ test('viewer accepts file mime and JSON formats while bounding untrusted graph s
   assert.match(renderDocumentViewer({file:{name:'manifest.json',content:'{"a":1}'}}),/文件字段/);
   assert.match(renderDocumentViewer({file:{name:'manifest.json',content:'{"a":1}'},tab:'source'}),/data-source-line="3"/);
   const graph = normalizeSemanticGraph({nodes:Array.from({length:1300},(_,i) => ({id:'n' + i,label:'Part ' + i,metaclass:'PartUsage'})),edges:[]});
-  assert.equal(graph.nodes.length,1200);assert.equal(graph.truncated,true);
+  assert.equal(graph.nodes.length,1300);assert.equal(graph.truncated,false);
   const vendor = await fs.readFile(path.join(root,'public/vendor/marked/NOTICE.md'),'utf8');assert.match(vendor,/15.0.12/);
+});
+
+test('multi-file diagnostics retain their source path rather than using the entry file line numbers',()=>{
+  const model={valid:false,findings:[{severity:'error',stage:'referential',unit:'models/mission/parts.sysml',line:7,message:'Missing type'}]};
+  const html=renderDocumentViewer({file:{path:'models/mission/root.sysml'},model,tab:'diagnostics'});
+  assert.match(html,/data-document-source-path="models\/mission\/parts.sysml"/);
+  assert.match(html,/data-document-source-line="7"/);
+});
+
+test('a package overview is a clickable diagram without scope filters or a successful-check banner',()=>{
+  const file={path:'models/mission/MissionModel.sysml'};
+  const model={valid:true,findings:[{severity:'warning',stage:'semantic',message:'Keep this warning'}],data:{nodes:[
+    {id:'entry',kind:'package',label:'MissionModel',file:file.path},
+    {id:'systems',kind:'package',label:'Systems',file:'models/mission/system.sysml'},
+    {id:'system',parent:'systems',nodeKind:'def',metaclass:'PartDefinition',label:'System',file:'models/mission/system.sysml'}
+  ],edges:[]}};
+  const modelContext={mode:'project',name:'Mission',sourceRoot:'models/mission',entryPath:file.path,entryKind:'convention'};
+  const html=renderDocumentViewer({file,model,modelContext});
+  assert.match(html,/class="semantic-svg"/);
+  assert.match(html,/data-document-element="systems"/);
+  assert.doesNotMatch(html,/class="model-package-grid"/);
+  assert.match(html,/data-document-up/);
+  assert.doesNotMatch(html,/data-document-depth|显示层级|展开一层|收起一层/);
+  assert.doesNotMatch(html,/data-document-source-root|data-document-navigation|document-model-notices|语义校验通过，保留/);
+  assert.match(html,/data-document-tab="diagnostics"[^>]*>诊断 <span>1<\/span>/);
+  const fileView=renderDocumentViewer({file:{path:'models/mission/system.sysml'},model,modelContext:{...modelContext,mode:'file'}});
+  assert.match(fileView,/data-document-element="systems"/);
+  assert.doesNotMatch(fileView,/data-document-element="entry"/);
+});
+
+test('file browsing never assigns unlocated generated elements from other units to the selected file',()=>{
+  const file={path:'models/mission/system.sysml'};
+  const model={valid:true,model:{sourceSet:{files:[{path:file.path},{path:'models/mission/other.sysml'}]}},data:{nodes:[
+    {id:'systems',kind:'package',label:'Systems',file:file.path},
+    {id:'generated',kind:'node',metaclass:'PortUsage',label:'(port)'}
+  ],edges:[]}};
+  const graph=normalizeSemanticGraph(model,{path:file.path,view:'combined'});
+  assert.equal(graph.nodes.find(node=>node.id==='generated').file,'');
+  const html=renderDocumentViewer({file,model,modelContext:{mode:'file',name:'Mission',sourceRoot:'models/mission',entryPath:'models/mission/main.sysml'}});
+  assert.match(html,/data-document-element="systems"/);
+  assert.doesNotMatch(html,/data-document-element="generated"/);
+});
+
+test('the project entry displays a system boundary, its components and their connection immediately',()=>{
+  const file={path:'models/mission/main.sysml'};
+  const model={valid:true,data:{nodes:[
+    {id:'package',kind:'package',label:'Mission',file:file.path},
+    {id:'system',parent:'package',kind:'block',metaclass:'PartDefinition',label:'MissionSystem'},
+    {id:'sender',parent:'system',kind:'block',metaclass:'PartUsage',label:'sender'},
+    {id:'receiver',parent:'system',kind:'block',metaclass:'PartUsage',label:'receiver'},
+    {id:'output',parent:'sender',kind:'port',metaclass:'PortUsage',label:'output'},
+    {id:'input',parent:'receiver',kind:'port',metaclass:'PortUsage',label:'input'}
+  ],edges:[{id:'wire',source:'output',target:'input',kind:'connect',interconnection:true}]}};
+  const html=renderDocumentViewer({file,model,modelContext:{mode:'project',entryPath:file.path}});
+  assert.match(html,/semantic-container[^>]*data-document-element="system"/);
+  assert.match(html,/data-document-element="sender"/);
+  assert.match(html,/data-document-element="receiver"/);
+  assert.match(html,/data-document-edge="[^"]*wire"/);
+  assert.doesNotMatch(html,/data-document-toggle|收起内部|展开内部|data-document-depth/);
+  assert.match(html,/data-document-packages/);
+  assert.doesNotMatch(html,/model-package-card/);
+});
+
+test('navigation arrows match the available next scene and disappear on the current root',()=>{
+  const model={valid:true,data:{nodes:[
+    {id:'component',kind:'block',metaclass:'PartDefinition',label:'MassedComponent'},
+    {id:'subcomponents',parent:'component',kind:'block',metaclass:'PartUsage',label:'subcomponents : MassedComponent [0..*]'}
+  ],edges:[{source:'subcomponents',target:'component',kind:'typing'}]}};
+  const render=rootId=>renderDocumentViewer({file:{path:'component.sysml'},model,navigation:{rootId,trail:[],depth:1}});
+  const parent=render('component');
+  const card=id=>parent.match(new RegExp(`<g\\b[^>]*data-document-element="${id}"[^>]*>([\\s\\S]*?)<\\/g>`))?.[1]||'';
+  assert.doesNotMatch(card('component'),/class="semantic-expand"/);
+  assert.match(card('subcomponents'),/class="semantic-expand"/);
+  const child=render('subcomponents');
+  assert.match(child,/data-document-element="subcomponents"/);
+  assert.doesNotMatch(child,/class="semantic-expand"|data-document-depth/);
+});
+
+test('diagram metadata appears once in the top summary without either bottom information bar',()=>{
+  const file={path:'models/main.sysml'},hash='a'.repeat(64);
+  const model={valid:true,backend:{version:'0.10.10'},model:{sourceSet:{root:'models',sha256:hash,files:[{path:file.path},{path:'models/parts.sysml'}]}},
+    data:{nodes:[{id:'system',kind:'block',metaclass:'PartDefinition',label:'System'}],edges:[]}};
+  const html=renderDocumentViewer({file,model});
+  const summary=html.match(/<div class="model-view-summary"[^>]*>([\s\S]*?)<\/div>/)?.[1]||'';
+  assert.match(summary,/当前图 1 \/ 1 个元素 · 0 \/ 0 条关系/);
+  assert.match(summary,/SysML v2 · 0\.10\.10/);
+  assert.match(summary,/1 个语义元素 · 2 个源文件/);
+  assert.match(summary,/源集合 SHA aaaaaaaaaaaa/);
+  assert.match(summary,new RegExp(`title="${hash}"`));
+  assert.doesNotMatch(html,/semantic-legend|<footer class="document-model-meta"/);
+  assert.equal((html.match(/SysML v2 · 0\.10\.10/g)||[]).length,1);
+  const source=renderDocumentViewer({file,model,tab:'source'});
+  assert.match(source,/<footer class="document-model-meta"/);
+  assert.doesNotMatch(source,/model-view-summary/);
+});
+
+test('empty diagrams keep their model metadata in the top summary',()=>{
+  const html=renderDocumentViewer({file:{path:'empty.sysml'},model:{valid:true,backend:{version:'0.10.10'},data:{nodes:[],edges:[]}}});
+  assert.match(html,/当前图 0 \/ 0 个元素 · 0 \/ 0 条关系/);
+  assert.match(html,/model-summary-meta[\s\S]*SysML v2 · 0\.10\.10/);
+  assert.doesNotMatch(html,/semantic-legend|<footer class="document-model-meta"/);
+});
+
+test('a standalone real single-package model shows the package contents, two part generations and all three connections',async()=>{
+  const content=await fs.readFile(path.join(root,'tests/fixtures/model-visualization/connected-demo.sysml'),'utf8');
+  const model=kernel('query',content),file={path:'models/example.sysml',content};
+  assert.equal(model.valid,true);
+  const graph=normalizeSemanticGraph(model,{path:file.path,view:'combined'});
+  const modelContext={mode:'file',sourceRoot:null,entryKind:'file',entryPath:file.path,name:'connected-demo'};
+  const navigation={origin:{...modelContext,filePath:file.path}};
+  const scene=projectModelStructure(graph,navigation),visible=scopeModelGraph(scene,navigation);
+  const expected=['VisualizationDemo','VisualizationDemo::Sensor','VisualizationDemo::Relay','VisualizationDemo::Estimator',
+    'VisualizationDemo::signalChain','VisualizationDemo::signalChain::sensor','VisualizationDemo::signalChain::uart',
+    'VisualizationDemo::signalChain::flightSoftware','VisualizationDemo::signalChain::attitudeEstimator'];
+  for(const qname of expected)assert.ok(visible.nodes.some(node=>node.qname===qname),'Missing '+qname);
+  assert.equal(modelNavigation(scene,navigation).byId.get(modelNavigation(scene,navigation).rootId).qname,'VisualizationDemo');
+  assert.deepEqual(visible.edges.filter(edge=>edge.interconnection).map(edge=>edge.label).sort(),['sensorToUart','softwareToEstimator','uartToSoftware']);
+  assert.equal(visible.nodes.filter(node=>node.kind==='port').length,6);
+  const html=renderDocumentViewer({file,model,modelContext});
+  assert.match(html,/aria-label="package VisualizationDemo"/);
+  assert.equal((html.match(/class="semantic-edge semantic-edge-connect"/g)||[]).length,3);
+  assert.doesNotMatch(html,/未完整定位|达到当前画布预算/);
+  const chain=graph.nodes.find(node=>node.qname==='VisualizationDemo::signalChain');
+  const focused=openModelNavigation(scene,navigation,chain.id);
+  assert.equal(focused.rootId,chain.id);
+  assert.equal(parentModelNavigation(projectModelStructure(graph,focused),focused).rootId,modelNavigation(scene,navigation).rootId);
+});
+
+test('package layout puts connected assemblies before type definitions and preserves the internal signal-chain order',()=>{
+  const nodes=[
+    {id:'pkg',kind:'package',label:'Package'},
+    {id:'Sensor',parent:'pkg',kind:'block',metaclass:'PartDefinition',label:'Sensor'},
+    {id:'Relay',parent:'pkg',kind:'block',metaclass:'PartDefinition',label:'Relay'},
+    {id:'Estimator',parent:'pkg',kind:'block',metaclass:'PartDefinition',label:'Estimator'},
+    {id:'chain',parent:'pkg',kind:'block',metaclass:'PartUsage',label:'signalChain'},
+    {id:'sensor',parent:'chain',kind:'block',metaclass:'PartUsage',label:'sensor'},
+    {id:'uart',parent:'chain',kind:'block',metaclass:'PartUsage',label:'uart'},
+    {id:'software',parent:'chain',kind:'block',metaclass:'PartUsage',label:'software'},
+    {id:'estimator',parent:'chain',kind:'block',metaclass:'PartUsage',label:'estimator'}
+  ];
+  const edges=[{source:'sensor',target:'uart',kind:'connect'},{source:'uart',target:'software',kind:'connect'},{source:'software',target:'estimator',kind:'connect'}];
+  const result=layoutCombinedSemanticGraph(nodes,edges),byId=new Map(result.nodes.map(node=>[node.id,node]));
+  for(const id of ['Sensor','Relay','Estimator'])assert.ok(byId.get(id).y>byId.get('chain').y+byId.get('chain').height);
+  assert.ok(byId.get('sensor').x<byId.get('uart').x&&byId.get('uart').x<byId.get('software').x&&byId.get('software').x<byId.get('estimator').x);
+  for(const node of result.nodes.filter(node=>node.parent==='pkg'))assert.ok(node.x+node.width<=byId.get('pkg').x+byId.get('pkg').width);
+});
+
+test('scoped interfaces show their actual endpoints without orphan descriptor ports',()=>{
+  const nodes=[
+    {id:'system',metaclass:'PartDefinition',nodeKind:'def',qname:'Mission::System',label:'System'},
+    {id:'sender',parent:'system',metaclass:'PartUsage',label:'sender'},
+    {id:'receiver',parent:'system',metaclass:'PartUsage',label:'receiver'},
+    {id:'link',parent:'system',metaclass:'InterfaceUsage',label:'link'},
+    {id:'end-a',parent:'link',metaclass:'PortUsage',label:'(port)'},
+    {id:'end-b',parent:'link',metaclass:'PortUsage',label:'(port)'}
+  ];
+  const edges=[{id:'link',source:'sender',target:'receiver',kind:'connect'}];
+  const html=renderDocumentViewer({file:{path:'mission.sysml'},model:{valid:true,data:{nodes,edges}},navigation:{rootId:'system',depth:2}});
+  assert.match(html,/data-document-edge="[^"]*link"/);
+  assert.doesNotMatch(html,/data-document-element="end-a"|data-document-element="end-b"/);
 });
 
 test('direct raster images use the project asset route and never display base64 as text',() => {
