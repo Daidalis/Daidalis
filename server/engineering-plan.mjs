@@ -57,7 +57,10 @@ export function normalizeEngineeringPlan(input) {
     }
     if (raw.review !== undefined && raw.review !== null) {
       const r = obj(raw.review,'review',['findings','evidenceIds']);
-      item.review = {findings:text(r.findings,'review findings',6000),evidenceIds:strings(r.evidenceIds,'review evidenceIds',80,200)};
+      const evidenceIds = strings(r.evidenceIds,'review evidenceIds',80,200);
+      // An empty placeholder does not claim a review. Never discard findings or
+      // evidence, and keep the reviewed-state requirements below intact.
+      if (item.status === 'reviewed' || r.findings !== '' || evidenceIds.length) item.review = {findings:text(r.findings,'review findings',6000),evidenceIds};
     }
     if (item.status === 'reviewed' && (!item.review?.findings || !item.review.evidenceIds.length)) fail(400, 'A reviewed work item needs findings and recorded evidence references. This is a work-product review, never engineering approval.');
     return item;
@@ -97,14 +100,14 @@ export function createEngineeringPlanService({store,emit=()=>{}}) {
     const records=(store.data.engineeringStates||[]).find(s=>s.projectId===projectId), ids=new Set((records?.objects||[]).filter(o=>!o.deletedAt).map(o=>o.id));
     const evidenceIds=new Set([...(records?.evidence||[]).map(e=>e.id),...(store.data.events||[]).filter(e=>e.projectId===projectId&&e.type==='tool.completed').map(e=>e.id)]);
     const artifacts=new Set((store.data.artifacts||[]).filter(a=>a.projectId===projectId).map(a=>a.id));
-    for(const item of plan.items) {
+    for(const [index,item] of plan.items.entries()) {
       if(item.threadId){
         const thread=(store.data.threads||[]).find(t=>t.projectId===projectId&&t.id===item.threadId);
         if(!thread)fail(400,`Unknown project thread: ${item.threadId}.`);
         if(item.taskKey&&thread.taskContract?.taskKey!==item.taskKey)fail(400,`Task key ${item.taskKey} does not match the referenced thread assignment.`);
       }
-      for(const id of [...item.recordIds,...item.verification.requirementIds])if(!ids.has(id))fail(400,`Unknown engineering record: ${id}. Create or inspect the sourced record first.`);
-      for(const id of item.artifactIds)if(!artifacts.has(id))fail(400,`Unknown project artifact: ${id}.`);
+      for(const [field,values] of [['recordIds',item.recordIds],['verification.requirementIds',item.verification.requirementIds]])for(const id of values)if(!ids.has(id))fail(400,`Unknown engineering record: ${id} at items[${index}].${field} (work item ${item.id}). Read get_engineering_state to inspect registered IDs; SysML names are not registered automatically. Create the sourced record with record_engineering_object first, or use modelPaths and leave this ID list empty, then retry update_engineering_plan. The plan was not saved.`);
+      for(const id of item.artifactIds)if(!artifacts.has(id))fail(400,`Unknown project artifact: ${id} at items[${index}].artifactIds (work item ${item.id}). Use an existing project artifact ID returned by create_artifact. Model-backend model IDs and file paths are not project artifact IDs; use modelPaths for source files and leave artifactIds empty if no artifact was created, then retry update_engineering_plan. The plan was not saved.`);
       for(const id of [...item.verification.evidenceIds,...(item.review?.evidenceIds||[])])if(!evidenceIds.has(id)&&!artifacts.has(id))fail(400,`Unknown recorded evidence: ${id}. A path or claimed pass is not an evidence ID.`);
     }
   }

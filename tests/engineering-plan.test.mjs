@@ -58,3 +58,59 @@ test('an explicit thread and task key must identify the same owned assignment',(
  store.data.threads.push({id:'unassigned',projectId:'p1',title:'Unassigned task'});const next=base();next.expectedRevision=1;next.items[1].threadId='unassigned';assert.throws(()=>service.update('p1',next),e=>e.status===400&&/does not match/.test(e.message));
  delete next.items[1].taskKey;assert.equal(service.update('p1',next).items[1].task.threadId,'unassigned');
 });
+
+test('unreviewed work accepts absent, null and empty review placeholders without losing a real review',()=>{
+ for(const review of [undefined,null,{findings:'',evidenceIds:[]}]){
+  const {service}=fixture(),p=base();p.items[0].review=review;
+  assert.equal(service.update('p1',p).items[0].review,null);
+ }
+ const {service}=fixture(),p=base();p.items[0].status='delivered';p.items[0].review={findings:'Inspected model; numerical verification remains pending.',evidenceIds:['event1']};
+ assert.deepEqual(service.update('p1',p).items[0].review,p.items[0].review);
+});
+
+test('empty review normalization never bypasses reviewed findings, evidence or payload validation',()=>{
+ for(const [status,review] of [
+  ['reviewed',null],['reviewed',{findings:'',evidenceIds:[]}],
+  ['reviewed',{findings:'Inspected model',evidenceIds:[]}],
+  ['active',{findings:'',evidenceIds:['event1']}],
+  ['active',{findings:'',evidenceIds:'invalid'}],
+  ['active',{findings:'',evidenceIds:[],approved:true}],
+  ['active',{findings:[],evidenceIds:[]}],
+  ['active',{findings:' '.repeat(6001),evidenceIds:[]}]
+ ]){
+  const {service,saves}=fixture(),p=base();p.items[0].status=status;p.items[0].review=review;
+  assert.throws(()=>service.update('p1',p),e=>e.status===400);
+  assert.equal(service.get('p1').revision,0);assert.equal(saves(),0);
+ }
+});
+
+test('missing record errors identify the field and explain both supported recovery paths',()=>{
+ for(const field of ['recordIds','verification.requirementIds']){
+  const {service,saves}=fixture(),p=base();service.update('p1',p);
+  p.expectedRevision=1;
+  if(field==='recordIds')p.items[0].recordIds=['R05'];else p.items[0].verification.requirementIds=['R05'];
+  assert.throws(()=>service.update('p1',p),error=>{
+   assert.equal(error.status,400);assert.ok(error.message.includes('items[0].'+field));
+   for(const text of ['R05','get_engineering_state','SysML','record_engineering_object','modelPaths','retry update_engineering_plan','not saved'])assert.ok(error.message.includes(text));
+   return true;
+  });
+  assert.equal(service.get('p1').revision,1);assert.equal(saves(),1);
+  if(field==='recordIds')p.items[0].recordIds=[];else p.items[0].verification.requirementIds=[];
+  p.items[0].modelPaths=['models/Requirements.sysml'];
+  assert.equal(service.update('p1',p).revision,2);assert.equal(saves(),2);
+ }
+});
+
+test('backend model IDs cannot masquerade as project artifacts and the error explains how to recover',()=>{
+ const {service,saves}=fixture(),p=base();p.items[0].artifactIds=['model_backend_id'];
+ assert.throws(()=>service.update('p1',p),error=>{
+  assert.equal(error.status,400);
+  for(const text of ['items[0].artifactIds','create_artifact','Model-backend model IDs','modelPaths','not saved'])assert.ok(error.message.includes(text));
+  return true;
+ });
+ assert.equal(service.get('p1').revision,0);assert.equal(saves(),0);
+ p.items[0].artifactIds=[];p.items[0].modelPaths=['models/Vehicle.sysml'];
+ assert.equal(service.update('p1',p).revision,1);
+ p.expectedRevision=1;p.items[0].artifactIds=['artifact1'];
+ assert.equal(service.update('p1',p).revision,2);
+});
