@@ -9,7 +9,30 @@ test('workspace links accept project files and normalize report-relative navigat
  for(const path of ['/workspace/NOS3-other/secrets.txt','../other-project/file','models/../../outside','https://example.com','file:///private/secret','models\\a.sysml','x\0y'])assert.throws(()=>projectRelativePath(path,'/workspace/NOS3'));
 });
 
-import {workspaceFileTitle,createWorkspaceUI} from '../public/workspace-ui.mjs';
+import {workspaceFileTitle,createWorkspaceUI,preferredModelProject} from '../public/workspace-ui.mjs';
+
+test('the only conventional model entry is the default, while multiple model projects require a choice',()=>{
+ const main={entryPath:'models/mission/MissionModel.sysml',sourceRoot:'models/mission',entryKind:'convention'};
+ const standalone={entryPath:'models/demo.sysml',sourceRoot:null,entryKind:'file'};
+ assert.equal(preferredModelProject([standalone,main]),main);
+ assert.equal(preferredModelProject([standalone]),standalone);
+ assert.equal(preferredModelProject([main,{...main,entryPath:'models/other/main.sysml'}]),null);
+});
+
+test('opening the model project and then its entry file changes the browsing mode without losing dependencies',async()=>{
+ const routes=[],entry='models/mission/MissionModel.sysml';
+ const ui=createWorkspaceUI({getProject:()=>({id:'p1',folderPath:'/work/mission'}),api:async route=>{
+   routes.push(route);
+   if(route.includes('/resolve?'))return {kind:'file'};
+   return {file:{path:entry,type:'sysml',content:'package Mission {}'},context:{mode:route.includes('mode=project')?'project':'file',sourceRoot:'models/mission',entryPath:entry,name:'Mission'}};
+ }});
+ await ui.openModelProject({entryPath:entry,sourceRoot:'models/mission'});
+ await ui.openPath(entry,{modelView:'file',sourceRoot:'models/mission'});
+ const models=routes.filter(route=>route.includes('/model?'));
+ assert.equal(models.length,2);
+ assert.match(models[0],/sourceRoot=models%2Fmission&mode=project/);
+ assert.match(models[1],/sourceRoot=models%2Fmission&mode=file/);
+});
 
 test('recorded result files and registered artifacts resolve into their project simulation, with a raw escape',async()=>{
  const requests=[],project={id:'p1',folderPath:'/work/nos3'},jobId='nos3_owned';
@@ -25,6 +48,13 @@ test('ordinary JSON is read as data; explicit source navigation bypasses resolve
  await ui.openPath('result.json');assert.equal(routes.length,2);assert.match(routes[1],/\/file\?/);
  await ui.openPath('report.md',{line:8});assert.equal(routes.length,3);assert.match(routes[2],/\/file\?path=report.md/);
  await ui.openPath('bad.json');assert.equal(routes.length,4,'a failed integrity check must not fetch a generic file instead');
+});
+
+test('cross-file SysML source navigation reads only the target file and does not compile it in a separate context',async()=>{
+ const routes=[];
+ const ui=createWorkspaceUI({getProject:()=>({id:'p1',folderPath:'/work/mission'}),api:async route=>{routes.push(route);return {path:'models/mission/components.sysml',type:'sysml',content:'package Components {}'};}});
+ await ui.openPath('models/mission/components.sysml',{line:7,raw:true});
+ assert.deepEqual(routes,['/api/projects/p1/workspace/file?path=models%2Fmission%2Fcomponents.sysml']);
 });
 
 test('late resolution cannot open a job after the active project changed',async()=>{

@@ -26,13 +26,18 @@ export function projectRelativePath(input,folder='') {
 
 export function workspaceFileTitle(relative,artifacts,projectId,source=false){return (artifacts.find(a=>a.projectId===projectId&&a.path===relative)?.name||String(relative).split('/').at(-1))+(source?' · 原始数据':'');}
 
+export function preferredModelProject(projects=[]){
+  const entries=projects.filter(project=>project.entryKind==='convention');
+  return entries.length===1?entries[0]:entries.length===0&&projects.length===1?projects[0]:null;
+}
+
 export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowledge=()=>[],onError=()=>{},onFocus=()=>{},onEditModel=()=>{},onProfessionalJob=()=>{},onAskAgent=()=>{},onOpenExternal=url=>window.open(url,'_blank','noopener,noreferrer')}={}) {
-  let projectId=null,host=null,shell=null,viewer=null,tabs=[],active='browser',section='files',listing=null,listError='',listBusy=false,folder='.',filter='',revision=0,rootDiscovery=null,contentSignature='';
+  let projectId=null,host=null,shell=null,viewer=null,tabs=[],active='browser',section='files',listing=null,listError='',listBusy=false,folder='.',filter='',revision=0,rootDiscovery=null,contentSignature='',initialModelPending=true;
   const base=()=>'/api/projects/'+encodeURIComponent(projectId)+'/workspace';
   const current=()=>tabs.find(t=>t.id===active),drafts=new Map();
   const draftKey=tab=>projectId+'::'+tab.id;
   const keepDraft=tab=>{if(tab?.edit)drafts.set(draftKey(tab),{...tab.edit,saving:false});};
-  function ensureProject(){const p=getProject();if(!p)throw Error('请先选择项目');if(p.id!==projectId){projectId=p.id;tabs=[];active='browser';folder='.';listing=null;rootDiscovery=null;listError='';listBusy=false;filter='';revision++;}return p;}
+  function ensureProject(){const p=getProject();if(!p)throw Error('请先选择项目');if(p.id!==projectId){projectId=p.id;tabs=[];active='browser';folder='.';listing=null;rootDiscovery=null;listError='';listBusy=false;filter='';initialModelPending=true;revision++;}return p;}
   function destroyViewer(){viewer?.destroy?.();viewer=null;}
   function imageUrl(path){try{return base()+'/image?path='+encodeURIComponent(projectRelativePath(path,getProject()?.folderPath));}catch{return '';}}
   function draw(){
@@ -51,7 +56,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
     }else if(tab.edit){
       const dirty=tab.edit.content!==tab.edit.originalContent;viewerHost.innerHTML=`<section class="workbench-document-editor"><div class="workbench-editor-state" role="status">${tab.edit.saving?'正在保存…':dirty?'有未保存的修改':'编辑文件'}</div><textarea data-workspace-editor aria-label="编辑文件内容" spellcheck="false" ${tab.edit.saving?'disabled':''}>${esc(tab.edit.content)}</textarea>${tab.edit.error?`<p role="alert" class="workbench-editor-error">${esc(tab.edit.error)}</p>`:''}</section>`;viewerHost.querySelector('[data-workspace-editor]').value=tab.edit.content;
     }else{
-      viewer=mountDocumentViewer(viewerHost,{file:tab.file,model:tab.model?.semantic,verification:tab.model?.verification,tab:tab.documentTab,sourceLine:tab.sourceLine,resolveImage:imageUrl,onOpenPath:(path,detail)=>openPath(path,detail).catch(onError),onOpenExternal,onTabChange:value=>{tab.documentTab=value;}});
+      viewer=mountDocumentViewer(viewerHost,{...tab.viewerState,file:tab.file,model:tab.model?.semantic,modelContext:tab.model?.context,verification:tab.model?.verification,tab:tab.documentTab,sourceLine:tab.sourceLine,resolveImage:imageUrl,onOpenPath:(path,detail)=>openPath(path,detail).catch(onError),onBrowseFiles:root=>browseModelFiles(root).catch(onError),onOpenExternal,onTabChange:value=>{tab.documentTab=value;},onNavigationChange:value=>{tab.viewerState=value;}});
     }
     const header=document.createElement('div');header.className='workbench-file-actions';
     header.innerHTML=`<span title="${esc(tab.path||tab.jobId)}">${esc(tab.path||tab.jobId)}${tab.file?.revision?` · ${tab.file.revision.current?'用户修订 · 未重新复核':'当前文件已变化'}`:tab.file?.registeredArtifact?' · 当前文件':''}</span>${tab.edit?button('save-file',tab.edit.saving?'保存中…':'保存',tab.edit.saving?'disabled':'')+button('cancel-edit','取消',tab.edit.saving?'disabled':''):button('reload','刷新')+(tab.file?.editable&&!tab.inline?button('edit-file','编辑'):'')+(tab.file?.revision?.id?button('file-history','修改前版本'):'')}${/(?:\.(mo|sysml|cir|scad)|\.stf\.json)$/i.test(tab.path||'')?button('edit-native','编辑与求解'):''}${tab.file?.type==='sysml'?button('verify-model',tab.verifying?'校验中…':'校验模型',tab.verifying?'disabled':''):''}${tab.kind==='simulation'?((tab.path||tab.simulation?.result?.resultPath)?button('raw-result','原始数据'):''):button('ask-file',tab.file?.type==='sysml'?'让 Agent 修改模型':'让 Agent 处理')}`;
@@ -73,11 +78,15 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
       const artifacts=getArtifacts().filter(a=>a.projectId===projectId),knowledge=getKnowledge();
       return nav+`<div class="workbench-file-list">${knowledge.map(a=>`<button data-workspace-action="knowledge" data-id="${esc(a.id)}"><span>≡</span><strong>${esc(a.name)}</strong><small>项目资料</small></button>`).join('')}${artifacts.map(a=>`<button data-workspace-action="artifact" data-id="${esc(a.id)}"><span>${glyph(a.path?.endsWith('.sysml')?'sysml':'markdown')}</span><strong>${esc(a.name||a.path)}</strong><small>产物</small></button>`).join('')||(!knowledge.length?'<p class="workbench-empty">尚无登记的项目资料。文件页可直接查看项目目录。</p>':'')}</div>`;
     }
+    if(section==='models'&&discovered.modelProjects?.length){
+      const projects=discovered.modelProjects.filter(project=>(project.name+' '+project.entryPath).toLowerCase().includes(selected));
+      return nav+`<div class="workbench-browser-tools"><span></span><input type="search" data-workspace-filter aria-label="筛选模型" placeholder="查找模型" value="${esc(filter)}"></div><div class="model-package-grid workbench-model-projects">${projects.map(project=>`<button type="button" class="model-package-card" data-workspace-action="model-project" data-path="${esc(project.entryPath)}" data-model-root="${esc(project.sourceRoot||'')}"><strong>${esc(project.name)}</strong><span>${project.fileCount} 个文件</span><span>${esc(project.entryKind==='convention'?'入口 '+project.entryPath:project.entryPath)}</span><span class="model-package-arrow" aria-hidden="true">›</span></button>`).join('')}</div>`;
+    }
     return nav+`<div class="workbench-browser-tools">${section==='files'?`<nav class="workbench-breadcrumbs" aria-label="文件路径">${button('folder','项目根目录','data-path="."')}${crumbs.map((c,i)=>`<span>/</span>${button('folder',c,`data-path="${esc(crumbs.slice(0,i+1).join('/'))}"`)}`).join('')}</nav>`:'<span></span>'}<input type="search" data-workspace-filter aria-label="筛选文件" placeholder="筛选文件" value="${esc(filter)}"></div><div class="workbench-file-list">${visible.map(f=>`<button data-workspace-action="${f.kind==='directory'?'folder':'file'}" data-path="${esc(f.path)}"><span class="workbench-file-glyph">${glyph(f.kind==='directory'?'directory':f.type)}</span><strong>${esc(section==='files'?f.name:f.path)}</strong><small>${esc(size(f.size))}</small></button>`).join('')||'<p class="workbench-empty">'+(selected?'没有匹配文件。':section==='models'?'尚无 SysML 文件。让 Agent 将模型保存到项目的 models 目录后，即可在这里查看。':section==='reports'?'尚无 Markdown 报告。':'此目录没有可显示的文件。')+'</p>'}</div>${listing?.truncated||discovered.limited?'<p class="workbench-limits">当前列表已达到显示上限，请进入具体文件夹查看。</p>':''}`;
   }
   async function loadList(){
     ensureProject();const id=projectId,request=++revision;listBusy=true;listError='';if(active==='browser')draw();
-    try{const [value,root]=await Promise.all([api(base()+'/files?path='+encodeURIComponent(folder)),folder!=='.'&&!rootDiscovery?api(base()+'/files?path=.'):null]);if(projectId!==id||request!==revision)return;listing=value;if(value.discovered||root?.discovered)rootDiscovery=value.discovered||root.discovered;}
+    try{const [value,root]=await Promise.all([api(base()+'/files?path='+encodeURIComponent(folder)),folder!=='.'&&!rootDiscovery?api(base()+'/files?path=.'):null]);if(projectId!==id||request!==revision)return;listing=value;if(value.discovered||root?.discovered)rootDiscovery=value.discovered||root.discovered;if(initialModelPending&&active==='browser'){initialModelPending=false;const primary=preferredModelProject(rootDiscovery?.modelProjects);if(primary)await openModelProject(primary);}}
     catch(e){if(projectId===id&&request===revision)listError=e.message;}
     finally{if(projectId===id&&request===revision){listBusy=false;if(active==='browser')draw();}}
   }
@@ -99,21 +108,27 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
         }
       }
       if(tab.kind==='simulation')tab.simulation=await api(route+'/simulations/'+encodeURIComponent(tab.jobId));
-      else if(tab.path?.match(/\.(sysml|kerml)$/i)){tab.model=await api(route+'/model?path='+encodeURIComponent(tab.path));tab.file=tab.model.file;}
+      else if(tab.path?.match(/\.(sysml|kerml)$/i)&&!tab.raw){tab.model=await api(route+'/model?path='+encodeURIComponent(tab.path)+(tab.sourceRoot?'&sourceRoot='+encodeURIComponent(tab.sourceRoot):'')+(tab.modelView?'&mode='+tab.modelView:''));tab.file=tab.model.file;tab.sourceRoot=tab.model.context?.sourceRoot||tab.sourceRoot;tab.title=tab.model.context?.mode==='project'?tab.model.context.name:workspaceFileTitle(tab.path,getArtifacts(),id);}
       else if(!tab.inline)tab.file=await api(route+'/file?path='+encodeURIComponent(tab.path));
       if(tab.file?.editable&&!tab.edit&&drafts.has(draftKey(tab)))tab.edit={...drafts.get(draftKey(tab)),saving:false};
     }catch(e){tab.error=e.message;}
     finally{tab.loading=false;if(id===projectId&&tabs.includes(tab)&&active===tab.id)draw();}
   }
-  async function openPath(path,{line,raw=false,view}={}){
+  async function openPath(path,{line,raw=false,view,modelView,sourceRoot,resetNavigation=false}={}){
     const artifact=/^\/api\/artifacts\/([^/]+)$/.exec(String(path));if(artifact)return openArtifact(artifact[1]);
     const p=ensureProject(),relative=projectRelativePath(path,p.folderPath),source=raw||(Number.isInteger(line)&&line>0),tabId=(source?'raw:':'file:')+relative;
-    let tab=tabs.find(t=>t.id===tabId);
+    initialModelPending=false;
+    let tab=tabs.find(t=>t.id===tabId),changed=false;
     if(!tab){tab={id:tabId,kind:'file',path:relative,raw:source,title:workspaceFileTitle(relative,getArtifacts(),p.id,source)};tabs.push(tab);}
+    if(modelView&&modelView!==tab.modelView){tab.modelView=modelView;changed=true;}
+    if(sourceRoot!==undefined&&sourceRoot!==tab.sourceRoot){tab.sourceRoot=sourceRoot;changed=true;}
+    if(changed||resetNavigation){tab.viewerState={};tab.documentTab='diagram';tab.model=null;tab.file=null;}
     if(source){tab.documentTab='source';tab.sourceLine=Number.isInteger(line)&&line>0?line:undefined;}else tab.sourceLine=undefined;
     if(!source && view==='physical' && /\.sysml$/i.test(relative))tab.documentTab='preview3d';
     active=tab.id;if(!tab.file&&!tab.simulation&&!tab.loading)await loadTab(tab);else draw();
   }
+  async function openModelProject(project){return openPath(project.entryPath,{modelView:project.sourceRoot?'project':'file',sourceRoot:project.sourceRoot||undefined,resetNavigation:true});}
+  async function browseModelFiles(root){ensureProject();initialModelPending=false;folder=root||'.';section='files';active='browser';listing=null;filter='';await loadList();}
   async function openJob(jobId,{caseId}={}){
     ensureProject();let tab=tabs.find(t=>t.kind==='simulation'&&t.jobId===jobId);
     if(!tab){tab={id:'job:'+jobId,kind:'simulation',simulationKind:'nos3',jobId,title:'仿真 · '+jobId.slice(-8)};tabs.push(tab);}
@@ -175,10 +190,11 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
       case 'cancel-edit':cancelEdit();break;
       case 'file-history':await openHistory();break;
       case 'edit-native':await onEditModel(current()?.path);break;
-      case 'browser':active='browser';draw();if(!listing)await loadList();break;
-      case 'section':section=el.dataset.section;filter='';active='browser';draw();if(!listing)await loadList();break;
+      case 'browser':initialModelPending=false;active='browser';draw();if(!listing)await loadList();break;
+      case 'section':initialModelPending=false;section=el.dataset.section;filter='';active='browser';draw();if(!listing)await loadList();break;
+      case 'model-project':await openModelProject({entryPath:el.dataset.path,sourceRoot:el.dataset.modelRoot||null});break;
       case 'folder':folder=el.dataset.path;filter='';listing=null;await loadList();break;
-      case 'file':if(/(?:\.(mo|cir|scad)|\.stf\.json)$/i.test(el.dataset.path))await onEditModel(el.dataset.path);else await openPath(el.dataset.path);break;
+      case 'file':if(/(?:\.(mo|cir|scad)|\.stf\.json)$/i.test(el.dataset.path))await onEditModel(el.dataset.path);else await openPath(el.dataset.path,{modelView:/\.(sysml|kerml)$/i.test(el.dataset.path)?'file':undefined});break;
       case 'job':await openSimulationJob(el.dataset.job,el.dataset.kind);break;
       case 'artifact':await openArtifact(el.dataset.id);break;
       case 'knowledge':openKnowledge(el.dataset.id);break;
@@ -186,7 +202,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
       case 'close-tab':{const index=tabs.findIndex(t=>t.id===el.dataset.tab);if(index>=0){keepDraft(tabs[index]);tabs.splice(index,1);}if(active===el.dataset.tab)active=tabs[index]?.id||tabs[index-1]?.id||'browser';draw();break;}
       case 'refresh':listing=null;rootDiscovery=null;await loadList();break;
       case 'reload':if(current()?.edit){throw Error('请先保存或取消当前编辑');}if(current())await loadTab(current());else await loadList();break;
-      case 'verify-model':{const tab=current(),pid=projectId;if(!tab?.model||tab.verifying)break;const model=tab.model,hash=tab.file.sha256;tab.verifying=true;draw();try{const verification=await api('/api/projects/'+encodeURIComponent(pid)+'/model-backend/verify',{method:'POST',body:JSON.stringify({path:tab.path,expectedHash:hash})});if(projectId!==pid||!tabs.includes(tab)||tab.model!==model||tab.file.sha256!==hash)return;if(verification.model?.sha256!==hash)throw Error('模型版本已变化，请刷新后重新校验');model.verification=verification;tab.documentTab='constraints';}finally{tab.verifying=false;if(pid===projectId&&tabs.includes(tab))draw();}break;}
+      case 'verify-model':{const tab=current(),pid=projectId;if(!tab?.model||tab.verifying)break;const model=tab.model,hash=tab.file.sha256,sourceSet=model.semantic?.model?.sourceSet;tab.verifying=true;draw();try{const verification=await api('/api/projects/'+encodeURIComponent(pid)+'/model-backend/verify',{method:'POST',body:JSON.stringify({path:tab.path,expectedHash:hash,sourceRoot:tab.sourceRoot||undefined,expectedSourceSetHash:sourceSet?.sha256})});if(projectId!==pid||!tabs.includes(tab)||tab.model!==model||tab.file.sha256!==hash)return;if(verification.model?.sha256!==hash||sourceSet&&verification.model?.sourceSet?.sha256!==sourceSet.sha256)throw Error('模型版本已变化，请刷新后重新校验');model.verification=verification;tab.documentTab='constraints';}finally{tab.verifying=false;if(pid===projectId&&tabs.includes(tab))draw();}break;}
       case 'focus':onFocus();break;
       case 'raw-result':{const tab=current(),path=tab?.path||tab?.simulation?.result?.resultPath;if(path)await openPath(path,{raw:true});break;}
       case 'ask-file':onAskAgent(`请查看项目文件 ${current()?.path||current()?.title}。`);break;
@@ -195,8 +211,8 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
   function input(event){if(event.target.matches('[data-workspace-editor]')){setEditContent(event.target.value);const status=host?.querySelector('.workbench-editor-state');if(status)status.textContent=current()?.edit?.content===current()?.edit?.originalContent?'编辑文件':'有未保存的修改';return;}if(!event.target.matches('[data-workspace-filter]'))return;filter=event.target.value;const start=event.target.selectionStart;draw();const next=host.querySelector('[data-workspace-filter]');next?.focus();if(next?.type!=='search')next?.setSelectionRange(start,start);}
   const controller={
     mount(container){const previous=projectId;ensureProject();if(host!==container){host?.removeEventListener('click',act);host?.removeEventListener('input',input);destroyViewer();host=container;host.addEventListener('click',act);host.addEventListener('input',input);}if(previous!==projectId||!shell?.isConnected||!host.contains(shell))draw();const signature=JSON.stringify([projectId,getArtifacts().filter(a=>a.projectId===projectId).map(a=>[a.id,a.updatedAt]),getKnowledge().map(f=>f.id)]);if(signature!==contentSignature){contentSignature=signature;listing=null;rootDiscovery=null;}if(!listing&&!listBusy)loadList();},
-    openPath,openJob,openSimulationJob,openProfessionalJob,openArtifact,openKnowledge,openResult,beginEdit,setEditContent,saveEdit,cancelEdit,openHistory,editState(){ensureProject();const tab=current();return tab?.edit?{path:tab.path,...tab.edit}:null;},
-    showSection(value='files'){ensureProject();section=value;active='browser';draw();if(!listing)loadList();},
+    openPath,openModelProject,openJob,openSimulationJob,openProfessionalJob,openArtifact,openKnowledge,openResult,beginEdit,setEditContent,saveEdit,cancelEdit,openHistory,editState(){ensureProject();const tab=current();return tab?.edit?{path:tab.path,...tab.edit}:null;},
+    showSection(value='files'){ensureProject();initialModelPending=false;section=value;active='browser';draw();if(!listing)loadList();},
     detach(){destroyViewer();host?.removeEventListener('click',act);host?.removeEventListener('input',input);host=null;shell=null;},
     destroy(){revision++;destroyViewer();host?.removeEventListener('click',act);host?.removeEventListener('input',input);host=null;},
   };

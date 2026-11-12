@@ -22,3 +22,8 @@ test('hidden panes keep valid diagram bounds until measurement is available', ()
   const diagram = {x:0,y:0,w:2466,h:570};
   for (const width of [0,NaN,undefined]) assert.deepEqual(initialSemanticViewport(diagram,{width,height:760}),diagram);
 });
+
+test('nested structures frame the available width instead of shrinking every generation to fit the height',()=>{
+  const view=initialSemanticViewport({x:0,y:0,w:1400,h:2200},{width:1000,height:600},{fitWidth:true});
+  assert.deepEqual(view,{x:0,y:0,w:1400,h:840});
+});
