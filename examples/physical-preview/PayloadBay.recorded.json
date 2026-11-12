@@ -1,9 +1,0 @@
-{
-  "schema": "manta-recorded-trajectory-v1",
-  "provenance": "example",
-  "note": "OpenModelica PayloadThermal 的 400 秒轨迹，不是 SysML FMI 执行。",
-  "csv": "PayloadThermal_res.csv",
-  "checks": [
-    {"variable": "sensor", "passed": true}
-  ]
-}

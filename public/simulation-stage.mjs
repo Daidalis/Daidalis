@@ -15,6 +15,13 @@ export function formatSample(value){
  if(abs!==0&&(abs>=1e5||abs<1e-3))return value.toExponential(3);
  return String(Number(value.toPrecision(6)));
 }
+/** A fixed-width clock so playback does not resize the time control. */
+export function formatClock(value){
+ if(!finite(value))return '—'.padStart(6);
+ const abs=Math.abs(value);
+ const text=abs!==0&&(abs>=1e4||abs<1e-2)?value.toExponential(1):value.toFixed(1);
+ return text.padStart(6);
+}
 
 /** Keep the first and last samples, plus the min and max inside each time bucket. */
 export function bucketMinMax(samples,bucketCount=24){
@@ -220,7 +227,7 @@ export function renderSimulationStage(input){
   return `<article class="pm-signal-card" data-signal="${esc(signal.name)}"><header><strong>${esc(signal.name)}</strong>${status?`<span class="pm-signal-status" data-status="${esc(status)}">${esc(status)}</span>`:''}</header>${sparkline(signal.spark)}<dl><div><dt>当前</dt><dd data-signal-now="${esc(signal.name)}">${esc(formatSample(signal.last))}</dd></div><div><dt>终值</dt><dd>${esc(formatSample(signal.last))}</dd></div><div><dt>最小</dt><dd>${esc(formatSample(signal.min))}</dd></div><div><dt>最大</dt><dd>${esc(formatSample(signal.max))}</dd></div><div><dt>变化</dt><dd>${esc(formatSample(signal.delta))}</dd></div></dl>${signal.verdict?`<p class="pm-verdict">${esc(signal.verdict)}</p>`:''}</article>`;
  }).join('');
  const last=Math.max(0,summary.rows.length-1);
- return `<section class="pm-stage" data-pm-stage>${banner}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><label>时间<input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"></label><output data-pm-sample-label></output></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings)}</div></div><div class="pm-physical-block"><h3>实物</h3><div data-pm-physical></div><div data-pm-geometry></div></div></section>`;
+ return `<section class="pm-stage" data-pm-stage>${banner}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div></section>`;
 }
 
 function columnValue(summary,name,index){
@@ -236,7 +243,9 @@ export function applySimulationFrame(root,input,{preview}={}){
  const row=summary.rows[index]||[];
  const time=summary.timeIndex>=0?row[summary.timeIndex]:index;
  const label=root.querySelector('[data-pm-sample-label]');
- if(label)label.textContent=summary.timeIndex>=0?`t = ${formatSample(time)} s`:`采样 ${index}`;
+ const unit=root.querySelector('[data-pm-sample-unit]');
+ if(label)label.textContent=summary.timeIndex>=0?formatClock(time):String(index).padStart(6);
+ if(unit)unit.textContent=summary.timeIndex>=0?'s':'';
  const structure=structureFromSource(input.source);
  const bindings=matchSignals(summary.signals.map(signal=>signal.name),structure.elements.concat(elementsFromGraph(input.graph)));
  for(const signal of summary.signals){
@@ -283,7 +292,16 @@ export function applySimulationFrame(root,input,{preview}={}){
   const text=root.querySelector(`[data-flow-label="${edge.dataset.flowEdge}"]`);
   if(text)text.textContent=`${edge.dataset.flowKind==='flow'?'flow':'connect'} · ${signal&&finite(value)?formatSample(value):'未绑定'}`;
  });
- const active=bindings.find(binding=>levels.has(binding.name));
- const part=preview&&active?input.parts?.find(item=>item.label===active.name||ident(item.label)===active.name||item.path?.endsWith('/'+active.name)):null;
- preview?.select?.(part?.id||'');
+ const emphasis=[];
+ const seenParts=new Set();
+ for(const binding of bindings){
+  if(!levels.has(binding.name)||seenParts.has(binding.name))continue;
+  seenParts.add(binding.name);
+  const value=columnValue(summary,binding.column,index);
+  const part=input.parts?.find(item=>item.label===binding.name||ident(item.label)===binding.name||item.label?.split('/').at(-1)===binding.name||item.path?.endsWith('/'+binding.name));
+  emphasis.push({id:part?.id,level:levels.get(binding.name),name:binding.name,value,drive:binding.name==='motor'||binding.column==='motor'});
+ }
+ preview?.emphasize?.(emphasis.filter(item=>item.id));
+ const readout=root.querySelector('[data-pm-scene-readout]');
+ if(readout)readout.innerHTML=emphasis.slice(0,4).map(item=>`<span style="--level:${item.level}"><b>${esc(item.name)}</b><em>${esc(formatSample(item.value))}</em></span>`).join('');
 }

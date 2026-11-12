@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {bucketMinMax,matchSignals,recordedBanner,renderSimulationStage,stageInput,structureFromSource,tableFromCsv} from '../public/simulation-stage.mjs';
+import {bucketMinMax,formatClock,matchSignals,recordedBanner,renderSimulationStage,stageInput,structureFromSource,tableFromCsv} from '../public/simulation-stage.mjs';
 
 const source=readFileSync(new URL('./fixtures/model-visualization/connected-demo.sysml',import.meta.url),'utf8');
 
@@ -53,8 +53,8 @@ test('a verified job table renders cards without calling the result a recording'
 });
 
 test('parallel flow edges keep separate labels at a readable size',()=>{
- const source=readFileSync(new URL('../examples/physical-preview/PayloadBay.sysml',import.meta.url),'utf8');
- const html=renderSimulationStage({table:{columns:['time','sensor','controller'],rows:[[0,263,263],[1,287,294]],rowCount:2},source,checks:[]});
+ const source=readFileSync(new URL('../examples/physical-preview/electric-vehicle.sysml',import.meta.url),'utf8');
+ const html=renderSimulationStage({table:{columns:['time','battery','inverter'],rows:[[0,78,0],[1,77,15]],rowCount:2},source,checks:[]});
  const labels=[...html.matchAll(/<text data-flow-label="\d+" data-flow-lane="(\d+)" x="([\d.]+)" y="([\d.]+)">/g)].map(match=>[match[1],match[2],match[3]]);
  assert.equal(labels.length,4);
  assert.equal(new Set(labels.map(item=>item.slice(1).join(','))).size,labels.length);
@@ -65,6 +65,14 @@ test('parallel flow edges keep separate labels at a readable size',()=>{
  const flow=html.match(/data-flow-kind="flow"[^>]*d="M [\d.]+ (\d+) V (\d+)" marker-end="url\(#pm-flow-arrow\)"/);
  assert.ok(flow);
  assert.ok(Number(flow[2])-Number(flow[1])>24);
+});
+
+test('playback clock stays the same width from the first sample to the last',()=>{
+ const widths=new Set([0,0.5,9.5,10,60].map(value=>formatClock(value).length));
+ assert.equal(widths.size,1);
+ const html=renderSimulationStage({table:{columns:['time','motor'],rows:[[0,0],[60,50]],rowCount:2},source:'part motor {}',recorded:true,provenance:'example'});
+ assert.match(html,/class="pm-time"/);
+ assert.match(html,/data-pm-sample-unit/);
 });
 
 test('csv text becomes a numeric table and drops non-numeric cells',()=>{

@@ -203,12 +203,51 @@ function createAssembly(THREE, host, parts, onSelect) {
   observer.observe(host);
   resize();
 
+  const signalColor = new THREE.Color(0x6c8856);
+  function restore(instance, id) {
+    instance.mesh.material = id === selected ? highlight : instance.material;
+  }
+  function emphasize(entries) {
+    const next = new Map();
+    let driveLevel = 0;
+    let hasDrive = false;
+    for (const entry of entries || []) {
+      const level = Number.isFinite(entry?.level) ? Math.min(1, Math.max(0, entry.level)) : null;
+      if (entry?.id && level != null) next.set(entry.id, level);
+      if (entry?.drive && level != null) {
+        hasDrive = true;
+        driveLevel = Math.max(driveLevel, level);
+      }
+    }
+    if (!hasDrive) driveLevel = Math.max(0, ...next.values(), 0);
+    for (const [id, instance] of instances) {
+      const level = next.get(id);
+      if (level != null) {
+        if (!instance.signalMaterial) {
+          instance.signalMaterial = instance.material.clone();
+          instance.signalMaterial.emissive = signalColor.clone();
+        }
+        instance.signalMaterial.color.copy(instance.material.color).lerp(signalColor, 0.2 + level * 0.8);
+        instance.signalMaterial.emissiveIntensity = 0.08 + level * 0.85;
+        instance.mesh.material = instance.signalMaterial;
+        continue;
+      }
+      if (!instance.bodyMaterial) {
+        instance.bodyMaterial = instance.material.clone();
+        instance.bodyMaterial.emissive = new THREE.Color(0xf4a54a);
+      }
+      instance.bodyMaterial.emissiveIntensity = driveLevel * 0.55;
+      instance.mesh.material = id === selected ? highlight : instance.bodyMaterial;
+    }
+    schedule();
+  }
   function select(id) {
-    const previous = instances.get(selected);
-    if (previous) previous.mesh.material = previous.material;
-    const current = instances.get(id);
-    if (current) current.mesh.material = highlight;
+    const previous = selected;
     selected = id;
+    const prior = instances.get(previous);
+    if (prior && previous !== id) restore(prior, previous);
+    const current = instances.get(id);
+    if (current && current.mesh.material !== current.signalMaterial) current.mesh.material = highlight;
     schedule();
   }
   function fit() {
@@ -298,6 +337,10 @@ function createAssembly(THREE, host, parts, onSelect) {
     events.abort();
     observer.disconnect();
     cancelAnimationFrame(frame);
+    for (const instance of instances.values()) {
+      instance.signalMaterial?.dispose();
+      instance.bodyMaterial?.dispose();
+    }
     for (const resource of [...geometries.values(), ...edgeGeometries.values(), ...materials.values(), highlight, outline]) resource.dispose();
     scene.environment = null;
     environment.dispose();
@@ -311,20 +354,21 @@ function createAssembly(THREE, host, parts, onSelect) {
     host.textContent = '三维显示已中断。请重新打开实体预览。';
   }
   listen(canvas, 'webglcontextlost', showRenderFailure);
-  return {select, fit, zoom, destroy};
+  return {select, emphasize, fit, zoom, destroy};
 }
 
 export function mountPhysicalPreview(host, {parts, onSelect}) {
   host.classList.add('physical-preview-3d');
   host.tabIndex = 0;
   host.setAttribute('aria-label', '三维实体装配预览。方向键旋转，加减键缩放，Home 键复位。');
-  let preview, selected, destroyed = false;
+  let preview, selected, emphasis, destroyed = false;
   if (parts.length) {
     host.textContent = '正在加载实体预览…';
     import('/vendor/three/three.module.min.js').then(THREE => {
       if (destroyed) return;
       preview = createAssembly(THREE, host, parts, onSelect);
       if (selected != null) preview.select(selected);
+      if (emphasis) preview.emphasize(emphasis);
     }).catch(() => {
       if (!destroyed) host.textContent = '无法启动实体预览。请使用支持 WebGL 2 的浏览器，或通过零件列表查看尺寸和位置。';
     });
@@ -333,6 +377,7 @@ export function mountPhysicalPreview(host, {parts, onSelect}) {
   }
   return {
     select(id) {selected = id;preview?.select(id);},
+    emphasize(entries) {emphasis = entries || [];preview?.emphasize(emphasis);},
     fit() {preview?.fit();},
     zoom(factor) {preview?.zoom(factor);},
     destroy() {destroyed = true;preview?.destroy();host.replaceChildren();}

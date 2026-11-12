@@ -1,6 +1,0 @@
-{
-  "schema": "manta-recorded-trajectory-v1",
-  "provenance": "example",
-  "csv": "examples/bouncing-ball/bouncing-ball.recorded.csv",
-  "source": "https://github.com/modelica/Reference-FMUs/releases/download/v0.0.42/Reference-FMUs.zip#extra/org.fmi-standard.fmi-ls-ref/BouncingBall_out.csv"
-}
