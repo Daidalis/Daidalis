@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createStore } from '../server/store.mjs';
 import { createEngineeringStateService } from '../server/engineering-state.mjs';
-import { summarizeEngineeringState, engineeringStatePage, createEngineeringStateRuntime } from '../server/engineering-state-tools.mjs';
+import { summarizeEngineeringState, engineeringStatePage, createEngineeringStateRuntime, ENGINEERING_STATE_TOOL_DEFINITIONS } from '../server/engineering-state-tools.mjs';
 
 const user = { actor: { kind: 'user', id: 'reviewer' } };
 const agent = { actor: { kind: 'agent', id: 'worker' } };
@@ -46,6 +46,22 @@ test('concurrent CAS accepts exactly one write; missing revision cannot overwrit
   assert.equal(writes.find(item => item.status === 'rejected').reason.status, 409);
   await assert.rejects(f.service.upsertObject(f.projectId, { id: 'R', title: 'Unversioned' }, agent), error => error.status === 409);
   assert.equal((await f.service.get(f.projectId)).objects[0].revision, 2);
+});
+
+test('object tool accepts zero or omitted creation revision and preserves existing-object CAS', async t => {
+  const f=await fixture(t),runtime=createEngineeringStateRuntime({service:f.service,authorizeMutation:async()=>{}}),ctx={projectId:f.projectId,isCoordinator:true,runId:'test-run'};
+  const definition=ENGINEERING_STATE_TOOL_DEFINITIONS.find(tool=>tool.name==='record_engineering_object');
+  assert.equal(definition.parameters.properties.expectedRevision.minimum,0);
+  const input={id:'R05',kind:'requirement',title:'Candidate range target',sources:['requirements.md']};
+  await assert.rejects(runtime.execute('record_engineering_object',{...input,expectedRevision:1},ctx),e=>e.status===409);
+  assert.equal((await f.service.get(f.projectId)).objects.length,0);
+  const first=await runtime.execute('record_engineering_object',{...input,expectedRevision:0},ctx);assert.equal(first.revision,1);
+  const second=await runtime.execute('record_engineering_object',{...input,id:'R06'},ctx);assert.equal(second.revision,1);
+  for(const expectedRevision of [undefined,0,2])await assert.rejects(runtime.execute('record_engineering_object',{...input,expectedRevision},ctx),e=>e.status===409);
+  assert.equal((await runtime.execute('record_engineering_object',{...input,title:'Updated target',expectedRevision:1},ctx)).revision,2);
+  await assert.rejects(runtime.execute('record_engineering_object',{...input,expectedRevision:1},ctx),e=>e.status===409);
+  const restarted=createEngineeringStateService({store:createStore(f.options)}),state=await restarted.get(f.projectId);
+  assert.equal(state.objects.find(o=>o.id==='R05').revision,2);assert.equal(state.objects.find(o=>o.id==='R06').revision,1);
 });
 
 test('declaration provenance remains unknown and does not prove engineering compliance', async t => {
