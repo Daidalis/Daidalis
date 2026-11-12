@@ -129,7 +129,7 @@ export async function publicFetch(raw,{signal,redirects=3,maxBytes=500000,proxyM
   return new Promise((resolve,reject)=>{
     let settled=false,timer;
     const finish=(error,result)=>{if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve(result);};
-    const request=(url.protocol==='https:'?https:http).get(url,{signal,timeout:20000,headers:{'user-agent':'Manta/0.5 public-source-fetch'},lookup:(_host,options,callback)=>{if(typeof options==='function')callback=options;if(options?.all) callback(null,[picked]);else callback(null,picked.address,picked.family);}},response=>{
+    const request=(url.protocol==='https:'?https:http).get(url,{signal,timeout:20000,headers:{'user-agent':'Daidalis/0.5 public-source-fetch'},lookup:(_host,options,callback)=>{if(typeof options==='function')callback=options;if(options?.all) callback(null,[picked]);else callback(null,picked.address,picked.family);}},response=>{
       if([301,302,303,307,308].includes(response.statusCode)&&response.headers.location){
         response.resume();
         if(redirects<=0)return finish(new Error('Too many redirects'));

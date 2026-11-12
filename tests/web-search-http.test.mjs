@@ -9,7 +9,7 @@ import {createWebSearchService} from '../server/web-search.mjs';
 import {spawnBounded} from '../server/sandbox.mjs';
 
 test('HTTP Agent searches unknown URLs, fetches the discovered page and retains the source chain',async t=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-web-search-http-')),workspace=path.join(root,'workspace');await fs.mkdir(workspace);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-web-search-http-')),workspace=path.join(root,'workspace');await fs.mkdir(workspace);
   const query='Model 3 公开规格 官方资料',url='https://www.tesla.com/model3',requests=[],searches=[],fetches=[];
   const reply=message=>new Response(JSON.stringify({choices:[{message}]}),{headers:{'content-type':'application/json'}});
   const call=(id,name,args)=>reply({content:'',tool_calls:[{id,type:'function',function:{name,arguments:JSON.stringify(args)}}]});
@@ -34,10 +34,10 @@ test('HTTP Agent searches unknown URLs, fetches the discovered page and retains 
   const registry=await api('/api/projects/'+project.id+'/integrations');assert.equal(registry.registry.entries.find(item=>item.id==='web-search').ready,true);
 });
 
-test('installed Agent Reach CLI parses real Exa HTTP responses in the Agent flow and respects cooldown', {skip:!process.env.MANTA_TEST_AGENT_REACH_BIN},async t=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-search-cli-')),workspace=path.join(root,'workspace');await fs.mkdir(workspace);
+test('installed Agent Reach CLI parses real Exa HTTP responses in the Agent flow and respects cooldown', {skip:!process.env.DAIDALIS_TEST_AGENT_REACH_BIN},async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-search-cli-')),workspace=path.join(root,'workspace');await fs.mkdir(workspace);
   t.after(()=>fs.rm(root,{recursive:true,force:true}));
-  const binary=path.resolve(process.env.MANTA_TEST_AGENT_REACH_BIN),python=path.join(path.dirname(binary),process.platform==='win32'?'python.exe':'python');
+  const binary=path.resolve(process.env.DAIDALIS_TEST_AGENT_REACH_BIN),python=path.join(path.dirname(binary),process.platform==='win32'?'python.exe':'python');
   const query='--timeout 999 $(touch search-injection) Model 3 公开规格',url='https://www.tesla.com/model3',searchRequests=[],modelRequests=[];
   const source=http.createServer(async(req,res)=>{
     let body='';for await(const chunk of req)body+=chunk;

@@ -1,8 +1,8 @@
 # Real SysML v2 backend
 
-Manta now uses the **Open-MBEE sysml-toolkit WebAssembly kernel**, release
+Daidalis now uses the **Open-MBEE sysml-toolkit WebAssembly kernel**, release
 `@sysml/wasm 0.10.10`, commit `339ef0e`, for textual SysML v2 models.
-It is a separate model service. The existing Manta JSON nodes/links graph is
+It is a separate model service. The existing Daidalis JSON nodes/links graph is
 still a workspace visualization and is not presented as a SysML compiler.
 
 Primary sources:
@@ -21,7 +21,7 @@ network, shell, or host application API.
 
 `toolchains/sysml/manifest.json` pins the version, build commit, archive digest,
 and hashes of the JavaScript glue, WASM binary, library sources, sealed library
-resolution recording and prepared-library snapshot. Manta checks a pinned hash
+resolution recording and prepared-library snapshot. Daidalis checks a pinned hash
 of the manifest itself and every listed file before reporting the backend ready.
 The archive SHA-256 matches the public GitHub release asset API's `digest`:
 
@@ -101,7 +101,7 @@ MCP wrappers call the same service.
   claim physical correctness.
 
 Successful imports, checks and verification reports are saved under the selected
-project's `.manta/model-evidence/` and appear as normal project artifacts. Source
+project's `.daidalis/model-evidence/` and appear as normal project artifacts. Source
 references include project-relative paths and SHA-256 hashes. The service does
 not write default runtime data into the application `.local` directory.
 
@@ -136,7 +136,7 @@ Native FMU binaries are executable inputs, so FMI jobs use the configured Docker
 
 The standard library is actually loaded, including its pinned prepared snapshot.
 The tests demonstrate normative ID resolution of `ScalarValues::Real`, a parser
-failure, an unresolved type and a real usage-kind typing error. Manta additionally
+failure, an unresolved type and a real usage-kind typing error. Daidalis additionally
 rejects unresolved-reference findings even when the upstream kernel labels them
 warnings, rather than counting an incomplete model as accepted.
 
@@ -156,7 +156,7 @@ Prefer `compact-json` for source/model interchange and retain the textual source
 1. `generateNos3Model({projectId})` writes
    `models/nos3-attitude-interface.sysml`, a real semantically checked model.
    If the expected NOS3 source files exist, it records their hashes. This is a
-   **Manta reconstruction from source**, not a NASA-issued architecture model.
+   **Daidalis reconstruction from source**, not a NASA-issued architecture model.
 2. The model separates sensor measurement, mounting rotation, flight-software
    estimator and reference dynamics truth. It records `R-ROTATION`, `R-SIGN` and
    `R-SENSOR-SEPARATION`, plus a pending flight-software input-path verification.
@@ -188,7 +188,7 @@ previous measurements.
 node --test tests/model-backend.test.mjs
 ```
 
-On macOS run this from a context where Manta can create its own sandbox.
+On macOS run this from a context where Daidalis can create its own sandbox.
 Codex's outer command sandbox may reject nested `sandbox-exec` with
 `sandbox_apply: Operation not permitted`; run the test command with the tool's
 normal reviewed escalation. The service never responds by dropping its internal

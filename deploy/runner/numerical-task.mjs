@@ -4,7 +4,7 @@ import {createEngineeringService} from '../../server/engineering.mjs';
 let raw='';for await(const chunk of process.stdin){raw+=chunk;if(raw.length>64000)throw Error('Numerical request too large');}
 const input=JSON.parse(raw),mode=process.argv[2];
 await fs.mkdir('/work/project',{recursive:true});
-const service=await createEngineeringService({root:'/opt/manta',dataDir:'/tmp/numerical-state',store:{workspace:()=>'/work/project',add:()=>{}}});
+const service=await createEngineeringService({root:'/opt/daidalis',dataDir:'/tmp/numerical-state',store:{workspace:()=>'/work/project',add:()=>{}}});
 if(mode==='status'){
  const status=await service.recheckRuntime();
  console.log(JSON.stringify({code:status.available?0:1,stdout:JSON.stringify(status.versions||{}),stderr:status.diagnostic||status.detail}));

@@ -1,9 +1,9 @@
 # Project MCP connections
 
-Manta can connect to an existing MCP server over stdio or Streamable HTTP. A
+Daidalis can connect to an existing MCP server over stdio or Streamable HTTP. A
 connection belongs to one project. The connector does not install packages,
 import global Codex/Claude configuration, or add entries to either application's
-configuration files. Codex, Claude and custom SDK runtimes use the same Manta
+configuration files. Codex, Claude and custom SDK runtimes use the same Daidalis
 gateway and permission checks.
 
 ## Configuration
@@ -14,7 +14,7 @@ Connections are disabled unless `enabled` is explicitly true. Testing or using a
 enabled stdio connection starts its configured executable.
 
 Configurations are saved at
-`<Manta service dataDir>/project-connectors/<projectId>.json` with mode `0600`.
+`<Daidalis service dataDir>/project-connectors/<projectId>.json` with mode `0600`.
 This protected service location is intentionally outside agent-editable project
 files. Tests must use a temporary `dataDir`; no default directory is created.
 
@@ -27,7 +27,7 @@ Example input to the service API:
   "transport": "http",
   "enabled": true,
   "url": "https://engineering.example.org/mcp",
-  "accessTokenEnv": "MANTA_MCP_SIMULATION_TOKEN",
+  "accessTokenEnv": "DAIDALIS_MCP_SIMULATION_TOKEN",
   "toolPolicies": {
     "list_models": "read",
     "submit_simulation": "run",
@@ -42,9 +42,9 @@ are disabled to avoid forwarding authorization to another origin.
 
 For stdio, specify an installed absolute executable path, argument array, and
 project-relative `cwd`. Package executors such as `npx` and `uvx` are rejected;
-Manta will not download a server implicitly. `env` holds explicit non-secret
+Daidalis will not download a server implicitly. `env` holds explicit non-secret
 values; `envFrom` maps the child environment variable to a dedicated
-`MANTA_MCP_*` source variable:
+`DAIDALIS_MCP_*` source variable:
 
 ```json
 {
@@ -55,7 +55,7 @@ values; `envFrom` maps the child environment variable to a dedicated
   "command": "/absolute/path/to/already-installed-server",
   "args": [],
   "cwd": ".",
-  "envFrom": {"API_TOKEN": "MANTA_MCP_ENGINEERING_TOKEN"},
+  "envFrom": {"API_TOKEN": "DAIDALIS_MCP_ENGINEERING_TOKEN"},
   "toolPolicies": {"inspect_project": "read"}
 }
 ```

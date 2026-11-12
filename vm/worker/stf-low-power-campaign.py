@@ -1,6 +1,16 @@
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import pathlib,subprocess,os,time,socket,struct,collections,json,base64,signal,threading,pty,csv,argparse
 p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--duration',type=float,default=96);a=p.parse_args()
-work=pathlib.Path('/srv/manta/stf-low-power');out=pathlib.Path(a.output);out.mkdir(parents=True,exist_ok=False)
+work=pathlib.Path(_vm_name_path('/srv/daidalis/stf-low-power'));out=pathlib.Path(a.output);out.mkdir(parents=True,exist_ok=False)
 simdir=work/'sims/build/bin';fswdir=work/'fsw/build/exe/cpu1';f42=work/'42run';processes=[];logs=[];terminals=[]
 env=dict(os.environ,LD_LIBRARY_PATH=str(work/'sims/build/lib')+':/usr/lib',TERM='xterm');receiver=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);receiver.bind(('127.0.0.1',5013));receiver.setblocking(False);cmd=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);simcmd=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);simcmd.setblocking(False);seq=collections.defaultdict(int);commands=(out/'commands.jsonl').open('w');packets=(out/'packets.jsonl').open('w');rows=[];mgr=None;counts=collections.Counter();phase='startup'
 def start(name,args,cwd):

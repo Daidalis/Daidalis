@@ -1,4 +1,6 @@
-// Pure helpers that turn a finished SysML FMI run into a `manta-recorded-trajectory-v1`
+import {productSchemaMatches} from './legacy-names.mjs';
+
+// Pure helpers that turn a finished SysML FMI run into a `daidalis-recorded-trajectory-v1`
 // manifest. Nothing here reads files or runs a model.
 const identifier=/^[A-Za-z_]\w*$/;
 const timeName=name=>/^time(?:_seconds)?$/i.test(String(name||''));
@@ -57,11 +59,11 @@ export function recordedManifestPath(modelPath){
  * bindings, units and drive; everything that describes the run is replaced.
  */
 export function buildRecordedManifest({columns=[],source='',csv,jobId,note='',checks=[],receipt=null,previous=null}){
- const keep=previous&&previous.schema==='manta-recorded-trajectory-v1'?previous:{};
+ const keep=previous&&productSchemaMatches(previous.schema,'daidalis-recorded-trajectory-v1')?previous:{};
  const bindings={...deriveBindings(columns,source),...(keep.bindings&&typeof keep.bindings==='object'&&!Array.isArray(keep.bindings)?keep.bindings:{})};
  const drive=typeof keep.drive==='string'&&keep.drive?keep.drive:deriveDrive(columns,bindings,source);
  return {
-  schema:'manta-recorded-trajectory-v1',
+  schema:'daidalis-recorded-trajectory-v1',
   provenance:'fmu-run',
   note:String(note||`作业 ${jobId} 的 FMU 仿真轨迹。`).slice(0,300),
   csv,

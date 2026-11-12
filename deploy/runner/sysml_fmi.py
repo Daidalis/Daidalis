@@ -516,7 +516,7 @@ def _run(request, work):
             }, indent=2, ensure_ascii=False), encoding='utf-8')
 
             receipt = {
-                'schema': 'manta-sysml-fmi-execution-v1',
+                'schema': 'daidalis-sysml-fmi-execution-v1',
                 'jobId': request.get('jobId'),
                 'inputHash': request.get('inputHash'),
                 'operation': operation,

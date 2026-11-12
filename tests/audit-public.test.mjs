@@ -9,7 +9,7 @@ import {gzipSync} from 'node:zlib';
 const script=fileURLToPath(new URL('../scripts/audit-public.mjs',import.meta.url));
 const fake='ghp_'+'Ab9x'.repeat(10);
 async function fixture(t){
- const dir=await fs.mkdtemp(path.join(os.tmpdir(),'manta-source-audit-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-source-audit-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
  const env={...process.env,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:process.platform==='win32'?'NUL':'/dev/null',GIT_TERMINAL_PROMPT:'0'};
  const git=(...args)=>{const r=spawnSync('git',args,{cwd:dir,env,encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r;};
  git('init','-q');

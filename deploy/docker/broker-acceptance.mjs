@@ -1,4 +1,4 @@
-// Run inside an otherwise idle broker-mode Manta test deployment.
+// Run inside an otherwise idle broker-mode Daidalis test deployment.
 // Creates temporary managed projects; never reads real credentials or projects.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -7,8 +7,8 @@ import {createHash,randomUUID} from 'node:crypto';
 import {createBrokerRunner} from '../../server/broker-runner.mjs';
 import {createToolRuntime} from '../../server/tools.mjs';
 
-assert.equal(process.env.MANTA_EXECUTION_MODE,'broker');
-const runner=createBrokerRunner(),base=process.env.MANTA_PROJECTS_ROOT||'/projects';
+assert.equal(process.env.DAIDALIS_EXECUTION_MODE,'broker');
+const runner=createBrokerRunner(),base=process.env.DAIDALIS_PROJECTS_ROOT||'/projects';
 const one=await fs.mkdtemp(path.join(base,'project-')),two=await fs.mkdtemp(path.join(base,'project-'));
 const sentinel=path.join('/data',`broker-test-${randomUUID()}`);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -20,11 +20,11 @@ try{
   await fs.writeFile(sentinel,'private application sentinel');
   await fs.writeFile(path.join(two,'private.txt'),'other project sentinel');
   await fs.writeFile(path.join(one,'own.txt'),'current project');
-  process.env.MANTA_ACCEPTANCE_PRIVATE_SENTINEL='must-not-reach-task';
+  process.env.DAIDALIS_ACCEPTANCE_PRIVATE_SENTINEL='must-not-reach-task';
   const status=await runner.prepare();
   assert.equal(status.isolated,true);assert.equal(status.isolation.daemonRootless,true);
   console.log('Broker ready:',JSON.stringify(status.isolation));
-  const script=`import os, socket\nfrom pathlib import Path\nassert os.getuid()==1000\nassert Path('/work/own.txt').read_text()=='current project'\nfor p in ${JSON.stringify([sentinel,path.join(two,'private.txt'),'/run/task-docker.sock','/var/run/docker.sock','/broker-control/broker.sock'])}:\n assert not Path(p).exists(), p\nassert 'MANTA_ACCEPTANCE_PRIVATE_SENTINEL' not in os.environ\nassert 'OPENAI_API_KEY' not in os.environ\nassert 'ANTHROPIC_API_KEY' not in os.environ\nassert Path('/sys/fs/cgroup/memory.max').read_text().strip()=='2147483648'\nassert Path('/sys/fs/cgroup/pids.max').read_text().strip()=='256'\ntry:\n Path('/etc/manta-test').write_text('bad')\n raise AssertionError('root filesystem writable')\nexcept (PermissionError, OSError): pass\ns=socket.socket(); s.settimeout(.3)\nassert s.connect_ex(('1.1.1.1',443))!=0\nprint('filesystem, credentials, network, UID, memory and PID isolation passed')`;
+  const script=`import os, socket\nfrom pathlib import Path\nassert os.getuid()==1000\nassert Path('/work/own.txt').read_text()=='current project'\nfor p in ${JSON.stringify([sentinel,path.join(two,'private.txt'),'/run/task-docker.sock','/var/run/docker.sock','/broker-control/broker.sock'])}:\n assert not Path(p).exists(), p\nassert 'DAIDALIS_ACCEPTANCE_PRIVATE_SENTINEL' not in os.environ\nassert 'OPENAI_API_KEY' not in os.environ\nassert 'ANTHROPIC_API_KEY' not in os.environ\nassert Path('/sys/fs/cgroup/memory.max').read_text().strip()=='2147483648'\nassert Path('/sys/fs/cgroup/pids.max').read_text().strip()=='256'\ntry:\n Path('/etc/daidalis-test').write_text('bad')\n raise AssertionError('root filesystem writable')\nexcept (PermissionError, OSError): pass\ns=socket.socket(); s.settimeout(.3)\nassert s.connect_ex(('1.1.1.1',443))!=0\nprint('filesystem, credentials, network, UID, memory and PID isolation passed')`;
   console.log((await command(`python3 - <<'PY'\n${script}\nPY`)).stdout.trim());
   await fs.symlink(path.join(two,'private.txt'),path.join(one,'escape'));
   await command('test ! -r escape && test ! -e ../private.txt');
@@ -74,7 +74,7 @@ try{
     assert.equal(result.success,true,result.diagnostics);assert.equal(result.isolation.isolated,true);
     assert.ok(result.files.length);assert.equal(result.receipt.inputHash,sha);
     if(item.toolId==='openmodelica'){
-      const csv=Buffer.from(result.files.find(f=>f.path==='manta_result_res.csv').contentBase64,'base64').toString().trim().split('\n');
+      const csv=Buffer.from(result.files.find(f=>f.path==='daidalis_result_res.csv').contentBase64,'base64').toString().trim().split('\n');
       const index=csv[0].replaceAll('"','').split(',').indexOf('x');
       assert.ok(Math.abs(Number(csv.at(-1).split(',')[index])-Math.exp(-1))<1e-4);
     }
@@ -82,6 +82,6 @@ try{
   }
   console.log('Broker acceptance passed');
 }finally{
-  delete process.env.MANTA_ACCEPTANCE_PRIVATE_SENTINEL;
+  delete process.env.DAIDALIS_ACCEPTANCE_PRIVATE_SENTINEL;
   await fs.rm(one,{recursive:true,force:true});await fs.rm(two,{recursive:true,force:true});await fs.rm(sentinel,{force:true});
 }

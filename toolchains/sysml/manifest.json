@@ -1,5 +1,5 @@
 {
-  "schema": "manta-sysml-toolchain-v1",
+  "schema": "daidalis-sysml-toolchain-v1",
   "name": "@sysml/wasm",
   "version": "0.10.10",
   "commit": "339ef0e",

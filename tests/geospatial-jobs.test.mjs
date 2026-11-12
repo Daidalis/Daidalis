@@ -13,9 +13,9 @@ const SOURCE=Buffer.from('PK\x03\x04dummy-fixture-not-a-real-archive');
 const GEOJSON=Buffer.from(JSON.stringify({type:'FeatureCollection',features:[{type:'Feature',properties:{role:'control-point'},geometry:{type:'Point',coordinates:[-76,39]}}]}));
 const CSV=Buffer.from('id,actual,expected,passed\ninside,inside,inside,true\n');
 function file(path,bytes){return {path,sha256:hash(bytes),contentBase64:bytes.toString('base64')};}
-function output(args){return {schema:'manta-geospatial-runner-result-v1',exitCode:0,success:true,receipt:{inputHash:args.inputHash,sourceSha256:args.sourceHash,sourceEpsgExpected:args.expectedSourceEpsg},tool:{id:'gdal-proj',version:'fixture'},toolchain:{packages:{'python3-gdal':'fixture'},binaryHashes:{ogrinfo:{sha256:hash('ogrinfo')}}},verification:{status:'passed',checks:[{id:'inside',actual:'inside',expected:'inside',passed:true}]},files:[file('preview.geojson',GEOJSON),file('checks.csv',CSV)]};}
+function output(args){return {schema:'daidalis-geospatial-runner-result-v1',exitCode:0,success:true,receipt:{inputHash:args.inputHash,sourceSha256:args.sourceHash,sourceEpsgExpected:args.expectedSourceEpsg},tool:{id:'gdal-proj',version:'fixture'},toolchain:{packages:{'python3-gdal':'fixture'},binaryHashes:{ogrinfo:{sha256:hash('ogrinfo')}}},verification:{status:'passed',checks:[{id:'inside',actual:'inside',expected:'inside',passed:true}]},files:[file('preview.geojson',GEOJSON),file('checks.csv',CSV)]};}
 async function fixture(t,{run}={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-gis-test-')),dataDir=path.join(root,'data');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-gis-test-')),dataDir=path.join(root,'data');
   const store=createStore({dataDir,seed:false}),project=store.createProject({name:'GIS unit test'}),workspace=store.workspace(project.id);
   await fs.writeFile(path.join(workspace,'source.zip'),SOURCE);
   const calls=[],runner={status:async()=>({ready:true,versions:{gdal:'fixture'}}),prepare:async()=>({ready:true}),run:async(args,ctx)=>{calls.push(args);return run?run(args,ctx):output(args);}};
@@ -51,7 +51,7 @@ test('durable job binds source hash and receipts, registers artifacts, and detec
   await assert.rejects(f.service.readOutput({projectId:f.project.id,jobId:result.jobId,file:'outputs/preview.geojson'}),/integrity mismatch/);
 });
 test('malformed-archive runner failure is recorded as failed with diagnostics and no preview',async t=>{
-  const f=await fixture(t,{run:async()=>({schema:'manta-geospatial-runner-result-v1',exitCode:2,success:false,reason:'Shapefile ZIP has no members',diagnostics:'Shapefile ZIP has no members',files:[]})});
+  const f=await fixture(t,{run:async()=>({schema:'daidalis-geospatial-runner-result-v1',exitCode:2,success:false,reason:'Shapefile ZIP has no members',diagnostics:'Shapefile ZIP has no members',files:[]})});
   const result=await run(f);assert.equal(result.status,'failed');assert.equal(result.integrity.verified,true);assert.equal(result.executionSucceeded,false);assert.match(result.diagnostics,/no members/);assert.equal(result.artifacts.some(a=>a.path.endsWith('preview.geojson')),false);
 });
 test('incomplete successful worker output is rejected before any preview is published',async t=>{

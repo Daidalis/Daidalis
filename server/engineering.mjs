@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import fss from 'node:fs';
 import path from 'node:path';
@@ -144,8 +145,8 @@ const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const SCOPE='declared-model-numerical-analysis';
 export async function createEngineeringService({root,dataDir,store,emit=()=>{},pythonPath,professionalCatalog=professionalToolCatalog,probeExecutor=spawnBounded,numericalRunner=null,probeTimeoutMs=120000,locationPolicy=dependencyLocationPolicy}={}){
   root=root||process.cwd();dataDir=dataDir||path.join(root,'.local');
-  const python=pythonPath||process.env.MBSE_PYTHON||findExe([path.join(root,'.venv',process.platform==='win32'?'Scripts':'bin',process.platform==='win32'?'python.exe':'python3'),'python3','python']);
-  const dependencies=process.env.MBSE_ENGINEERING_DEPS||path.join(root,'.local','engineering-deps');
+  const python=pythonPath||process.env.DAIDALIS_PYTHON||findExe([path.join(root,'.venv',process.platform==='win32'?'Scripts':'bin',process.platform==='win32'?'python.exe':'python3'),'python3','python']);
+  const dependencies=process.env.DAIDALIS_ENGINEERING_DEPS||path.join(root,'.local','engineering-deps');
   const env={PATH:process.env.PATH||'/usr/bin:/bin',PYTHONPATH:dependencies,PYTHONNOUSERSITE:'1',PYTHONDONTWRITEBYTECODE:'1',MPLCONFIGDIR:path.join(dataDir,'engineering-mpl')};
   // NAS dependencies can take longer to import on a cold mount. Listing tools
   // must remain cheap and must not turn a transient timeout into "not installed".
@@ -228,14 +229,14 @@ export async function createEngineeringService({root,dataDir,store,emit=()=>{},p
       const {projectId}=args;if(!store)throw Error('Project store required');const workspace=store.workspace(projectId);
       if(ctx.signal?.aborted)throw Error('Cancelled');
       let model=args.model||MODEL,input=args.parameters||{};
-      if(args.modelFile){const target=safePath(workspace,args.modelFile);const st=await fs.stat(target);if(!st.isFile()||st.size>64000)throw Error('模型JSON过大');const doc=JSON.parse(await fs.readFile(target,'utf8'));if(doc.schema!=='mbse-thermal-model-v1'||doc.model!==MODEL)throw Error('仅接受冻结物理模型的声明式JSON，不执行候选代码');model=doc.model;input={...doc.parameters,...input};}
+      if(args.modelFile){const target=safePath(workspace,args.modelFile);const st=await fs.stat(target);if(!st.isFile()||st.size>64000)throw Error('模型JSON过大');const doc=JSON.parse(await fs.readFile(target,'utf8'));if(!productSchemaMatches(doc.schema,'daidalis-thermal-model-v1')||doc.model!==MODEL)throw Error('仅接受冻结物理模型的声明式JSON，不执行候选代码');model=doc.model;input={...doc.parameters,...input};}
       if(model!==MODEL)throw Error('未知或未集成的模型');const parameters=validateParameters(input);let scan=null;
       if(args.scan){const s=args.scan;if(!['ambientAfter','heaterMax','coupling','loss','internalHeat'].includes(s.parameter)||!Array.isArray(s.values)||!s.values.length||s.values.length>12)throw Error('参数扫描需1…12个有效值');s.values.forEach(v=>validateParameters({...parameters,[s.parameter]:v}));scan={parameter:s.parameter,values:s.values};}
       await probeRuntime({signal:ctx.signal});
       if(!runtime.available)throw Error('数值求解器不可用：'+runtime.detail);
       const release=await acquire(projectId,ctx.signal,ctx.runId);try{
       const id='eng_'+crypto.randomUUID().replaceAll('-','');const relative=`engineering/${id}`;const dir=safePath(workspace,relative,{write:true});await fs.mkdir(dir,{recursive:true});
-      const specification={schema:'mbse-thermal-model-v1',model:MODEL,version:'1.0.0',parameters,units:Object.fromEntries(parameterDefinitions.map(p=>[p.key,p.unit])),assumptions:['双节点集中热容模型，节点内部温度均匀','恒定热容和线性热导，无辐射/真空热传递机理','理想传感器与加热器；连续PI，无通信延迟','边界工况由本次输入定义；参数未实测标定'],origin:'studio-declared-physical-model'};
+      const specification={schema:'daidalis-thermal-model-v1',model:MODEL,version:'1.0.0',parameters,units:Object.fromEntries(parameterDefinitions.map(p=>[p.key,p.unit])),assumptions:['双节点集中热容模型，节点内部温度均匀','恒定热容和线性热导，无辐射/真空热传递机理','理想传感器与加热器；连续PI，无通信延迟','边界工况由本次输入定义；参数未实测标定'],origin:'studio-declared-physical-model'};
       const requirements=[{id:'R-TEMP-MIN',text:`载荷全时域温度 ≥ ${parameters.minTemperature} °C`},{id:'R-TEMP-MAX',text:`载荷全时域温度 ≤ ${parameters.maxTemperature} °C`},{id:'R-TRACK',text:`末10%时域跟踪误差 ≤ ${parameters.finalTolerance} K`},{id:'R-CONSERVATION',text:'独立能量积分相对误差 < 0.005'},{id:'R-NUMERICS',text:'线性极限模型与矩阵指数解析解误差 < 1e-5 K'}];
       await Promise.all([fs.writeFile(path.join(dir,'model.py'),PYTHON),fs.writeFile(path.join(dir,'model.json'),JSON.stringify(specification,null,2)),fs.writeFile(path.join(dir,'parameters.json'),JSON.stringify({parameters,scan},null,2)),fs.writeFile(path.join(dir,'requirements.json'),JSON.stringify(requirements,null,2))]);
       emit({projectId,runId:ctx.runId,type:'engineering.started',message:'SciPy 热动力学仿真已启动',data:{id,model}});

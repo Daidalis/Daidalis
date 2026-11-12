@@ -29,8 +29,8 @@ profile, other platform channel or global agent skill is configured.
 
 Docker application builds include the same pinned version automatically. Rebuild
 the image to include it in an existing deployment. An existing launcher can be
-selected with `MANTA_AGENT_REACH_BIN`; an invalid explicit path does not silently
-fall back to another executable. `MANTA_SEARCH_TIMEOUT_MS` is 45000 by default
+selected with `DAIDALIS_AGENT_REACH_BIN`; an invalid explicit path does not silently
+fall back to another executable. `DAIDALIS_SEARCH_TIMEOUT_MS` is 45000 by default
 and accepts 1000–120000 milliseconds. The entire search, including version
 checking and body parsing, is bounded by that deadline and cancelled with its Run.
 
@@ -61,7 +61,7 @@ After installing the project environment, its real CLI/Exa protocol regression
 can be run without public search traffic:
 
 ```bash
-MANTA_TEST_AGENT_REACH_BIN="$PWD/.local/agent-reach/bin/agent-reach" node --test tests/web-search-http.test.mjs
+DAIDALIS_TEST_AGENT_REACH_BIN="$PWD/.local/agent-reach/bin/agent-reach" node --test tests/web-search-http.test.mjs
 ```
 
 This check uses the installed CLI and a local HTTP transport fixture to exercise

@@ -6,7 +6,7 @@ import path from 'node:path';
 import {createLocalLinuxVmService,executeLocalVm} from '../server/local-linux-vm.mjs';
 
 async function fixture(t,{running=true,provision,healthy=true,hostPlatform='darwin'}={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-local-linux-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-local-linux-'));
   t.after(()=>fs.rm(root,{recursive:true,force:true}));
   await fs.mkdir(path.join(root,'host'));await fs.mkdir(path.join(root,'worker'));
   for(const name of ['vm-prepare.sh','vm-start.sh','vm-status.sh','vm-exec.sh','vm-tunnel.sh','vm-stop.sh'])await fs.writeFile(path.join(root,'host',name),'#!/bin/sh\n',{mode:0o755});
@@ -17,12 +17,12 @@ async function fixture(t,{running=true,provision,healthy=true,hostPlatform='darw
   const execute=async(file,args,options={})=>{const name=path.basename(file);calls.push({name,args,options});
     if(name==='vm-status.sh')return {code:0,stdout:JSON.stringify({state:running?'running':'stopped',guestReady:running,hostFreeBytes:9*1024**3}),stderr:''};
     if(name==='vm-stop.sh'){running=false;return {code:0,stdout:'{}',stderr:''};}
-    if(name==='vm-exec.sh'&&args[0]==='cat /srv/manta/receipts/native-ready.json')return {code:0,stdout:JSON.stringify({schema:'manta-nos3-native-ready-v1',ready:true,inputHash:'1'.repeat(64),binaries:Array.from({length:4},(_,i)=>({path:'/fixture/bin/'+i,sha256:'2'.repeat(64)})),privateAssetCount:220}),stderr:''};
+    if(name==='vm-exec.sh'&&args[0]==='cat /srv/daidalis/receipts/native-ready.json')return {code:0,stdout:JSON.stringify({schema:'daidalis-nos3-native-ready-v1',ready:true,inputHash:'1'.repeat(64),binaries:Array.from({length:4},(_,i)=>({path:'/fixture/bin/'+i,sha256:'2'.repeat(64)})),privateAssetCount:220}),stderr:''};
     if(name==='vm-exec.sh'&&args[0].endsWith('/provision-worker.sh')){token=JSON.parse(options.input).token;if(provision)await provision(options);return {code:0,stdout:'{"ready":true}',stderr:''};}
     if(options.persistent){if(name==='vm-start.sh')running=true;let resolve;const handle={pid:1200+handles.length,ended:false,exited:new Promise(r=>{resolve=r;}),kill(signal){this.ended=true;resolve({code:0,signal});}};handles.push(handle);return handle;}
     return {code:0,stdout:'',stderr:''};
   };
-  const service=createLocalLinuxVmService({vmRoot:root,store:{workspace(id){if(!['p','q','r'].includes(id))throw Error('Unknown project');return '/fixture/'+id;}},execute,emit:event=>events.push(event),fetchImpl:async(url,options)=>{assert.match(url,/^http:\/\/127\.0\.0\.1:48123\/health$/);assert.equal(options.headers.authorization,'Bearer '+token);return new Response(JSON.stringify(health?{schema:'manta-nos3-worker-v1',scopes:{component:true,build:true,integration:true}}:{ok:true}));},allocatePort:async()=>48123,hostPlatform,hostArch:'arm64',pollIntervalMs:2,maxReadyMs:30});
+  const service=createLocalLinuxVmService({vmRoot:root,store:{workspace(id){if(!['p','q','r'].includes(id))throw Error('Unknown project');return '/fixture/'+id;}},execute,emit:event=>events.push(event),fetchImpl:async(url,options)=>{assert.match(url,/^http:\/\/127\.0\.0\.1:48123\/health$/);assert.equal(options.headers.authorization,'Bearer '+token);return new Response(JSON.stringify(health?{schema:'daidalis-nos3-worker-v1',scopes:{component:true,build:true,integration:true}}:{ok:true}));},allocatePort:async()=>48123,hostPlatform,hostArch:'arm64',pollIntervalMs:2,maxReadyMs:30});
   t.after(()=>service.close());
   return {root,service,calls,events,handles,setHealthy(value){health=value;}};
 }
@@ -32,11 +32,11 @@ test('managed VM preparation reuses an existing VM and exposes only a private au
   assert.equal(status.state,'ready');assert.equal(status.workerReady,true);assert.equal(status.hostGlobalChanges,false);
   assert.equal(f.calls.some(c=>c.name==='vm-start.sh'||c.name==='vm-prepare.sh'),false);
   const native=f.calls.find(c=>c.name==='vm-exec.sh'&&c.args[0].endsWith('/prepare-native.sh'));
-  assert.deepEqual(native.args,['bash /mnt/manta-transfer/worker/prepare-native.sh']);
+  assert.deepEqual(native.args,['bash /mnt/daidalis-transfer/worker/prepare-native.sh']);
   assert.equal(native.options.input,undefined);
   const provision=f.calls.find(c=>c.name==='vm-exec.sh'&&c.args[0].endsWith('/provision-worker.sh'));
   assert.ok(f.calls.indexOf(native)<f.calls.indexOf(provision));
-  assert.deepEqual(provision.args,['bash /mnt/manta-transfer/worker/provision-worker.sh']);
+  assert.deepEqual(provision.args,['bash /mnt/daidalis-transfer/worker/provision-worker.sh']);
   const input=JSON.parse(provision.options.input);assert.match(input.token,/^[a-f0-9]{64}$/);assert.equal(input.port,8093);
   const connection=await f.service.connection({projectId:'p'});assert.equal(connection.endpoint,'http://127.0.0.1:48123');assert.equal(connection.token,input.token);
   assert.equal(JSON.stringify(status).includes(input.token),false);assert.equal(JSON.stringify(f.events).includes(input.token),false);
@@ -105,16 +105,16 @@ test('loss of a managed worker is reflected in status and private connection acc
 });
 
 test('host execution strips API/SSH environment and supports explicit input without a shell',async()=>{
-  const previous=process.env.MANTA_TEST_SECRET;process.env.MANTA_TEST_SECRET='must-not-propagate';
-  try{const result=await executeLocalVm('/usr/bin/env',[],{timeoutMs:5000});assert.equal(result.code,0);assert.doesNotMatch(result.stdout,/MANTA_TEST_SECRET|SSH_AUTH_SOCK|OPENAI_API_KEY|ANTHROPIC_API_KEY/);
+  const previous=process.env.DAIDALIS_TEST_SECRET;process.env.DAIDALIS_TEST_SECRET='must-not-propagate';
+  try{const result=await executeLocalVm('/usr/bin/env',[],{timeoutMs:5000});assert.equal(result.code,0);assert.doesNotMatch(result.stdout,/DAIDALIS_TEST_SECRET|SSH_AUTH_SOCK|OPENAI_API_KEY|ANTHROPIC_API_KEY/);
     const input=await executeLocalVm('/bin/cat',[],{input:'isolated stdin',timeoutMs:5000});assert.equal(input.stdout,'isolated stdin');
-  }finally{if(previous===undefined)delete process.env.MANTA_TEST_SECRET;else process.env.MANTA_TEST_SECRET=previous;}
+  }finally{if(previous===undefined)delete process.env.DAIDALIS_TEST_SECRET;else process.env.DAIDALIS_TEST_SECRET=previous;}
 });
 
 test('explicitly prepared projects reattach an already running healthy worker after service restart without provisioning',async t=>{
  const f=await fixture(t);await f.service.prepare({projectId:'p'});const token=(await fs.readFile(path.join(f.root,'state','worker-token'),'utf8')).trim();await f.service.close();
  const calls=[];let handle;
  const execute=async(file,args,options={})=>{const name=path.basename(file);calls.push({name,args});if(name==='vm-status.sh')return {code:0,stdout:JSON.stringify({state:'running',guestReady:true})};if(name==='vm-tunnel.sh'){let resolve;handle={pid:9000,ended:false,exited:new Promise(r=>{resolve=r;}),kill(){this.ended=true;resolve({code:0});}};return handle;}throw Error('Unexpected preparation during reattach');};
- const service=createLocalLinuxVmService({vmRoot:f.root,store:{workspace(id){if(!['p','q'].includes(id))throw Error('Unknown project');return '/fixture/'+id;}},execute,allocatePort:async()=>48123,pollIntervalMs:1,maxReadyMs:30,fetchImpl:async(url,options)=>{assert.equal(options.headers.authorization,'Bearer '+token);return new Response(JSON.stringify({schema:'manta-nos3-worker-v1',scopes:{build:true,integration:true}}));}});t.after(()=>service.close());
+ const service=createLocalLinuxVmService({vmRoot:f.root,store:{workspace(id){if(!['p','q'].includes(id))throw Error('Unknown project');return '/fixture/'+id;}},execute,allocatePort:async()=>48123,pollIntervalMs:1,maxReadyMs:30,fetchImpl:async(url,options)=>{assert.equal(options.headers.authorization,'Bearer '+token);return new Response(JSON.stringify({schema:'daidalis-nos3-worker-v1',scopes:{build:true,integration:true}}));}});t.after(()=>service.close());
  assert.equal((await service.status({projectId:'p'})).workerReady,true);assert.equal(calls.some(c=>c.name==='vm-exec.sh'||c.name==='vm-start.sh'||c.name==='vm-prepare.sh'),false);await assert.rejects(service.connection({projectId:'q'}),/Prepare this project/);assert.ok((await service.connection({projectId:'p'})).token);await service.stop({projectId:'p'}).catch(()=>{});
 });

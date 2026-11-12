@@ -1,6 +1,6 @@
 package NOS3AttitudeInterface {
     private import ScalarValues::*;
-    doc /* Manta component-level engineering model for NASA NOS3 generic_adcs.
+    doc /* Daidalis component-level engineering model for NASA NOS3 generic_adcs.
            Reconstruct the sensor-to-body attitude interface from source evidence.
            This model does not claim to reproduce the complete NOS3/cFS/42 system. */
 

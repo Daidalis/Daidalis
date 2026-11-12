@@ -11,7 +11,7 @@ const blocked=signal=>new Promise((_,reject)=>{if(signal.aborted)reject(signal.r
 async function eventually(read,predicate,timeout=10000){const until=Date.now()+timeout;while(Date.now()<until){const value=await read();if(predicate(value))return value;await new Promise(r=>setTimeout(r,10));}assert.fail('Execution state not reached');}
 
 async function fixture(t,fetchImpl,{maxRetries=0,resources={}}={}){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-recovery-http-')),workspace=path.join(root,'workspace');await fs.mkdir(workspace);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-recovery-http-')),workspace=path.join(root,'workspace');await fs.mkdir(workspace);
   const app=await createStudioServer({dataDir:path.join(root,'data'),seed:false,addDefaultCodexProvider:false,computer:false,evaluator:false,engineering:false,connectors:false,nos3:false,localVm:false,professionalModels:false,professionalRunner:false,modelBackend:false,geospatial:false,orbit42:false,orbitGround:false,stfCase:false,fetchImpl});
   const address=await app.listen({port:0}),base=`http://127.0.0.1:${address.port}`;
   t.after(async()=>{await app.close();await fs.rm(root,{recursive:true,force:true});});

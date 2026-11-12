@@ -18,11 +18,11 @@ const prior=await api(modelBase+'/validate',{path:'models/acceptance.sysml'}).ca
 const valid=prior?.valid?prior:await api(modelBase+'/import',{path:'models/acceptance.sysml',content:'package Acceptance { part def Vehicle; part vehicle : Vehicle; }'});
 assert.equal(valid.valid,true);checks.push('managed project and SysML');
 
-if(['shared-container','broker'].includes(process.env.MANTA_EXECUTION_MODE)){
-  const isolated=process.env.MANTA_EXECUTION_MODE==='broker';
+if(['shared-container','broker'].includes(process.env.DAIDALIS_EXECUTION_MODE)){
+  const isolated=process.env.DAIDALIS_EXECUTION_MODE==='broker';
   const runner=isolated?createBrokerRunner():createSharedContainerRunner();
   const status=await runner.status();assert.equal(status.ready,true,JSON.stringify(status));
-  const workspace=await fs.mkdtemp(path.join(isolated?process.env.MANTA_PROJECTS_ROOT:os.tmpdir(),isolated?'project-':'manta-live-command-'));
+  const workspace=await fs.mkdtemp(path.join(isolated?process.env.DAIDALIS_PROJECTS_ROOT:os.tmpdir(),isolated?'project-':'daidalis-live-command-'));
   try{
     const result=await runner.command({workspace,command:'test ! -S /var/run/docker.sock && printf isolated > result.txt'});
     assert.equal(result.code,0);assert.equal(await fs.readFile(path.join(workspace,'result.txt'),'utf8'),'isolated');
@@ -32,7 +32,7 @@ if(['shared-container','broker'].includes(process.env.MANTA_EXECUTION_MODE)){
     const timer=setTimeout(()=>controller.abort(),1500);
     try{await assert.rejects(runner.command({workspace,command:'sleep 20; printf bad > cancelled.txt',signal:controller.signal}),/Cancelled/);}finally{clearTimeout(timer);}
     await assert.rejects(fs.access(path.join(workspace,'cancelled.txt')));
-    checks.push('commands, timeout, cancellation ('+process.env.MANTA_EXECUTION_MODE+')');
+    checks.push('commands, timeout, cancellation ('+process.env.DAIDALIS_EXECUTION_MODE+')');
   }finally{await fs.rm(workspace,{recursive:true,force:true});}
   const examples={
     ngspice:{path:'model.cir',content:'RC transient\nV1 in 0 PULSE(0 1 0 1u 1u 5m 10m)\nR1 in out 1k\nC1 out 0 1u\n.tran 0.0001 0.01\n.end\n'},
@@ -59,11 +59,11 @@ if(['shared-container','broker'].includes(process.env.MANTA_EXECUTION_MODE)){
   }
 }else checks.push('runner disabled: command/solver tests not executed');
 
-if(process.env.MANTA_ACCEPT_BROWSER==='1'){
+if(process.env.DAIDALIS_ACCEPT_BROWSER==='1'){
   const result=await api('/api/computer/action',{projectId:project.id,action:'browser.start',args:{}});
   assert.ok(result.imageUrl);checks.push('live browser screenshot');
 }
-if(process.env.MANTA_ACCEPT_DESKTOP==='1'){
+if(process.env.DAIDALIS_ACCEPT_DESKTOP==='1'){
   const action=(name,args={})=>api('/api/computer/action',{projectId:project.id,action:'desktop.'+name,args});
   await action('enable',{consent:true});
   let shot=await action('screenshot');assert.ok(shot.imageUrl);

@@ -21,7 +21,7 @@ test('Claude Bash and project command parameters are readable and complete',()=>
   const bash=present({tool:'Bash',args:{command:'cat "a b" && echo done',description:'查看文件',timeout:5000,run_in_background:false}});
   assert.equal(bash.source,'Claude Code');assert.equal(bash.reason,'查看文件');assert.equal(bash.command,'cat "a b" && echo done');
   assert.deepEqual(bash.fields,[{label:'超时（毫秒）',value:'5000'}]);assert.equal(JSON.parse(bash.blocks[0].content).run_in_background,false);
-  assert.equal(present({tool:'run_command',args:{command:'pwd'}}).source,'Manta');
+  assert.equal(present({tool:'run_command',args:{command:'pwd'}}).source,'Daidalis');
 });
 
 test('Codex file changes preserve exact paths, kinds, moves and diff',()=>{
@@ -57,7 +57,7 @@ test('desktop/browser payloads support flattened and nested schemas without losi
 
 test('unknown tools retain semantic arguments, including thread IDs and metadata-like names',()=>{
   const args={threadId:'target-worker',turnId:'semantic-user-value',native:'semantic',commandActions:['do not drop'],custom:{x:1}};
-  const v=present({tool:'custom_operation',args});assert.equal(v.title,'使用工具');assert.equal(v.source,'Manta');
+  const v=present({tool:'custom_operation',args});assert.equal(v.title,'使用工具');assert.equal(v.source,'Daidalis');
   assert.deepEqual(JSON.parse(v.blocks[0].content),args);
   const steer=present({tool:'steer_thread',args:{threadId:'target-worker',content:'do this',providerId:'codex-local'}});
   assert.ok(steer.fields.some(f=>f.label==='子线程'&&f.value==='target-worker'));
@@ -73,7 +73,7 @@ test('hostile strings remain plain data and are neither interpreted nor silently
 });
 
 test('absent and malformed payloads use stable empty defaults with inspectable fallback',()=>{
-  assert.deepEqual(present(),{kind:'tool',title:'使用工具',source:'Manta',reason:'',cwd:'',command:'',commandFormat:'shell',fields:[],blocks:[]});
+  assert.deepEqual(present(),{kind:'tool',title:'使用工具',source:'Daidalis',reason:'',cwd:'',command:'',commandFormat:'shell',fields:[],blocks:[]});
   assert.equal(present(null).kind,'tool');assert.equal(present({tool:'unknown',args:'raw payload'}).blocks[0].content,'raw payload');
   assert.deepEqual(JSON.parse(present({tool:'codex.fileChange',args:{changes:{unexpected:true}}}).blocks[0].content),{unexpected:true});
 });

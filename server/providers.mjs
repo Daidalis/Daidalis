@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {canonicalEnvironmentName,environmentValue} from '../shared/legacy-names.mjs';
 import {createRequire} from 'node:module';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
@@ -17,14 +18,14 @@ function parseArgs(value){if(value&&typeof value==='object')return value;try{ret
 function callsChat(message){return (message.tool_calls||[]).map(c=>({id:c.id||id('call'),name:c.function.name,args:parseArgs(c.function.arguments)}));}
 export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPath=CODEX_PATH,nativeProbe,codexRequiresApiKey=false}) {
   const secrets=new Map();
-  const key=p=>secrets.get(p.id)||(p.keyEnv?process.env[p.keyEnv]:'')||'';
+  const key=p=>secrets.get(p.id)||(p.keyEnv?environmentValue(process.env,p.keyEnv):'')||'';
   function redact(value){let out=String(value??'');for(const s of [...secrets.values(),...store.data.providers.map(key)])if(s&&s.length>=6)out=out.split(s).join('[REDACTED]');return out;}
   function sanitize(p){
     const native=NATIVE.has(p.type),codex=p.type==='codex-cli'||p.type==='codex-app-server';
     const available=codex?executableAvailable(codexPath):p.type==='claude-agent'?dependencyAvailable('@anthropic-ai/claude-agent-sdk'):true;
-    return {id:p.id,name:p.name,type:p.type,baseUrl:p.baseUrl||'',model:p.model||'',keyEnv:p.keyEnv||'',...(!native&&p.type!=='demo'?requestPolicy(p):{}),configured:p.type==='demo'||(native?(available&&(codex?(!codexRequiresApiKey||!!key(p)):!!key(p))):p.type==='ollama'||!!key(p)),dependencyAvailable:available,runtime:native?(codex?'codex-app-server':'claude-agent-sdk'):'openai-agents-sdk',sdk:native?(codex?'Codex app-server protocol':'@anthropic-ai/claude-agent-sdk'):p.type==='anthropic'?'@anthropic-ai/sdk + @openai/agents':(p.type||'').startsWith('openai')?'openai + @openai/agents':'@openai/agents custom model',capabilities:{nativeSession:native,persistentSession:true,tokenStreaming:native,officialAgentLoop:true,authenticationVerified:false},...(p.type==='demo'?{notice:'Deterministic offline example. Not live AI.'}:codex&&!available?{notice:CODEX_MISSING_MESSAGE}:codex&&codexRequiresApiKey&&!key(p)?{notice:'This isolated Codex runtime needs a project-local Responses API key; the host Codex login is intentionally unavailable.'}:native?{notice:'Runtime dependency detection only; authentication and a real native turn must be tested separately.'}:{})};
+    return {id:p.id,name:p.name,type:p.type,baseUrl:p.baseUrl||'',model:p.model||'',keyEnv:canonicalEnvironmentName(p.keyEnv)||'',...(!native&&p.type!=='demo'?requestPolicy(p):{}),configured:p.type==='demo'||(native?(available&&(codex?(!codexRequiresApiKey||!!key(p)):!!key(p))):p.type==='ollama'||!!key(p)),dependencyAvailable:available,runtime:native?(codex?'codex-app-server':'claude-agent-sdk'):'openai-agents-sdk',sdk:native?(codex?'Codex app-server protocol':'@anthropic-ai/claude-agent-sdk'):p.type==='anthropic'?'@anthropic-ai/sdk + @openai/agents':(p.type||'').startsWith('openai')?'openai + @openai/agents':'@openai/agents custom model',capabilities:{nativeSession:native,persistentSession:true,tokenStreaming:native,officialAgentLoop:true,authenticationVerified:false},...(p.type==='demo'?{notice:'Deterministic offline example. Not live AI.'}:codex&&!available?{notice:CODEX_MISSING_MESSAGE}:codex&&codexRequiresApiKey&&!key(p)?{notice:'This isolated Codex runtime needs a project-local Responses API key; the host Codex login is intentionally unavailable.'}:native?{notice:'Runtime dependency detection only; authentication and a real native turn must be tested separately.'}:{})};
   }
-  function getConfig(providerId){const p=store.get('providers',providerId);if(!p)throw new Error('Provider not found');return {...structuredClone(p),apiKey:key(p),...(NATIVE.has(p.type)?{runtime:p.type==='claude-agent'?'claude-agent-sdk':'codex-app-server',codexPath}:{})};}
+  function getConfig(providerId){const p=store.get('providers',providerId);if(!p)throw new Error('Provider not found');return {...structuredClone(p),keyEnv:canonicalEnvironmentName(p.keyEnv)||'',apiKey:key(p),...(NATIVE.has(p.type)?{runtime:p.type==='claude-agent'?'claude-agent-sdk':'codex-app-server',codexPath}:{})};}
 
   function validateInput(input){if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Provider must be an object');for(const field of Object.keys(input))if(!['name','type','baseUrl','model','keyEnv','apiKey','clearApiKey','requestTimeoutMs','maxRetries'].includes(field))throw Error('Unknown provider field: '+field);for(const field of ['name','type','baseUrl','model','keyEnv'])if(Object.hasOwn(input,field)&&typeof input[field]!=='string')throw Error('Invalid provider field: '+field);if(input.model?.length>200)throw Error('Invalid model name');if(input.apiKey!==undefined&&typeof input.apiKey!=='string')throw Error('Invalid API key');if(input.clearApiKey!==undefined&&typeof input.clearApiKey!=='boolean')throw Error('clearApiKey must be boolean');if(input.clearApiKey&&input.apiKey)throw Error('Cannot set and clear an API key together');validateRequestPolicy(input);}
   function create(input) {
@@ -34,7 +35,7 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
     if(input.keyEnv && !/^[A-Za-z_][A-Za-z0-9_]{0,100}$/.test(input.keyEnv))throw new Error('Invalid environment variable name');
     let baseUrl=input.baseUrl||({ 'openai-compatible':'https://api.openai.com/v1','openai-responses':'https://api.openai.com/v1',anthropic:'https://api.anthropic.com/v1',ollama:'http://127.0.0.1:11434'}[input.type]||'');
     if(baseUrl){const u=new URL(baseUrl);if(!['https:','http:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw new Error('Provider URL must be HTTP(S), without credentials, query or fragment');baseUrl=u.href.replace(/\/$/,'');}
-    const p={id:id('provider'),name:input.name.trim(),type:input.type,baseUrl,model:String(input.model||'').slice(0,200),keyEnv:input.keyEnv||'',...(!NATIVE.has(input.type)&&input.type!=='demo'?requestPolicy(input):{})};
+    const p={id:id('provider'),name:input.name.trim(),type:input.type,baseUrl,model:String(input.model||'').slice(0,200),keyEnv:canonicalEnvironmentName(input.keyEnv)||'',...(!NATIVE.has(input.type)&&input.type!=='demo'?requestPolicy(input):{})};
     if(!['demo',...NATIVE].includes(p.type)&&!p.model)throw new Error('A model name is required');
     if(input.apiKey){if(typeof input.apiKey!=='string'||input.apiKey.length>10000)throw new Error('Invalid API key');secrets.set(p.id,input.apiKey);}
     store.add('providers',p);return sanitize(p);
@@ -51,6 +52,7 @@ export function createProviderManager({store,fetchImpl=globalThis.fetch,codexPat
     if(typeof next.baseUrl!=='string')throw Error('Invalid provider URL');
     if(next.baseUrl){const u=new URL(next.baseUrl);if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw Error('Provider URL must be HTTP(S), without credentials, query or fragment');next.baseUrl=u.href.replace(/\/$/,'');}
     if(input.apiKey&&input.apiKey.length>10000)throw Error('Invalid API key');
+    next.keyEnv=canonicalEnvironmentName(next.keyEnv);
     if(input.clearApiKey)next.keyEnv='';
     store.patch('providers',providerId,next);
     if(input.clearApiKey)secrets.delete(providerId);else if(input.apiKey)secrets.set(providerId,input.apiKey);

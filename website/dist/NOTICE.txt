@@ -1,7 +1,7 @@
-Manta
+Daidalis
 Copyright 2026 MingxiYe
 
-Manta-owned source code, documentation and original website content are
+Daidalis-owned source code, documentation and original website content are
 licensed under the Apache License, Version 2.0.
 
 Third-party components, upstream-derived material and external engineering

@@ -8,7 +8,7 @@ import {createStore} from '../server/store.mjs';
 
 const success={code:0,stdout:JSON.stringify({python:'3.13.1',scipy:'1.18.1',numpy:'2.5.4',matplotlib:'3.11.2'}),stderr:''};
 async function fixture(t,probeExecutor){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-runtime-probe-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-runtime-probe-'));
   t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const store=createStore({dataDir:path.join(root,'data'),seed:false});
   const project=store.createProject({name:'Isolated runtime probe'});
@@ -80,7 +80,7 @@ test('network-volume policy blocks local native imports without treating all ext
 });
 
 test('network dependencies remain blocked for explicit recheck and automatic run; no import subprocess starts',async t=>{
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-network-runtime-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-network-runtime-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const store=createStore({dataDir:path.join(root,'data'),seed:false}),project=store.createProject({name:'Network block test'});let imports=0;
   const service=await createEngineeringService({root,dataDir:path.join(root,'service'),store,pythonPath:process.execPath,professionalCatalog:()=>[],probeExecutor:async()=>{imports++;return success;},locationPolicy:()=>({blocked:true,kind:'network',fileSystem:'smbfs',reasonCode:'network-dependencies-blocked',detail:'网络磁盘依赖不在本机自动加载，请连接隔离执行环境。'})});
   assert.equal((await scipy(service)).status,'blocked');assert.equal((await scipy(service)).retryable,false);

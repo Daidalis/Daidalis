@@ -9,7 +9,7 @@ export async function createBrokerComputer({root,dataDir,store,requestApproval=a
  const sessions=new Map(),locks=new Map();
  let activeDesktop=null,desktopState={};
  let baseUrl='http://127.0.0.1:'+ (process.env.PORT||4317);
- const allowedHosts=(process.env.MBSE_COMPUTER_HOSTS||'docs.px4.io,github.com,raw.githubusercontent.com,nos3.readthedocs.io,emanual.robotis.com,bitcraze.io,www.bitcraze.io,example.com').split(',').map(s=>s.trim()).filter(Boolean);
+ const allowedHosts=(process.env.DAIDALIS_COMPUTER_HOSTS||'docs.px4.io,github.com,raw.githubusercontent.com,nos3.readthedocs.io,emanual.robotis.com,bitcraze.io,www.bitcraze.io,example.com').split(',').map(s=>s.trim()).filter(Boolean);
  const installed=async p=>Boolean(await fs.stat(p).catch(()=>null));
  const browserAvailable=await installed('/usr/bin/chromium'),desktopAvailable=await installed('/usr/bin/Xvfb');
  async function session(projectId){

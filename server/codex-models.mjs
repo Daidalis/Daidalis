@@ -81,7 +81,7 @@ export function createCodexModelCatalog({codexPath=resolveCodexExecutable(),spaw
       signal?.addEventListener('abort',onAbort,{once:true});
       timer=setTimeout(()=>fail(new Error('Codex model discovery timed out')),timeoutMs);
       if(signal?.aborted)throw abortError();
-      await request('initialize',{clientInfo:{name:'syspilot',title:'Manta',version:'0.5.0'},capabilities:{experimentalApi:true}});
+      await request('initialize',{clientInfo:{name:'daidalis',title:'Daidalis',version:'0.5.0'},capabilities:{experimentalApi:true}});
       send({method:'initialized',params:{}});
       let configuredModel='';
       try{const response=await request('config/read',{includeLayers:false,cwd});configuredModel=redact(typeof response?.config?.model==='string'?response.config.model:'').slice(0,200);}

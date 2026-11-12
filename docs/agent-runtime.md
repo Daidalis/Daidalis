@@ -1,16 +1,16 @@
-# Manta 的 Agent 执行层（0.5）
+# Daidalis 的 Agent 执行层（0.5）
 
-Manta 的主要 Agent 选项是 Codex 与 Claude Code；另保留可选的模型 API 兼容模式。它负责项目、可见主/子线程、消息总线、队列、工程上下文快照、权限桥、MBSE/Computer 工具与界面；单个 Agent 的推理和工具循环由运行时负责。`server/engine.mjs` 不再实现模型—工具往返循环。
+Daidalis 的主要 Agent 选项是 Codex 与 Claude Code；另保留可选的模型 API 兼容模式。它负责项目、可见主/子线程、消息总线、队列、工程上下文快照、权限桥、MBSE/Computer 工具与界面；单个 Agent 的推理和工具循环由运行时负责。`server/engine.mjs` 不再实现模型—工具往返循环。
 
 ## 当前运行时
 
 | 配置类型 | 执行方式 | 持久化与公开事件 |
 |---|---|---|
-| `codex-app-server`（兼容旧 `codex-cli` 配置） | 本机 Codex app-server，保留原生编程工具，并注册 Manta 动态工具 | 原生线程与会话、文字增量、工具/审批事件、原生 steering 与取消 |
+| `codex-app-server`（兼容旧 `codex-cli` 配置） | 本机 Codex app-server，保留原生编程工具，并注册 Daidalis 动态工具 | 原生线程与会话、文字增量、工具/审批事件、原生 steering 与取消 |
 | `claude-agent` | 官方 Claude Agent SDK，原生编程工具 + 权限 hooks + 进程内 MCP | 原生会话与文字增量；追加要求时中断查询，再恢复同一会话 |
 | OpenAI Chat / Responses、Anthropic API、Ollama、demo | 官方 OpenAI Agents SDK 的 Agent、Runner、tool；模型桥调用提供方 | 自定义持久 Session 保存 Runner 原生消息和工具历史；公开运行/工具事件，当前不是逐 token 流式 |
 
-OpenAI Chat/Responses 使用官方 `openai` SDK，Anthropic API 使用官方 `@anthropic-ai/sdk`，Ollama 保留其接口适配。API 兼容模式由官方 Runner 决定何时调用模型和工具，Manta 只衔接用户轮，不在外面再套模型—工具循环。此模式没有实现或声称原生上下文压缩，长会话仍会受到模型上下文限制。Agents SDK tracing 已关闭，不额外将自定义模型数据上传至 OpenAI tracing 服务。
+OpenAI Chat/Responses 使用官方 `openai` SDK，Anthropic API 使用官方 `@anthropic-ai/sdk`，Ollama 保留其接口适配。API 兼容模式由官方 Runner 决定何时调用模型和工具，Daidalis 只衔接用户轮，不在外面再套模型—工具循环。此模式没有实现或声称原生上下文压缩，长会话仍会受到模型上下文限制。Agents SDK tracing 已关闭，不额外将自定义模型数据上传至 OpenAI tracing 服务。
 
 原生 Codex 复用正常 CLI 登录，应用不读取或提取 OAuth 令牌；自定义模型端点走 app-server 支持的 Responses 配置。Claude Agent 模式必须显式配置 API key，使用服务数据目录内的独立配置，不借用 claude.ai 登录或用户已有 Claude 设置。模型设置页可编辑名称、模型、base URL、环境变量名及密钥。API key 只存服务进程内存或来自服务端环境变量，不返回公开 bootstrap/list 配置；重启后需要重新填写内存密钥或继续使用环境变量。
 
@@ -19,7 +19,7 @@ OpenAI Chat/Responses 使用官方 `openai` SDK，Anthropic API 使用官方 `@a
 以下描述默认共享模式。可选 broker 模式支持 API-mode、原生 Codex/Claude、项目文件/SysML、隔离命令及三种求解器、GIS/轨道和可选 NOS3。原生会话保存在项目专属卷，真实模型密钥保留在应用侧。Codex Auto 使用外层 rootless 任务容器隔离；Manual 保留原生审批。浏览器/桌面与 stdio MCP 按项目容器隔离，SciPy 通过独立任务执行；HTTP MCP 保留显式端点约束。评测只读取有界数据并执行固定检查。STF 与旧 VM 管理入口仍禁用，不会静默回退。详见 [broker 部署与范围](docker.md#opt-in-rootless-task-isolation)。
 
 Docker 镜像包含 Codex CLI 和 Claude Agent SDK，不依赖宿主机登录或工具安装；
-需要在 Manta 中显式配置并测试模型连接。项目命令在应用共享容器内运行，不提供项目间的系统级隔离。
+需要在 Daidalis 中显式配置并测试模型连接。项目命令在应用共享容器内运行，不提供项目间的系统级隔离。
 Codex 的嵌套沙箱在部分宿主机上无法创建命名空间，可能转为请求单次操作审批；Auto 不等于取消原生审批。
 Claude 自定义网关会关闭延迟工具搜索以兼容不支持该机制的端点，但权限 hooks 保留。
 
@@ -32,7 +32,7 @@ API 兼容模式的过程记录区分等待模型和收到回复；超时、限�
 
 目录只说明运行时提供了哪些候选项，不保证当前账号、工作区或端点有使用权限；在部分提供方配置下，返回的是客户端内置目录。目录读取成功不能等同模型调用成功，实际访问能力以该模型的推理结果为准。[官方说明](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
 
-配置自定义 Responses 端点或 API Key 时，Manta 不把本机登录的目录当作该连接的模型清单，改为填写该连接支持的模型 ID。读取本机目录失败时也保留手动 ID 输入与重试。手动填写的 ID 不代表已通过兼容性或访问验证。
+配置自定义 Responses 端点或 API Key 时，Daidalis 不把本机登录的目录当作该连接的模型清单，改为填写该连接支持的模型 ID。读取本机目录失败时也保留手动 ID 输入与重试。手动填写的 ID 不代表已通过兼容性或访问验证。
 
 每个线程将 Codex 选择保存到 `modelPreferences[providerId]`，服务重启后保留。主对话、子线程及同一线程中的不同连接各自独立，不改写提供方的全局 `model` 配置。创建一轮时，将明确选择、线程偏好或提供方默认解析为 `run.model` 快照；没有具体 ID 时保存 `null`，交给原生默认值。排队之后修改全局配置、选择器或偏好不会改变这一轮的快照；运行中切换模型仅对下一轮生效。
 
@@ -44,33 +44,33 @@ API 兼容模式的过程记录区分等待模型和收到回复；超时、限�
 
 ## 消息、会话与恢复
 
-1. 用户消息写入所选线程，创建一轮 Manta 运行，固定所选模型、权限、预算与排队时间。
+1. 用户消息写入所选线程，创建一轮 Daidalis 运行，固定所选模型、权限、预算与排队时间。
 2. 获得执行位置后，生成项目指令、共享记忆、当前工程模型、资料索引、工具能力和任务结果快照。资料全文仍需按需读取，不是无限上下文。
 3. 依据线程、提供方与配置签名创建或恢复运行时会话。首次原生会话只迁移已有公开用户/助手历史；恢复时不重放这些历史，只提交新输入和当前工程快照。API 模式同样以持久 Session 保存自身原生历史。
-4. 运行时执行原生循环。Manta 接收公开文字、工具、审批及状态事件；应用工具执行时仍检查项目、角色、版本和权限。界面不显示或伪造内部思考。
+4. 运行时执行原生循环。Daidalis 接收公开文字、工具、审批及状态事件；应用工具执行时仍检查项目、角色、版本和权限。界面不显示或伪造内部思考。
 5. 记录最终回复、运行时会话 ID、实际结果和起止时间。`Worked for …` 可展开查看公开过程，显示从本轮开始至结束的经过时间，包含等待审批和子任务的时间，不包含排队时间。等待时显示「本轮已用」，不把它描述为模型持续思考；执行预算与此墙钟时间分开计算。
 
-线程记录保存当前运行时会话及历史会话 ID。base URL、运行时、项目目录或工具描述/定义变化会使配置签名变化，建立新会话并把旧 ID 归档审计。Codex 的具体模型 ID 通过原生轮覆盖，不触发会话替换；其他运行时仍将提供方模型配置纳入签名。切换提供方使用其对应会话。服务重启把未完成 Manta 运行标为中断；新消息可以恢复已有运行时会话，不会宣称恢复了已取消工具的执行结果。取消、失败或结果未知均不能当成成功证据。
+线程记录保存当前运行时会话及历史会话 ID。base URL、运行时、项目目录或工具描述/定义变化会使配置签名变化，建立新会话并把旧 ID 归档审计。Codex 的具体模型 ID 通过原生轮覆盖，不触发会话替换；其他运行时仍将提供方模型配置纳入签名。切换提供方使用其对应会话。服务重启把未完成 Daidalis 运行标为中断；新消息可以恢复已有运行时会话，不会宣称恢复了已取消工具的执行结果。取消、失败或结果未知均不能当成成功证据。
 
 本次增加任务工具契约后，已有 Codex 原生线程需要迁移一次：旧会话 ID 归档，新会话注册完整工具，并迁移公开用户／助手历史。原有聊天和产物保留，但不声称新工具会自动出现在旧原生会话里，也不声称旧会话的内部工具历史被完整迁移。工具契约不再变化的后续轮继续复用已建立的原生会话。
 
-运行中补充要求的交付方式有差异：Codex 调用原生 steering；Claude 通过 interrupt/resume 交付；API 兼容模式返回 `queued-next-turn`，待当前官方 Runner 用户轮完成，再用同一 Session 开始补充轮。UI 保留运行时接受/排队交付状态。补充轮仍属于当前 Manta 运行，不能借补充消息改变这一轮固定权限或 Codex 模型快照；界面新选的模型为下一轮偏好。
+运行中补充要求的交付方式有差异：Codex 调用原生 steering；Claude 通过 interrupt/resume 交付；API 兼容模式返回 `queued-next-turn`，待当前官方 Runner 用户轮完成，再用同一 Session 开始补充轮。UI 保留运行时接受/排队交付状态。补充轮仍属于当前 Daidalis 运行，不能借补充消息改变这一轮固定权限或 Codex 模型快照；界面新选的模型为下一轮偏好。
 
 ## 主线程、任务分工与结果交接
 
-Coordinator 是持久项目主对话，在其中负责目标、分工、依赖和最终整合；一层并列 thread 保存独立任务及其 Agent 会话。用户可直接与任一 thread 交流，thread 不能再创建下级。一次 Run 是线程中的一轮执行。主、子线程仍分别使用 Codex app-server、Claude Agent SDK 或官方 Runner 的原生模型／工具循环；Manta 新增的是任务所有权、等待条件、结果收据与审阅记录，不在运行时外重建推理循环。
+Coordinator 是持久项目主对话，在其中负责目标、分工、依赖和最终整合；一层并列 thread 保存独立任务及其 Agent 会话。用户可直接与任一 thread 交流，thread 不能再创建下级。一次 Run 是线程中的一轮执行。主、子线程仍分别使用 Codex app-server、Claude Agent SDK 或官方 Runner 的原生模型／工具循环；Daidalis 新增的是任务所有权、等待条件、结果收据与审阅记录，不在运行时外重建推理循环。
 
 ### 分工与所有权
 
 主 Agent 通过 `get_task_assignments` 读取项目任务登记，再用 `start_thread`／`delegate_task` 指定稳定的 `taskKey`、工作 `scope`、交付物、验收标准和必要的 `ownedPaths`。创建任务立即返回，worker 排队执行。活动任务使用相同 `taskKey` 时返回已有任务，防止同一项工作重复委派；活动任务的独占写入范围有重叠时拒绝新的委派。主 Agent 应继续做未委派的独立工作，不能重复调查已委派范围。任务失败或需要修订时，使用 `steer_thread` 给原线程明确补充要求，再等待其新一轮结果。
 
-所有线程共用选定项目文件夹，不自动创建 Git 分支或仓库副本。`ownedPaths` 表达项目内相对文件或目录的独占写入范围；Manta 的 `write_file` 拦截其他线程对活动任务独占路径的写入。它不是完整的路径锁：原生 shell、patch 和其他原生编辑入口仍依靠 Codex／Claude 的工作区权限策略及分工指令，不能据此声称所有原生文件修改都受到任务级互斥保护。任务通常应写入 `threads/<id>/` 等独立目录，主线程复核后再合入共享模型。
+所有线程共用选定项目文件夹，不自动创建 Git 分支或仓库副本。`ownedPaths` 表达项目内相对文件或目录的独占写入范围；Daidalis 的 `write_file` 拦截其他线程对活动任务独占路径的写入。它不是完整的路径锁：原生 shell、patch 和其他原生编辑入口仍依靠 Codex／Claude 的工作区权限策略及分工指令，不能据此声称所有原生文件修改都受到任务级互斥保护。任务通常应写入 `threads/<id>/` 等独立目录，主线程复核后再合入共享模型。
 
-任务角色和数量按工程需要决定，没有固定三个 Agent。Codex 的内部 `multi_agent` 和 Claude 的原生 `Agent`／`Task` 派生仍禁用，任务统一经过 Manta 可见线程总线；每个 worker 有自己的真实运行时会话、消息与产物。
+任务角色和数量按工程需要决定，没有固定三个 Agent。Codex 的内部 `multi_agent` 和 Claude 的原生 `Agent`／`Task` 派生仍禁用，任务统一经过 Daidalis 可见线程总线；每个 worker 有自己的真实运行时会话、消息与产物。
 
 ### 等待与原生恢复
 
-当下一项判断依赖子任务证据时，Agent 调用 `wait_threads`，指定任务及 `all`／`any` 条件；省略任务列表时等待自身已委派的任务。等待固定到调用时的具体任务 Run；Coordinator 只能等待自己已委派的直属 thread，不能等待自己或形成循环依赖。Manta 保持这一次原生工具调用为 pending，不靠 shell sleep、重复查询或不断发起模型轮询等待结果。
+当下一项判断依赖子任务证据时，Agent 调用 `wait_threads`，指定任务及 `all`／`any` 条件；省略任务列表时等待自身已委派的任务。等待固定到调用时的具体任务 Run；Coordinator 只能等待自己已委派的直属 thread，不能等待自己或形成循环依赖。Daidalis 保持这一次原生工具调用为 pending，不靠 shell sleep、重复查询或不断发起模型轮询等待结果。
 
 等待期间暂停本轮执行预算，Coordinator 释放执行槽，使已委派的平级 thread 可以推进。thread 不能继续创建下级 thread，跨线程依赖和后续分派统一由 Coordinator 管理。达到条件后，原生 pending call 返回对应 Run 的真实状态、摘要、产物引用和验收条件，同一轮原生工具循环继续执行并进入复核阶段。失败、取消和中断也能结束等待，但不能当成成功。超时返回仍未完成的依赖；用户补充消息可释放等待并由原生 steering／interrupt-resume 交付；取消会中断本轮。服务重启后，未完成运行仍按中断处理，不能声称恢复了进程中已丢失的 pending 工具调用。
 
@@ -108,16 +108,16 @@ Coordinator 是持久项目主对话，在其中负责目标、分工、依赖�
 
 | 执行入口 | 实际边界 |
 |---|---|
-| Manta 文件、模型、记忆、仿真与浏览器工具 | 项目/角色/版本与路径检查；Manual 对应用变更审批，Auto 允许普通项目内操作及操作系统沙箱内命令；原生桌面和远端 Computer 仍逐项审批 |
-| Manta 命令工具 | Auto 在受支持的操作系统沙箱内直接运行，Manual 需显式审批；保持项目写入范围、宿主目录与网络限制，不降级为无沙箱执行 |
+| Daidalis 文件、模型、记忆、仿真与浏览器工具 | 项目/角色/版本与路径检查；Manual 对应用变更审批，Auto 允许普通项目内操作及操作系统沙箱内命令；原生桌面和远端 Computer 仍逐项审批 |
+| Daidalis 命令工具 | Auto 在受支持的操作系统沙箱内直接运行，Manual 需显式审批；保持项目写入范围、宿主目录与网络限制，不降级为无沙箱执行 |
 | Codex 原生编程工具 | Manual 映射 `readOnly`，Auto 映射 `workspaceWrite`；统一使用 `on-request`。普通沙箱内命令自动执行，原生真正发出的审批请求转给用户；网络禁用，额外原生权限扩张仍拒绝 |
 | Claude 原生编程工具 | Auto 映射 SDK 原生 `auto`，Manual 映射 `default`。hooks 保留路径、链接与 MCP 来源检查；Auto 普通调用交由 SDK 权限系统和分类器判断，未决请求进入用户审批；不使用 `bypassPermissions` |
 
-应用文件工具的路径检查不能保证 Codex 原生读取范围也被限制在同一目录；实际读取范围取决于 Codex 的沙箱和审批策略。Claude 的原生分类器与文件 hooks 不等于操作系统沙箱，不能把 Auto 描述为进程级文件系统隔离。SDK 报告实际权限模式后，Manta 记录该模式；Auto 不可用或模式未确认时在聊天输入框下显示说明，并保留未决操作的人工审批。自定义端点或模型不保证支持 Claude 原生 Auto。
+应用文件工具的路径检查不能保证 Codex 原生读取范围也被限制在同一目录；实际读取范围取决于 Codex 的沙箱和审批策略。Claude 的原生分类器与文件 hooks 不等于操作系统沙箱，不能把 Auto 描述为进程级文件系统隔离。SDK 报告实际权限模式后，Daidalis 记录该模式；Auto 不可用或模式未确认时在聊天输入框下显示说明，并保留未决操作的人工审批。自定义端点或模型不保证支持 Claude 原生 Auto。
 
 Codex 的 Auto 预设与 Auto-review 是两个概念：本实现使用项目写入沙箱和 `on-request`，审批 reviewer 仍为用户，没有启用自动审批 reviewer。两种原生运行时都没有启用 Full Access 或跳过权限检查。正在运行的一轮保留其原有策略，不追溯批准已有请求。
 
-项目资料、网页、附件和其他 Agent 消息都是不可信证据，不能授予权限。原生运行时的外部集成与内部派生受到限制，工程工具仍走 Manta 权限桥。Computer 的项目路由、远端域名和原生桌面授权是额外边界，不由模型配置或会话恢复绕过。
+项目资料、网页、附件和其他 Agent 消息都是不可信证据，不能授予权限。原生运行时的外部集成与内部派生受到限制，工程工具仍走 Daidalis 权限桥。Computer 的项目路由、远端域名和原生桌面授权是额外边界，不由模型配置或会话恢复绕过。
 
 ## 验证范围与复现
 
@@ -129,12 +129,12 @@ Codex 的 Auto 预设与 Auto-review 是两个概念：本实现使用项目写�
 
 ## 官方参考
 
-已实现的运行时接入依据 [Codex app-server](https://learn.chatgpt.com/docs/app-server)、[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) 和 [OpenAI 平台集成说明](https://developers.openai.com/blog/codex-as-a-platform)。Auto 映射依据 [Codex 权限策略](https://learn.chatgpt.com/docs/agent-approvals-security)、[Codex Auto-review](https://learn.chatgpt.com/docs/sandboxing/auto-review)、[Claude 权限模式](https://code.claude.com/docs/en/permission-modes) 与 [Claude SDK 权限配置](https://code.claude.com/docs/en/agent-sdk/permissions)。官方产品提供的能力不自动等于 Manta 已开启或验收的全部能力；本页以实际适配器、权限策略与记录为准。
+已实现的运行时接入依据 [Codex app-server](https://learn.chatgpt.com/docs/app-server)、[Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) 和 [OpenAI 平台集成说明](https://developers.openai.com/blog/codex-as-a-platform)。Auto 映射依据 [Codex 权限策略](https://learn.chatgpt.com/docs/agent-approvals-security)、[Codex Auto-review](https://learn.chatgpt.com/docs/sandboxing/auto-review)、[Claude 权限模式](https://code.claude.com/docs/en/permission-modes) 与 [Claude SDK 权限配置](https://code.claude.com/docs/en/agent-sdk/permissions)。官方产品提供的能力不自动等于 Daidalis 已开启或验收的全部能力；本页以实际适配器、权限策略与记录为准。
 
 
 ## 项目工程连接与等待作业
 
-工程工具统一经过 Manta 桥，原生 Agent 和可选 API 模式继续使用各自运行时的工具循环，没有为接入 MCP 重建模型循环。`list_external_tools` 发现已启用连接的真实工具 schema，`call_external_tool` 经过项目策略与审批后调用官方 MCP SDK。连接配置保存在服务数据目录的项目文件中，不继承或修改用户全局 MCP 配置。配置工具不开放给 Agent。未分类工具在 Auto 下仍询问；用户明确配置的读写/执行策略按本轮权限生效。
+工程工具统一经过 Daidalis 桥，原生 Agent 和可选 API 模式继续使用各自运行时的工具循环，没有为接入 MCP 重建模型循环。`list_external_tools` 发现已启用连接的真实工具 schema，`call_external_tool` 经过项目策略与审批后调用官方 MCP SDK。连接配置保存在服务数据目录的项目文件中，不继承或修改用户全局 MCP 配置。配置工具不开放给 Agent。未分类工具在 Auto 下仍询问；用户明确配置的读写/执行策略按本轮权限生效。
 
 `import_system_model` 在真实 SysML 内核校验后原子提交；`prepare_nos3_model` 建立来源清晰的组件接口模型。`validate_system_model`、`query_system_model`、`verify_system_model` 与 `export_system_model` 操作真实文本模型。独立 JSON 项目追溯图及其工具已移除；结构与需求视图直接读取 SysML 源文件。工具链固定版本，依赖只位于应用隔离目录，内核在禁止网络和写入的受限子进程中执行。
 

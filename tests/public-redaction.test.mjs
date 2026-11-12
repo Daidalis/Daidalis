@@ -11,8 +11,8 @@ const syntheticKeys=()=>[['synthetic','known','credential','no-auth'].join('-'),
 const contains=(value,keys)=>typeof value==='string'?keys.some(key=>value.includes(key)):Array.isArray(value)?value.some(item=>contains(item,keys)):value&&typeof value==='object'?Object.entries(value).some(([key,item])=>contains(key,keys)||contains(item,keys)):false;
 async function eventually(check){const end=Date.now()+10000;while(Date.now()<end){if(check())return;await new Promise(resolve=>setTimeout(resolve,5));}assert.fail('Expected synthetic runtime state');}
 async function fixture(t,options={}){
-  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'manta-public-redaction-')),root=path.join(temp,'app'),folder=path.join(temp,'project');
-  await fs.mkdir(path.join(root,'public'),{recursive:true});await fs.mkdir(folder);await fs.writeFile(path.join(root,'public/index.html'),'<html>Manta fixture</html>');
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-public-redaction-')),root=path.join(temp,'app'),folder=path.join(temp,'project');
+  await fs.mkdir(path.join(root,'public'),{recursive:true});await fs.mkdir(folder);await fs.writeFile(path.join(root,'public/index.html'),'<html>Daidalis fixture</html>');
   const app=await createStudioServer({root,seed:false,computer:false,evaluator:false,engineering:false,engineeringState:false,engineeringPlan:false,professionalModels:false,professionalRunner:false,geospatial:false,orbit42:false,connectors:false,nos3:false,modelBackend:false,stfCase:false,...options});
   t.after(async()=>{await app.close();await fs.rm(temp,{recursive:true,force:true});});
   const address=await app.listen({port:0}),base=`http://127.0.0.1:${address.port}`,keys=syntheticKeys();

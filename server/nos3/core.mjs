@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import fss from 'node:fs';
 import path from 'node:path';
@@ -33,7 +34,7 @@ export async function inspectSource(workspace,{revision,signal}={}) {
   const component=submodules.find(x=>x.path==='components/generic_adcs');const sourceFiles=[];
   if(component?.available)for(const file of Object.keys(COMPONENT_FILES)){const bytes=await readCommitted(root,component,file,signal);sourceFiles.push({path:component.path+'/'+file,sha256:sha256(bytes),bytes:bytes.length,localExecutionAllowed:sha256(bytes)===COMPONENT_FILES[file]});}
   const dirty=!!(await git(root,['status','--porcelain','--untracked-files=no','--ignore-submodules=all'],signal)).trim();
-  const result={schema:'manta-nos3-source-v1',revision:commit,dirty,submodules,sourceFiles,sourceMode:'committed-content-only',missingSubmodules:submodules.filter(x=>!x.available).map(x=>x.path),localComponentReady:component?.available===true&&sourceFiles.length===2&&sourceFiles.every(x=>x.localExecutionAllowed)};
+  const result={schema:'daidalis-nos3-source-v1',revision:commit,dirty,submodules,sourceFiles,sourceMode:'committed-content-only',missingSubmodules:submodules.filter(x=>!x.available).map(x=>x.path),localComponentReady:component?.available===true&&sourceFiles.length===2&&sourceFiles.every(x=>x.localExecutionAllowed)};
   result.baselineHash=sourceFingerprint(result);return result;
 }
 export function sourceFingerprint(baseline){return sha256(JSON.stringify({revision:baseline.revision,submodules:baseline.submodules.map(({path,revision})=>({path,revision})),sourceFiles:baseline.sourceFiles.map(({path,sha256})=>({path,sha256}))}));}
@@ -52,7 +53,7 @@ export async function executeComponent({workspace,dir,baseline,signal,compilerPa
   onLog('Executing quaternion scenario sweep against independent Rodrigues matrix oracle');
   const run=await spawnBounded(executable,[],{cwd:dir,env,signal,timeoutMs:10000,maxBytes:100000});await fs.writeFile(path.join(dir,'simulation.log'),run.stdout+run.stderr);
   let metrics;try{metrics=JSON.parse(run.stdout);}catch{throw Error('Component produced no valid verification result');}
-  if(metrics.schema!=='manta-nos3-component-results-v1'||metrics.cases!==324||!Number.isFinite(metrics.compositionMaxError)||!Number.isFinite(metrics.signMaxError)||!Number.isFinite(metrics.inverseMaxError))throw Error('Invalid component result metrics');
+  if(!productSchemaMatches(metrics.schema,'daidalis-nos3-component-results-v1')||metrics.cases!==324||!Number.isFinite(metrics.compositionMaxError)||!Number.isFinite(metrics.signMaxError)||!Number.isFinite(metrics.inverseMaxError))throw Error('Invalid component result metrics');
   const checks=[{id:'V-ROTATION',requirement:'R-ROTATION',modelElement:'RotationComposition',criterion:'Quaternion rotation composition equals independently calculated passive Rodrigues matrices across 324 deterministic scenarios',passed:metrics.compositionMaxError<1e-12,actual:metrics.compositionMaxError,limit:1e-12,unit:'max absolute vector component error'},
     {id:'V-SIGN',requirement:'R-SIGN',modelElement:'QuaternionSignEquivalence',criterion:'q and -q produce identical vector rotations',passed:metrics.signMaxError<1e-12,actual:metrics.signMaxError,limit:1e-12,unit:'max absolute vector component error'},
     {id:'V-INVERSE',requirement:'R-ROTATION',criterion:'QTxV reverses QxV',passed:metrics.inverseMaxError<1e-12,actual:metrics.inverseMaxError,limit:1e-12,unit:'max absolute vector component error'}];

@@ -8,7 +8,7 @@ import {createStore}from '../server/store.mjs';
 import {createModelBackendService}from '../server/model-backend.mjs';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const SIMPLE='package Demo { private import ScalarValues::*; part def Vehicle { attribute mass : Real = 1500.0; } part car : Vehicle; }';
-async function fixture(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-model-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const store=createStore({dataDir:path.join(root,'data'),seed:false});const project=store.createProject({name:'Real SysML test'});const service=await createModelBackendService({store,dataDir:path.join(root,'backend')});return {root,store,service,projectId:project.id,workspace:store.workspace(project.id)};}
+async function fixture(t){const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-model-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));const store=createStore({dataDir:path.join(root,'data'),seed:false});const project=store.createProject({name:'Real SysML test'});const service=await createModelBackendService({store,dataDir:path.join(root,'backend')});return {root,store,service,projectId:project.id,workspace:store.workspace(project.id)};}
 
 test('catalog reports pinned real WASM backend and explicit supported-rule limits without starting products',async t=>{const f=await fixture(t),r=await f.service.catalog({projectId:f.projectId});assert.equal(r.backend.available,true);assert.equal(r.backend.version,'0.10.10');assert.match(r.backend.archiveSha256,/^[a-f0-9]{64}$/);assert.equal(r.backend.isolated,true);assert.ok(r.limitations.some(s=>s.includes('not complete OMG')));assert.equal((await fs.readdir(f.workspace)).length,0);});
 

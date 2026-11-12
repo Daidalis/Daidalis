@@ -2,7 +2,7 @@
 
 ## Intended deployment
 
-Manta is intended to run as a local engineering workspace. The application binds to loopback and validates Host and Origin headers, with cross-site requests blocked. Engineering execution and native Agent permissions have additional project and runtime boundaries.
+Daidalis is intended to run as a local engineering workspace. The application binds to loopback and validates Host and Origin headers, with cross-site requests blocked. Engineering execution and native Agent permissions have additional project and runtime boundaries.
 
 Loopback and browser-origin checks do not provide user authentication for a network deployment. The application does not claim to be an authenticated multi-user hosted service. Exposing its API through a public listener, tunnel or reverse proxy requires a separately reviewed authentication and deployment design.
 
@@ -39,7 +39,7 @@ There is no automatic fallback to shared execution.
 
 The broker is trusted and has authority over its rootless daemon. Compromising it
 could expose resources accessible to the daemon's host user; rootless does not
-make a Docker socket harmless. Keep this daemon dedicated to Manta. A project can
+make a Docker socket harmless. Keep this daemon dedicated to Daidalis. A project can
 modify/delete its own files, including partial writes on failure. Project storage
 has no disk quota. Memory/PID/deadline limits are enforced; CPU quota requires
 explicit controller support and can be explicitly disabled with status reporting.
@@ -68,7 +68,7 @@ solver runs in a disposable container with validated output hashes. The evaluato
 uses bounded data reads and fixed checks; it never executes candidate programs.
 STF and legacy VM management remain disabled in broker mode.
 This does not establish complete parity with the original macOS sandbox or all
-Manta features. See [setup and tested scope](docs/docker.md#opt-in-rootless-task-isolation).
+Daidalis features. See [setup and tested scope](docs/docker.md#opt-in-rootless-task-isolation).
 
 ## Credentials and local state
 
@@ -82,7 +82,7 @@ Runtime state, conversations, VM/runner credentials and engineering project file
 
 ## Report a vulnerability privately
 
-Use the repository's **Security → Report a vulnerability** flow through [GitHub private vulnerability reporting](https://github.com/MingxiYe/Manta/security/advisories/new). Include the affected version, expected boundary, reproduction steps and impact, with credentials and private engineering data removed.
+Use the repository's **Security → Report a vulnerability** flow through [GitHub private vulnerability reporting](https://github.com/Daidalis/Daidalis/security/advisories/new). Include the affected version, expected boundary, reproduction steps and impact, with credentials and private engineering data removed.
 
 If private reporting is unavailable, request a private reporting channel without publishing exploit details or sensitive data in a public issue. Please do not include real keys, private models, runtime chats or unredacted logs in a public report.
 

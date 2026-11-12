@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),require=createRequire(import.meta.url);
-let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(process.env.MBSE_NODE_MODULES||path.join(root,'node_modules'),'playwright'));}
-const directory=await fs.mkdtemp(path.join(os.tmpdir(),'manta-result-experience-'));
+let playwright;try{playwright=require('playwright');}catch{playwright=require(path.join(process.env.DAIDALIS_NODE_MODULES||path.join(root,'node_modules'),'playwright'));}
+const directory=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-result-experience-'));
 const app=`<!doctype html><html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/workspace-ui.css"><link rel="stylesheet" href="/document-viewer.css"><link rel="stylesheet" href="/simulation-viewer.css"><style>*{box-sizing:border-box}body{margin:0;font-family:system-ui}#app{height:calc(100vh - 70px)}textarea{display:block;margin:10px;width:300px;height:40px}button{font:inherit;cursor:pointer;border:0;background:transparent}</style><textarea id="draft">keep this chat draft</textarea><div id="app"></div><script type="module">
 import {createWorkspaceUI} from '/workspace-ui.mjs';
 window.requests=[];window.errors=[];window.project={id:'p1',folderPath:'/work/p1'};

@@ -136,7 +136,7 @@ try{
   }
 }catch(error){console.error('Audit could not complete: '+error.message);process.exit(2);}
 
-console.log('Manta public-source audit: '+(history?'reachable Git history':'tracked working tree'));
+console.log('Daidalis public-source audit: '+(history?'reachable Git history':'tracked working tree'));
 for(const item of [...findings.values()].sort((a,b)=>a.file.localeCompare(b.file)||a.category.localeCompare(b.category)||(a.line||0)-(b.line||0)))console.log(JSON.stringify(item.file)+(item.line?':'+item.line:'')+' ['+item.category+']');
 for(const error of errors)console.log(JSON.stringify(error.file)+' ['+error.category+']');
 console.log(`Examined ${counters.paths} paths, ${counters.blobs} blobs, ${counters.archives} expanded archives (${counters.expandedBytes} expanded bytes). Findings: ${findings.size}. Incomplete inspections: ${errors.length}.`);

@@ -1,5 +1,5 @@
 {
-  "schema": "manta-recorded-trajectory-v1",
+  "schema": "daidalis-recorded-trajectory-v1",
   "provenance": "example",
   "note": "electric-vehicle.fmu 的 60 秒协同仿真，步长 0.5 秒，121 行。battery 为荷电状态（%），inverter 为输出功率（kW），motor 为车速（km/h）。结束时 motor 为 50.6193。",
   "csv": "electric-vehicle-drive.csv",

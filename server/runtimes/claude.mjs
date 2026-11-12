@@ -3,20 +3,21 @@ import path from 'node:path';
 import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
+import {environmentNames,legacyToolNamespace} from '../../shared/legacy-names.mjs';
 
 const SDK_PACKAGE='@anthropic-ai/claude-agent-sdk';
-const APP_SERVER='syspilot';
+const APP_SERVER='daidalis';
 const DENIED_TOOLS=new Set(['Agent','Task']);
 // The current guest shares the VM network to reach the configured model API.
 // Until that network has an OS-enforced egress policy, these native tools could
-// bypass Manta's project-scoped public-source allowlist.
+// bypass Daidalis's project-scoped public-source allowlist.
 const REMOTE_DENIED_TOOLS=new Set(['Bash','WebFetch','WebSearch']);
 const REMOTE_ALLOWED_NATIVE_TOOLS=new Set(['Read','Write','Edit','MultiEdit','Glob','Grep','LS','NotebookRead','NotebookEdit','TodoRead','TodoWrite','TaskCreate','TaskUpdate','TaskGet','TaskList','AskUserQuestion']);
 const READ_TOOLS=new Set(['Read','Glob','Grep','LS','WebFetch','WebSearch','TodoRead','TaskGet','TaskList']);
 const INTERNAL_TOOLS=new Set(['TodoWrite','TaskCreate','TaskUpdate']);
 const ENV_ALLOW=new Set(['PATH','HOME','USER','LOGNAME','SHELL','TMPDIR','TMP','TEMP','LANG','LC_ALL','LC_CTYPE','TERM','SystemRoot','WINDIR','COMSPEC','PATHEXT']);
 const GUEST_WORKSPACE='/work';
-const GUEST_HOME='/home/manta';
+const GUEST_HOME='/home/daidalis';
 const GUEST_KEY_HELPER='/opt/claude/key-helper';
 const GUEST_BASE_ENV_ALLOW=new Set(['PATH','HOME','USER','LOGNAME','TMPDIR','LANG','ANTHROPIC_BASE_URL','CLAUDE_CONFIG_DIR','CLAUDE_AGENT_SDK_CLIENT_APP','CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC']);
 const GUEST_SDK_ENV_VALUES=Object.freeze({CLAUDE_AGENT_SDK_VERSION:'0.3.307',CLAUDE_CODE_ENTRYPOINT:'sdk-ts',CLAUDE_CODE_SDK_READS_SESSION_STATE:'1',CLAUDE_CODE_SDK_READS_STARTUP_MARKS:'1'});
@@ -76,10 +77,10 @@ function remoteSpawn(binding,spawnOptions,apiKey,expectedEnv,spawnImpl){
   if(Buffer.byteLength(handshake)>MAX_REMOTE_HANDSHAKE_BYTES)throw new Error('Claude 隔离启动握手超过 4 MiB');
   const secret=Buffer.from(apiKey,'utf8');if(secret.length<1||secret.length>10000)throw new Error('Claude 隔离凭据长度无效');
   const secretLength=Buffer.alloc(4);secretLength.writeUInt32BE(secret.length);
-  const child=spawnImpl(binding.transport,[],{cwd:binding.project,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'C.UTF-8',HOME:os.homedir(),MANTA_REMOTE_PROJECT_SLUG:binding.slug},stdio:['pipe','pipe','pipe'],signal:spawnOptions.signal,windowsHide:true});
+  const child=spawnImpl(binding.transport,[],{cwd:binding.project,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'C.UTF-8',HOME:os.homedir(),DAIDALIS_REMOTE_PROJECT_SLUG:binding.slug},stdio:['pipe','pipe','pipe'],signal:spawnOptions.signal,windowsHide:true});
   // A failed SSH/guest handshake can close stdin before these writes flush.
   // The child exit/error is surfaced to the SDK; consume the stream EPIPE so
-  // it cannot become an uncaught process-wide exception in Manta.
+  // it cannot become an uncaught process-wide exception in Daidalis.
   child.stdin.on?.('error',()=>{});
   // The SDK custom-process interface reads stdout, not stderr. Drain stderr
   // without forwarding raw guest diagnostics into project events or logs:
@@ -91,7 +92,7 @@ function remoteSpawn(binding,spawnOptions,apiKey,expectedEnv,spawnImpl){
   return child;
 }
 function redactor(options){
-  const secrets=[options.apiKey,...(options.secretEnvNames||[]).map(k=>process.env[k])].filter(v=>typeof v==='string'&&v.length>3);
+  const secrets=[options.apiKey,...(options.secretEnvNames||[]).flatMap(environmentNames).map(k=>process.env[k])].filter(v=>typeof v==='string'&&v.length>3);
   const text=value=>secrets.reduce((s,secret)=>s.split(secret).join('[REDACTED]'),String(value??''));
   const value=input=>{if(typeof input==='string')return text(input);if(Array.isArray(input))return input.map(value);if(input&&typeof input==='object')return Object.fromEntries(Object.entries(input).map(([k,v])=>[k,value(v)]));return input;};
   return {text,value};
@@ -107,10 +108,10 @@ function privateConfigDirectory(value){
 }
 function sdkEnvironment(options){
   const remote=Boolean(options.remoteWorkspace),env={};
-  if(remote)Object.assign(env,{PATH:'/usr/bin:/bin',HOME:GUEST_HOME,USER:'manta',LOGNAME:'manta',TMPDIR:'/tmp',LANG:'C.UTF-8',CLAUDE_CONFIG_DIR:GUEST_HOME+'/.claude'});
+  if(remote)Object.assign(env,{PATH:'/usr/bin:/bin',HOME:GUEST_HOME,USER:'daidalis',LOGNAME:'daidalis',TMPDIR:'/tmp',LANG:'C.UTF-8',CLAUDE_CONFIG_DIR:GUEST_HOME+'/.claude'});
   else{for(const name of ENV_ALLOW)if(typeof process.env[name]==='string'&&!options.secretEnvNames?.includes(name))env[name]=process.env[name];env.ANTHROPIC_API_KEY=options.apiKey;if(options.configDir)env.CLAUDE_CONFIG_DIR=privateConfigDirectory(options.configDir);}
   if(options.baseUrl){const url=new URL(options.baseUrl);if(!['https:','http:'].includes(url.protocol)||url.username||url.password||remote&&(url.search||url.hash))throw new Error('Claude Agent Base URL 必须是无内嵌凭证的 HTTP(S) 地址；隔离环境不接受查询参数或片段');env.ANTHROPIC_BASE_URL=url.href.replace(/\/v1\/?$/,'').replace(/\/$/,'');}
-  env.CLAUDE_AGENT_SDK_CLIENT_APP='syspilot/0.5';
+  env.CLAUDE_AGENT_SDK_CLIENT_APP='daidalis/0.5';
   env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1';
   // Gateways serving non-Claude models may not implement deferred tool references.
   // Keep permission hooks unchanged, but send tool schemas up front locally.
@@ -151,19 +152,20 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
   return {startTurn(options={}){
     const controller=new AbortController(),redact=redactor(options),pendingSteers=[],decisions=new Map(),texts=new Map();
     let activeQuery=null,queryToolsController=null,sessionId=options.sessionId||null,closed=false,interrupting=false,lastAssistantId=null,binding=null;
+    const appServers=[APP_SERVER,...(sessionId&&options.legacyToolNamespace===legacyToolNamespace?[legacyToolNamespace]:[])];
     const requestedPermissionMode=options.permissionMode==='auto'?'auto':'default';
     let effectivePermissionMode=null;
     const emit=async(type,message,data={})=>options.onEvent?.({type,message:redact.text(message),data:redact.value({...data,runtime:'claude-agent-sdk'})});
     const publish=async(id,text,partial,phase='progress')=>{if(text)await options.onMessage?.({id,text:redact.text(text),partial,phase});};
     const abort=()=>{controller.abort();try{activeQuery?.close?.();}catch{}};
     if(options.signal?.aborted)abort();else options.signal?.addEventListener('abort',abort,{once:true});
-    function appTool(name,provenance){return name.startsWith('mcp__'+APP_SERVER+'__')&&options.tools?.some(t=>'mcp__'+APP_SERVER+'__'+t.name===name)&&(!provenance||provenance.source==='sdk'&&provenance.name===APP_SERVER);}
+    function appTool(name,provenance){return appServers.some(server=>options.tools?.some(t=>'mcp__'+server+'__'+t.name===name)&&(!provenance||provenance.source==='sdk'&&provenance.name===server));}
     function guardDecision(name,args={},provenance){
-      if(DENIED_TOOLS.has(name))return {behavior:'deny',message:'独立任务必须通过 Manta start_thread 创建，以保持任务与会话可见。'};
-      if(binding&&REMOTE_DENIED_TOOLS.has(name))return {behavior:'deny',message:'隔离 STF 环境暂不开放原生 shell/网络工具；请使用 Manta 已登记的项目工程工具和公开资料获取工具。'};
+      if(DENIED_TOOLS.has(name))return {behavior:'deny',message:'独立任务必须通过 Daidalis start_thread 创建，以保持任务与会话可见。'};
+      if(binding&&REMOTE_DENIED_TOOLS.has(name))return {behavior:'deny',message:'隔离 STF 环境暂不开放原生 shell/网络工具；请使用 Daidalis 已登记的项目工程工具和公开资料获取工具。'};
       if(appTool(name,provenance))return {behavior:'allow',updatedInput:args}; // executeTool retains application guards.
       if(name.startsWith('mcp__'))return {behavior:'deny',message:'仅允许当前应用注册的工程 MCP 工具。'};
-      if(binding&&!REMOTE_ALLOWED_NATIVE_TOOLS.has(name))return {behavior:'deny',message:'隔离工程仅开放项目文件、任务记录和 Manta 已登记的工程工具。'};
+      if(binding&&!REMOTE_ALLOWED_NATIVE_TOOLS.has(name))return {behavior:'deny',message:'隔离工程仅开放项目文件、任务记录和 Daidalis 已登记的工程工具。'};
       try{checkNativePaths(fs.realpathSync(options.workspace),name,args,binding?GUEST_WORKSPACE:null);}catch(error){return {behavior:'deny',message:error.message};}
       return null;
     }
@@ -189,7 +191,7 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
     };
     const preTool=async(input,toolUseID,ctx={})=>{
       const name=input.tool_name,args=input.tool_input||{},id=toolUseID||input.tool_use_id;
-      if(appTool(name,input.mcp_server))return hookDecision('allow','工程工具使用 Manta 执行层的权限检查');
+      if(appTool(name,input.mcp_server))return hookDecision('allow','工程工具使用 Daidalis 执行层的权限检查');
       try{
         await emit('tool.started',name,{tool:name,args,callId:id,native:true});
         const guard=guardDecision(name,args,input.mcp_server);
@@ -258,7 +260,7 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
             systemPrompt:{type:'preset',preset:'claude_code',append:options.instructions||'',snapshot:false},canUseTool,
             hooks:{PreToolUse:[{hooks:[preTool]}],PostToolUse:[{hooks:[postTool]}],PostToolUseFailure:[{hooks:[postTool]}]},
             ...(binding?{spawnClaudeCodeProcess:spawnOptions=>remoteSpawn(binding,spawnOptions,options.apiKey,env,spawnImpl)}:{}),
-            ...(definitions.length?{mcpServers:{[APP_SERVER]:sdk.createSdkMcpServer({name:APP_SERVER,version:'1.0.0',tools:definitions})}}:{})};
+            ...(definitions.length?{mcpServers:Object.fromEntries(appServers.map(name=>[name,sdk.createSdkMcpServer({name,version:'1.0.0',tools:definitions})]))}:{})};
           const input={type:'user',uuid:randomUUID(),message:{role:'user',content:prompt},parent_tool_use_id:null};
           queryToolsController=new AbortController();activeQuery=sdk.query({prompt:(async function*(){yield input;})(),options:sdkOptions});interrupting=false;result=null;
           try{

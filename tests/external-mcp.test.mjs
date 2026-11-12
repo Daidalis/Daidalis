@@ -15,7 +15,7 @@ import {createStore} from '../server/store.mjs';
 const require=createRequire(import.meta.url);
 const sdkURL=name=>pathToFileURL(require.resolve(`@modelcontextprotocol/sdk/${name}`)).href;
 async function fixture(t,options={}) {
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-external-mcp-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-external-mcp-'));
   const store=createStore({dataDir:path.join(root,'data'),seed:false});
   const project=store.createProject({name:'External tool project'});
   const service=createConnectorService({store,...options});
@@ -71,8 +71,8 @@ test('configuration is user initiated, disabled by default and scoped to one pro
 
 test('real stdio SDK handshake discovers tools and executes with an isolated environment',async t=>{
   const secret='test-connector-secret-72918';
-  const h=await stdioFixture(t,{env:{MANTA_MCP_FIXTURE:secret,OPENAI_API_KEY:'must-not-inherit'}});
-  await h.service.save(h.project.id,{...h.config,env:{EXPLICIT:'allowed'},envFrom:{API_TOKEN:'MANTA_MCP_FIXTURE'}},{userInitiated:true});
+  const h=await stdioFixture(t,{env:{DAIDALIS_MCP_FIXTURE:secret,OPENAI_API_KEY:'must-not-inherit'}});
+  await h.service.save(h.project.id,{...h.config,env:{EXPLICIT:'allowed'},envFrom:{API_TOKEN:'DAIDALIS_MCP_FIXTURE'}},{userInitiated:true});
   const connected=await h.service.test(h.project.id,'fixture');
   assert.equal(connected.server.name,'real-stdio-fixture');assert.equal(connected.tools.length,5);assert.equal(connected.connector.status,'connected');
   const result=await h.service.call(h.project.id,'fixture','echo',{text:'from actual server'});
@@ -158,7 +158,7 @@ test('HTTP redirects cannot forward configured credentials to another origin',as
 
 test('missing dedicated credentials fail before a server is started and configuration replacement closes sessions',async t=>{
   const h=await stdioFixture(t,{env:{}});
-  await h.service.save(h.project.id,{...h.config,envFrom:{API_TOKEN:'MANTA_MCP_MISSING'}},{userInitiated:true});
+  await h.service.save(h.project.id,{...h.config,envFrom:{API_TOKEN:'DAIDALIS_MCP_MISSING'}},{userInitiated:true});
   await assert.rejects(h.service.test(h.project.id,'fixture'),/Missing MCP environment/);
   await h.service.save(h.project.id,h.config,{userInitiated:true});
   await h.service.test(h.project.id,'fixture');

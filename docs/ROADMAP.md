@@ -1,6 +1,6 @@
-# Manta roadmap
+# Daidalis roadmap
 
-Manta's goal is to make real systems engineering approachable through conversation. A user describes an engineering goal or an existing problem; Manta helps organize the requirements, design, implementation, integration, verification and subsequent changes, with inspectable models and evidence.
+Daidalis's goal is to make real systems engineering approachable through conversation. A user describes an engineering goal or an existing problem; Daidalis helps organize the requirements, design, implementation, integration, verification and subsequent changes, with inspectable models and evidence.
 
 ## Product principles
 

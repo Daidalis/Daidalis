@@ -38,7 +38,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
   function draw(){
     if(!host?.isConnected)return;
     ensureProject();destroyViewer();
-    host.innerHTML=`<section class="manta-workbench"><div class="workbench-tabbar" role="tablist" aria-label="打开的文件"><button role="tab" aria-selected="${active==='browser'}" data-workspace-action="browser">文件</button>${tabs.map(t=>`<span class="workbench-tab ${active===t.id?'active':''}"><button role="tab" aria-selected="${active===t.id}" data-workspace-action="tab" data-tab="${esc(t.id)}" title="${esc(t.path||t.title)}">${esc(t.title)}</button><button data-workspace-action="close-tab" data-tab="${esc(t.id)}" aria-label="关闭 ${esc(t.title)}">×</button></span>`).join('')}<span class="workbench-tab-space"></span><button data-workspace-action="focus" title="切换展开工作区" aria-label="切换展开工作区">⤢</button></div><div class="workbench-content"></div></section>`;
+    host.innerHTML=`<section class="daidalis-workbench"><div class="workbench-tabbar" role="tablist" aria-label="打开的文件"><button role="tab" aria-selected="${active==='browser'}" data-workspace-action="browser">文件</button>${tabs.map(t=>`<span class="workbench-tab ${active===t.id?'active':''}"><button role="tab" aria-selected="${active===t.id}" data-workspace-action="tab" data-tab="${esc(t.id)}" title="${esc(t.path||t.title)}">${esc(t.title)}</button><button data-workspace-action="close-tab" data-tab="${esc(t.id)}" aria-label="关闭 ${esc(t.title)}">×</button></span>`).join('')}<span class="workbench-tab-space"></span><button data-workspace-action="focus" title="切换展开工作区" aria-label="切换展开工作区">⤢</button></div><div class="workbench-content"></div></section>`;
     shell=host.firstElementChild;
     const content=shell.querySelector('.workbench-content');
     if(active==='browser'){content.innerHTML=browser();return;}
@@ -47,7 +47,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
     if(tab.error){content.innerHTML=`<div class="workbench-error" role="alert"><strong>无法打开</strong><p>${esc(tab.error)}</p>${button('reload','重试')}</div>`;return;}
     const viewerHost=document.createElement('div');viewerHost.className='workbench-viewer';content.append(viewerHost);
     if(tab.kind==='simulation'){
-      viewer=mountSimulationViewer(viewerHost,{simulation:tab.simulation,caseId:tab.caseId,onOpenPath:(path,detail)=>openPath(path,detail).catch(onError),onOpenModel:path=>openPath(path||tab.simulation?.model?.path).catch(onError),onRerun:()=>onAskAgent(`请根据工程作业 ${tab.jobId} 的模型和场景配置重新运行仿真，复核结果，并在 Manta 中提供模型、曲线与证据入口。`),onStop:()=>stopJob(tab)});
+      viewer=mountSimulationViewer(viewerHost,{simulation:tab.simulation,caseId:tab.caseId,onOpenPath:(path,detail)=>openPath(path,detail).catch(onError),onOpenModel:path=>openPath(path||tab.simulation?.model?.path).catch(onError),onRerun:()=>onAskAgent(`请根据工程作业 ${tab.jobId} 的模型和场景配置重新运行仿真，复核结果，并在 Daidalis 中提供模型、曲线与证据入口。`),onStop:()=>stopJob(tab)});
     }else if(tab.edit){
       const dirty=tab.edit.content!==tab.edit.originalContent;viewerHost.innerHTML=`<section class="workbench-document-editor"><div class="workbench-editor-state" role="status">${tab.edit.saving?'正在保存…':dirty?'有未保存的修改':'编辑文件'}</div><textarea data-workspace-editor aria-label="编辑文件内容" spellcheck="false" ${tab.edit.saving?'disabled':''}>${esc(tab.edit.content)}</textarea>${tab.edit.error?`<p role="alert" class="workbench-editor-error">${esc(tab.edit.error)}</p>`:''}</section>`;viewerHost.querySelector('[data-workspace-editor]').value=tab.edit.content;
     }else{

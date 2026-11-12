@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createSdkRuntime,JsonSdkSession} from '../server/runtimes/sdk.mjs';
 const tool={name:'read_spec',description:'Read selected project specification',parameters:{type:'object',properties:{path:{type:'string'}},required:['path'],additionalProperties:false}};
-async function temp(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-official-sdk-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
+async function temp(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-official-sdk-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
 
 test('official Runner executes real tool loop and persisted native history resumes with call identities and images',async t=>{
  const dir=await temp(t),calls=[],messages=[],events=[];let phase=0,sessionId;

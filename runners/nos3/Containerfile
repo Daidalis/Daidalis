@@ -1,14 +1,15 @@
-# Optional dedicated Linux COMPONENT worker. No image is pulled/built by Manta.
+# Optional dedicated Linux COMPONENT worker. No image is pulled/built by Daidalis.
 # Supply an immutable base image digest from your approved image registry.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 # Base must already contain Node >=22, git, tar, clang; no apt/pip/global install.
-WORKDIR /opt/manta
+WORKDIR /opt/daidalis
 COPY server/nos3.mjs server/nos3.mjs
 COPY server/nos3/ server/nos3/
 COPY server/sandbox.mjs server/sandbox.mjs
+COPY shared/ shared/
 COPY runners/nos3/ runners/nos3/
 USER 10001:10001
-ENV MANTA_NOS3_SOURCE=/source MANTA_NOS3_DATA=/jobs MANTA_NOS3_CC=/usr/bin/clang MANTA_NOS3_BIND=0.0.0.0
+ENV DAIDALIS_NOS3_SOURCE=/source DAIDALIS_NOS3_DATA=/jobs DAIDALIS_NOS3_CC=/usr/bin/clang DAIDALIS_NOS3_BIND=0.0.0.0
 EXPOSE 8093
 ENTRYPOINT ["node", "runners/nos3/worker.mjs"]

@@ -1,6 +1,6 @@
 # Repository scope
 
-This repository contains Manta application source, tests, documentation, the pinned SysML runtime, Linux Docker packaging and workers, legacy isolated VM setup source, and a standalone product website. Public product direction is summarized in [the roadmap](docs/ROADMAP.md).
+This repository contains Daidalis application source, tests, documentation, the pinned SysML runtime, Linux Docker packaging and workers, legacy isolated VM setup source, and a standalone product website. Public product direction is summarized in [the roadmap](docs/ROADMAP.md).
 
 Runtime conversations, credentials, local configuration, personal reference screenshots, internal project notes, full engineering/evaluation workspaces, VM disk images and state, downloaded source archives, and third-party NOS3 checkouts are excluded. The maintainer retains authoritative project records separately. Their exclusion does not close any associated STF requirement or evidence gap.
 
@@ -10,4 +10,4 @@ The application is a local workspace, not an authenticated multi-user network se
 
 The product website can be served independently as static files. Its GitHub Pages workflow deploys only a checked static export; the owner enables Pages in repository settings. Website access and source-repository access remain separate. No ChatGPT hosting identity or credential is required.
 
-Manta-owned code and original documentation are licensed under [Apache 2.0](LICENSE), with copyright attributed to MingxiYe. See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md). Upstream components retain their own licenses and notices. The pinned SysML package is included with its upstream license and notices; the repository does not relicense third-party work. No complete STF, flight qualification or certification package is included.
+Daidalis-owned code and original documentation are licensed under [Apache 2.0](LICENSE), with copyright attributed to MingxiYe. See [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md). Upstream components retain their own licenses and notices. The pinned SysML package is included with its upstream license and notices; the repository does not relicense third-party work. No complete STF, flight qualification or certification package is included.

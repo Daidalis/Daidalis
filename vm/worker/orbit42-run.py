@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
-"""Bounded native NASA 42 orbit run inside Manta's private Linux VM.
+"""Bounded native NASA 42 orbit run inside Daidalis's private Linux VM.
 
 This adapter only changes reviewed fields in a copied 42 InOut scenario. The
 native 42 executable runs in a networkless bubblewrap namespace. It does not
 calculate coverage, revisit, ground contacts, delivery, or mission acceptance.
 """
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import base64
 import csv
 import datetime as dt
@@ -23,9 +38,9 @@ import subprocess
 import sys
 import time
 
-ROOT = pathlib.Path('/srv/manta/orbit42')
+ROOT = pathlib.Path(_vm_name_path('/srv/daidalis/orbit42'))
 JOBS = ROOT / 'jobs'
-SOURCE = pathlib.Path('/srv/manta/42')
+SOURCE = pathlib.Path(_vm_name_path('/srv/daidalis/42'))
 BINARY = SOURCE / '42'
 EXPECTED_BINARY_SHA256 = 'a56f32e7a0ce8ec7e26749a5fb7aee673f24a190f444fc85083b3c63bd2b6c31'
 
@@ -327,8 +342,8 @@ def read_request():
     if source.get('sha256') != source_hash or request.get('inputHash') != source_hash:
         raise ValueError('Pinned orbit model hash mismatch')
     model = json.loads(content)
-    if not isinstance(model, dict) or model.get('schema') != 'manta-orbit42-v1':
-        raise ValueError('Expected manta-orbit42-v1 model')
+    if not isinstance(model, dict) or not _product_schema_matches(model.get('schema'), 'daidalis-orbit42-v1'):
+        raise ValueError('Expected daidalis-orbit42-v1 model')
     fail_if_extra(model, {'schema', 'scenario', 'source', 'assumptions'}, 'model')
     if model.get('source') != {'repository': 'nasa-itc/42', 'revision': EXPECTED_SOURCE_REVISION}:
         raise ValueError('Orbit model must declare the pinned native 42 source revision')
@@ -394,7 +409,7 @@ def verified_templates(source_dir, expected=EXPECTED_TEMPLATE_SHA256):
     return verified
 
 
-def verified_assets(root=pathlib.Path('/srv/manta/42-assets'), expected=EXPECTED_ASSET_SHA256):
+def verified_assets(root=pathlib.Path(_vm_name_path('/srv/daidalis/42-assets')), expected=EXPECTED_ASSET_SHA256):
     if root.is_symlink() or not root.is_dir():
         raise ValueError('Pinned 42 asset root is missing or linked')
     found = set()
@@ -402,7 +417,7 @@ def verified_assets(root=pathlib.Path('/srv/manta/42-assets'), expected=EXPECTED
         folder = root / folder_name
         if folder.is_symlink() or not folder.is_dir():
             raise ValueError('Pinned 42 asset directory missing or linked: ' + folder_name)
-        if root == pathlib.Path('/srv/manta/42-assets') and (SOURCE / folder_name).resolve() != folder.resolve():
+        if root == pathlib.Path(_vm_name_path('/srv/daidalis/42-assets')) and (SOURCE / folder_name).resolve() != folder.resolve():
             raise ValueError('Native 42 asset directory does not resolve to private reviewed assets')
         for item in folder.rglob('*'):
             kind = item.lstat().st_mode
@@ -496,7 +511,7 @@ def native_args(work):
             args += ['--ro-bind', mount, mount]
     args += ['--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp',
              '--ro-bind', str(SOURCE), str(SOURCE),
-             '--ro-bind', '/srv/manta/42-assets', '/srv/manta/42-assets',
+             '--ro-bind', _vm_name_path('/srv/daidalis/42-assets'), _vm_name_path('/srv/daidalis/42-assets'),
              '--bind', str(work), '/work', '--chdir', '/work',
              '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin',
              '--setenv', 'HOME', '/tmp', '--setenv', 'LANG', 'C.UTF-8',
@@ -622,7 +637,7 @@ def run(request, model, epoch):
     success = all(check['passed'] for check in metrics['checks'])
     scope = 'Native 42 short-run reference-orbit dynamics, not mission coverage or system acceptance'
     receipt = {
-        'schema': 'manta-orbit42-receipt-v1', 'jobId': job_id, 'inputHash': request['inputHash'],
+        'schema': 'daidalis-orbit42-receipt-v1', 'jobId': job_id, 'inputHash': request['inputHash'],
         'sourceFile': {'path': request['sourceFile']['path'], 'sha256': request['sourceFile']['sha256']},
         'tool': {'id': 'nasa-42', 'repository': 'nasa-itc/42', 'revision': EXPECTED_SOURCE_REVISION,
                  'binarySha256': binary_hash}, 'adapterSha256': source_hash,
@@ -673,7 +688,7 @@ def run(request, model, epoch):
         (log, 'native-42.log', 'text/plain'),
     ]
     files = [exported(file, name, mime) for file, name, mime in wanted]
-    return {'schema': 'manta-orbit42-native-response-v1', 'success': success, 'exitCode': code,
+    return {'schema': 'daidalis-orbit42-native-response-v1', 'success': success, 'exitCode': code,
             'tool': receipt['tool'], 'receipt': receipt, 'metrics': metrics,
             'scope': scope, 'files': files,
             'diagnostics': 'Native 42 completed; bounded trajectory parsed' if success else 'Native 42 completed but sanity checks failed'}
@@ -716,7 +731,7 @@ def main():
         else:
             raise ValueError('Unsupported orbit adapter arguments')
     except Exception as error:
-        print(json.dumps({'schema': 'manta-orbit42-native-response-v1', 'success': False,
+        print(json.dumps({'schema': 'daidalis-orbit42-native-response-v1', 'success': False,
                           'exitCode': 1, 'diagnostics': str(error), 'files': []}))
 
 

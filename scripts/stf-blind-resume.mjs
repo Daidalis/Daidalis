@@ -12,7 +12,7 @@ import {publicFetch} from '../server/sandbox.mjs';
 import {PUBLIC_ASSET_MAX_BYTES} from '../server/public-assets.mjs';
 
 const sourceRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const vmRoot=path.resolve(process.env.MANTA_NOS3_VM_ROOT||path.join(sourceRoot,'vm'));
+const vmRoot=path.resolve(process.env.DAIDALIS_NOS3_VM_ROOT||path.join(sourceRoot,'vm'));
 const disabledAgentTools=Object.freeze(['run_command','list_external_tools','call_external_tool','prepare_nos3_model','bind_nos3_results','inspect_nos3','prepare_nos3_environment','submit_nos3_job','get_nos3_job','wait_nos3_job','cancel_nos3_job','computer_use']);
 // Match the isolated instance's explicit source list. publicFetch pins DNS,
 // checks every redirect, and permits proxy-mapped 198.18/15 only for these HTTPS hosts.
@@ -133,17 +133,17 @@ export function validateResumeBoundary(manifest,manifestPath,{root=sourceRoot,vm
   else if(basename===claudeAmendmentName)validateClaudeAmendment(manifest,manifestPath,{root,vm});
   else if(basename===orbitGroundAmendmentName)validateOrbitGroundAmendment(manifest,manifestPath,{root,vm});
   else if(manifest.sourceAmendment!==undefined||manifest.professionalAmendment!==undefined||manifest.claudeAmendment!==undefined||manifest.orbitGroundAmendment!==undefined)throw new Error('The original boundary cannot contain an amendment');
-  if(manifest.schema!=='manta-requirements-first-eval-v1')throw new Error('Unsupported evaluation boundary schema');
+  if(manifest.schema!=='daidalis-requirements-first-eval-v1')throw new Error('Unsupported evaluation boundary schema');
   if(!/^project_[a-f0-9-]+$/i.test(manifest.projectId)||!/^thread_[a-f0-9-]+$/i.test(manifest.coordinatorThreadId))throw new Error('Invalid evaluation project or Coordinator ID');
   if(!Number.isInteger(manifest.port)||manifest.port<1024||manifest.port>65535)throw new Error('Invalid evaluation port');
   const canonicalRoot=fs.realpathSync(root),canonicalVm=fs.realpathSync(vm);
-  if(fs.realpathSync(manifest.sourceRoot)!==canonicalRoot||fs.realpathSync(manifest.vmRoot)!==canonicalVm)throw new Error('The boundary targets another Manta source or Linux VM');
-  const dataDir=path.join(evalRoot,'manta-data'),workspaceRoot=path.join(canonicalVm,'handoff','eval-workspaces');
+  if(fs.realpathSync(manifest.sourceRoot)!==canonicalRoot||fs.realpathSync(manifest.vmRoot)!==canonicalVm)throw new Error('The boundary targets another Daidalis source or Linux VM');
+  const dataDir=path.join(evalRoot,'daidalis-data'),workspaceRoot=path.join(canonicalVm,'handoff','eval-workspaces');
   if(path.resolve(manifest.dataDir)!==dataDir||fs.realpathSync(dataDir)!==dataDir)throw new Error('The evaluation data directory changed');
   if(fs.lstatSync(dataDir).isSymbolicLink())throw new Error('Evaluation data directory cannot be a symbolic link');
   const workspace=fs.realpathSync(manifest.workspace),slug=path.basename(workspace);
   if(!/^stf[a-f0-9]{18}$/.test(slug)||!contains(fs.realpathSync(workspaceRoot),workspace)||workspace!==manifest.workspace||fs.lstatSync(workspace).isSymbolicLink())throw new Error('The isolated project workspace changed');
-  if(manifest.guestWorkspace!=='/work'||manifest.guestSessionPath!==`/srv/manta/agent-eval/sessions/${slug}`)throw new Error('The guest workspace binding changed');
+  if(manifest.guestWorkspace!=='/work'||manifest.guestSessionPath!==`/srv/daidalis/agent-eval/sessions/${slug}`)throw new Error('The guest workspace binding changed');
   if(!sameItems(manifest.initialWorkspaceEntries,[])||!sameItems(manifest.disabledAgentTools,disabledAgentTools))throw new Error('The original isolation boundary is incomplete');
   if(!isLegacySourceHosts(manifest.proxyMappedPublicHosts)&&!sameItems(manifest.proxyMappedPublicHosts,expandedSourceHosts))throw new Error('The source-fetch allowlist changed');
   if(!manifest.referenceImportDisabled||!manifest.externalMcpDisabled||!manifest.computerDisabled||!manifest.nos3Disabled||manifest.professionalRunnerMode!=='generic-only'||manifest.nativeRuntime!=='codex-app-server in Linux Bubblewrap'||manifest.nativeReadIsolation!=='guest default-deny mount namespace; one project bind')throw new Error('The original isolation services changed');
@@ -310,7 +310,7 @@ function probeClaudeGuest(boundary){
   const transport=path.join(boundary.vmRoot,'host/claude-remote.py'),stat=fs.lstatSync(transport);
   if(stat.isSymbolicLink()||!stat.isFile()||fs.realpathSync(transport)!==transport)throw new Error('The pinned Claude guest transport is unavailable');
   fs.accessSync(transport,fs.constants.X_OK);
-  const options={cwd:boundary.workspace,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'C.UTF-8',HOME:os.homedir(),MANTA_REMOTE_PROJECT_SLUG:path.basename(boundary.workspace)},encoding:'utf8',timeout:120000,maxBuffer:1024*1024};
+  const options={cwd:boundary.workspace,env:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin',LANG:'C.UTF-8',HOME:os.homedir(),DAIDALIS_REMOTE_PROJECT_SLUG:path.basename(boundary.workspace)},encoding:'utf8',timeout:120000,maxBuffer:1024*1024};
   const staged=spawnSync(transport,['--stage'],options);
   if(staged.error||staged.status!==0)throw new Error('The isolated Claude guest launcher could not be staged; project provider was not switched');
   const result=spawnSync(transport,['--probe'],options);
@@ -333,7 +333,7 @@ export async function resumeBoundary(manifestPath) {
   const manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
   const boundary=validateResumeBoundary(manifest,manifestPath);
   await assertPortVacant(boundary.port);
-  // Keys entered in Manta exist only in the old process. This launcher does
+  // Keys entered in Daidalis exist only in the old process. This launcher does
   // not load a host Codex login, accept a key, or update a provider profile.
   const statePath=path.join(boundary.dataDir,'state.json');
   const state=JSON.parse(fs.readFileSync(statePath,'utf8'));
@@ -367,6 +367,6 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
   else if(process.argv[2]==='--amend-orbit-ground')process.stdout.write(JSON.stringify(createOrbitGroundBoundaryAmendment(process.argv[3],{rationale:process.argv.slice(4).join(' ')}))+'\n');
   else{
     const {url}=await resumeBoundary(process.argv[2]);
-    process.stdout.write(JSON.stringify({url,providerAction:resumeCapabilitiesForBoundary(process.argv[2]).claudeGuestEnabled?'Reconfigure and test the isolated Claude Code connection in Manta; the previous API key was process-local and was not restored.':'Reconfigure the isolated Codex connection in Manta; the previous API key was process-local and was not restored.'})+'\n');
+    process.stdout.write(JSON.stringify({url,providerAction:resumeCapabilitiesForBoundary(process.argv[2]).claudeGuestEnabled?'Reconfigure and test the isolated Claude Code connection in Daidalis; the previous API key was process-local and was not restored.':'Reconfigure the isolated Codex connection in Daidalis; the previous API key was process-local and was not restored.'})+'\n');
   }
 }

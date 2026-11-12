@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createSettingsService,DEFAULT_SETTINGS,validateSettingsPatch} from '../server/settings.mjs';
 
-async function fixture(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-settings-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
+async function fixture(t){const dir=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-settings-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));return dir;}
 
 test('settings defaults persist independently and external result mutations cannot alter state',async t=>{
   const dir=await fixture(t),service=await createSettingsService({dataDir:dir});

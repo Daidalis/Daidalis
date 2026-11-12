@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import {constants as FC} from 'node:fs';
 import path from 'node:path';
@@ -10,7 +11,7 @@ const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 /** One reviewed Python entrypoint, one fixed VM. No request field reaches a shell command. */
 export function createOrbitGroundRunner({vmRoot,workerSha256,execute=executeLocalVm,stageBundle=stageManagedWorkerBundle}={}){
   if(typeof vmRoot!=='string'||!path.isAbsolute(vmRoot)||!HASH.test(workerSha256||''))throw Error('Orbit-ground runner requires a fixed VM root and reviewed worker SHA-256');
-  const root=path.resolve(vmRoot),guest='/srv/manta/orbit-ground-worker/orbit-ground-run.py';
+  const root=path.resolve(vmRoot),guest='/srv/daidalis/orbit-ground-worker/orbit-ground-run.py';
   let closed=false;
   async function scriptBytes(){
     const file=path.join(root,'worker','orbit-ground-run.py'),handle=await fs.open(file,FC.O_RDONLY|FC.O_NOFOLLOW);
@@ -33,15 +34,15 @@ export function createOrbitGroundRunner({vmRoot,workerSha256,execute=executeLoca
     await stageBundle(root,{signal});
     // Copy the already-pinned bundle into guest-private storage; VirtioFS is
     // never used as the live Python source during execution.
-    const staged=await helper('vm-exec.sh',[`mkdir -p /srv/manta/orbit-ground-worker && cp /mnt/manta-transfer/worker/orbit-ground-run.py ${guest} && sha256sum ${guest}`],{signal,timeoutMs:30000,maxOutputBytes:1000,maxTotalBytes:2000});
+    const staged=await helper('vm-exec.sh',[`mkdir -p /srv/daidalis/orbit-ground-worker && cp /mnt/daidalis-transfer/worker/orbit-ground-run.py ${guest} && sha256sum ${guest}`],{signal,timeoutMs:30000,maxOutputBytes:1000,maxTotalBytes:2000});
     if(staged.code!==0||staged.stdout.trim().split(/\s+/)[0]!==workerSha256)throw Error('Reviewed orbit-ground worker did not stage with its pinned SHA-256');
     // Read-only binds constrain the native 42 receipt and worker; Census ZIP
     // is supplied through bounded stdin. No project text constructs commands.
-    const command=`test "$(sha256sum ${guest} | cut -d ' ' -f 1)" = ${workerSha256} && bwrap --unshare-all --die-with-parent --new-session --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /bin /bin --ro-bind /etc /etc --ro-bind /srv/manta/orbit42/jobs /srv/manta/orbit42/jobs --ro-bind /srv/manta/orbit-ground-worker /srv/manta/orbit-ground-worker --dev /dev --proc /proc --tmpfs /tmp --chdir /tmp --clearenv --setenv PATH /usr/bin:/bin --setenv HOME /tmp --setenv LANG C.UTF-8 /usr/bin/python3 ${guest}`;
+    const command=`test "$(sha256sum ${guest} | cut -d ' ' -f 1)" = ${workerSha256} && bwrap --unshare-all --die-with-parent --new-session --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /bin /bin --ro-bind /etc /etc --ro-bind /srv/daidalis/orbit42/jobs /srv/daidalis/orbit42/jobs --ro-bind /srv/daidalis/orbit-ground-worker /srv/daidalis/orbit-ground-worker --dev /dev --proc /proc --tmpfs /tmp --chdir /tmp --clearenv --setenv PATH /usr/bin:/bin --setenv HOME /tmp --setenv LANG C.UTF-8 /usr/bin/python3 ${guest}`;
     const result=await helper('vm-exec.sh',[command],{input:JSON.stringify(request),signal,timeoutMs:Math.min(Math.max(timeoutMs,30000),300000),maxOutputBytes:8*1024*1024,maxTotalBytes:10*1024*1024});
     if(result.code!==0)throw Error(('Isolated orbit-ground worker failed: '+(result.stderr||result.stdout||result.code)).slice(-2000));
     let output;try{output=JSON.parse(result.stdout);}catch{throw Error('Isolated orbit-ground worker returned invalid JSON');}
-    if(output?.schema!=='manta-orbit-ground-response-v1'||typeof output.success!=='boolean'||!Number.isInteger(output.exitCode)||!Array.isArray(output.files))throw Error('Invalid orbit-ground worker response');
+    if(!productSchemaMatches(output?.schema,'daidalis-orbit-ground-response-v1')||typeof output.success!=='boolean'||!Number.isInteger(output.exitCode)||!Array.isArray(output.files))throw Error('Invalid orbit-ground worker response');
     return {...output,workerSha256:sha(bytes)};
   }
   return {status,run,async close(){closed=true;}};

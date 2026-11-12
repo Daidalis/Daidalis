@@ -4,14 +4,14 @@ import {createStudioServer} from '../../server/index.mjs';
 import {DEFAULT_EXECUTION_BUDGET} from '../../shared/execution-budget.mjs';
 
 process.umask(0o077);
-process.env.MANTA_EXECUTION_MODE??='shared-container';
-process.env.MANTA_NATIVE_AGENTS??='enabled';
-process.env.MANTA_PROJECTS_ROOT??='/projects';
-if(fs.existsSync('/usr/bin/chromium'))process.env.MBSE_CHROME_PATH??='/usr/bin/chromium';
+process.env.DAIDALIS_EXECUTION_MODE??='shared-container';
+process.env.DAIDALIS_NATIVE_AGENTS??='enabled';
+process.env.DAIDALIS_PROJECTS_ROOT??='/projects';
+if(fs.existsSync('/usr/bin/chromium'))process.env.DAIDALIS_CHROME_PATH??='/usr/bin/chromium';
 const port=Number(process.env.PORT||4317);
 if(!Number.isInteger(port)||port<1024||port>65535||[8080,8081].includes(port))throw Error('Invalid PORT (8080 and 8081 are reserved)');
-const maxTurns=Number(process.env.MANTA_MAX_TOOL_TURNS||DEFAULT_EXECUTION_BUDGET.maxRunTurns);
-if(!Number.isInteger(maxTurns)||maxTurns<2||maxTurns>200)throw Error('MANTA_MAX_TOOL_TURNS must be an integer from 2 to 200');
+const maxTurns=Number(process.env.DAIDALIS_MAX_TOOL_TURNS||DEFAULT_EXECUTION_BUDGET.maxRunTurns);
+if(!Number.isInteger(maxTurns)||maxTurns<2||maxTurns>200)throw Error('DAIDALIS_MAX_TOOL_TURNS must be an integer from 2 to 200');
 const app=await createStudioServer({seed:false,addDefaultCodexProvider:false,engineOptions:{maxTurns}});
 await app.listen({host:'127.0.0.1',port});
 const sockets=new Set();
@@ -23,7 +23,7 @@ const relay=net.createServer(client=>{
   client.pipe(upstream).pipe(client);
 });
 await new Promise((resolve,reject)=>{relay.once('error',reject);relay.listen(8080,'0.0.0.0',resolve);});
-console.log(`Manta ready on port ${port} (Docker loopback publication)`);
+console.log(`Daidalis ready on port ${port} (Docker loopback publication)`);
 // A fixed relay lets the user reach noVNC without giving the desktop an egress network.
 const desktopRelay=net.createServer(async client=>{
   let upstream;try{upstream=app.computer?.openDesktopTunnel?await app.computer.openDesktopTunnel():net.connect({path:'/desktop-control/novnc.sock'});}catch{client.destroy();return;}

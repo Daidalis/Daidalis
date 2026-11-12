@@ -21,7 +21,7 @@ function gate(promise,signal){
   });
 }
 async function fixture(t,handler){
-  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'manta-message-origin-'))),store=createStore({dataDir:path.join(root,'data'),seed:false}),calls=[];
+  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-message-origin-'))),store=createStore({dataDir:path.join(root,'data'),seed:false}),calls=[];
   let sequence=0;
   const adapters=Object.fromEntries(['codex-app-server','claude-agent-sdk'].map(name=>[name,{startTurn(options){
     const sessionId=options.sessionId||name+'-'+(++sequence),call={name,options,sessionId,steerings:[]};calls.push(call);

@@ -1,6 +1,6 @@
 # Checksum-pinned SDK dependency image for the native flight toolchain.
-ARG MANTA_IMAGE=manta-app:full
-FROM ${MANTA_IMAGE}
+ARG DAIDALIS_IMAGE=daidalis-app:full
+FROM ${DAIDALIS_IMAGE}
 USER root
 RUN test "$(dpkg --print-architecture)" = amd64 && apt-get update && apt-get install -y --no-install-recommends libboost-thread1.74.0 libboost-program-options1.74.0 libxerces-c3.2 && rm -rf /var/lib/apt/lists/*
 COPY deploy/docker/nos3-sdk-manifest.json /opt/nos3-sdk/manifest.json

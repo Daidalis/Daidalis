@@ -6,7 +6,7 @@ import {spawnBounded,isPrivateAddress} from './sandbox.mjs';
 
 export const AGENT_REACH_VERSION='1.6.1';
 export const DEFAULT_SEARCH_TIMEOUT_MS=45000;
-const INSTALL_HINT='运行 python3 scripts/install-agent-reach.py 安装项目独立依赖，或设置 MANTA_AGENT_REACH_BIN 指向受支持的 agent-reach。';
+const INSTALL_HINT='运行 python3 scripts/install-agent-reach.py 安装项目独立依赖，或设置 DAIDALIS_AGENT_REACH_BIN 指向受支持的 agent-reach。';
 const failure=(code,message)=>Object.assign(new Error(message),{code});
 const text=(value,limit)=>typeof value==='string'?value.slice(0,limit):'';
 
@@ -26,9 +26,9 @@ function jsonOutput(result){
 
 // Only public keyword search is exposed. No arbitrary channel, shell, install,
 // login or browser command can be selected by a model/tool argument.
-export function createWebSearchService({root=process.cwd(),dataDir,command=process.env.MANTA_AGENT_REACH_BIN,execute=spawnBounded,env=process.env,timeoutMs=Number(process.env.MANTA_SEARCH_TIMEOUT_MS||DEFAULT_SEARCH_TIMEOUT_MS)}={}){
+export function createWebSearchService({root=process.cwd(),dataDir,command=process.env.DAIDALIS_AGENT_REACH_BIN,execute=spawnBounded,env=process.env,timeoutMs=Number(process.env.DAIDALIS_SEARCH_TIMEOUT_MS||DEFAULT_SEARCH_TIMEOUT_MS)}={}){
   if(!dataDir)throw Error('Web search needs an application data directory');
-  if(!Number.isInteger(timeoutMs)||timeoutMs<1000||timeoutMs>120000)throw Error('MANTA_SEARCH_TIMEOUT_MS must be an integer from 1000 to 120000');
+  if(!Number.isInteger(timeoutMs)||timeoutMs<1000||timeoutMs>120000)throw Error('DAIDALIS_SEARCH_TIMEOUT_MS must be an integer from 1000 to 120000');
   const runtimeDirectory=path.resolve(dataDir,'agent-reach');
   let checkedExecutable,lastSearchAt=null,lastErrorCode=null;
   const executable=()=>command?resolveExecutable(command,{env}):resolveExecutable(path.join(root,'.local','agent-reach',process.platform==='win32'?'Scripts/agent-reach.exe':'bin/agent-reach'),{env})||resolveExecutable('agent-reach',{env});

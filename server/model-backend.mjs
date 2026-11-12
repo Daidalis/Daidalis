@@ -10,13 +10,13 @@ const WORKER=fileURLToPath(new URL('./model-backend/worker.mjs',import.meta.url)
 const TEMPLATE=fileURLToPath(new URL('./model-backend/nos3.sysml',import.meta.url));
 const INTEGRATION_TEMPLATE=fileURLToPath(new URL('./model-backend/nos3-integration.sysml',import.meta.url));
 const EXPECTED_VERSION='0.10.10';
-const EXPECTED_MANIFEST='b74cc1ec0886820e01627c59adecf80c781ec19e15e8330bea67d1958e4e823d';
+const EXPECTED_MANIFEST='cb3e789540e704b33648514f55726ea005dd3e3582bc9ac4563d420020d6ae44';
 const sha=value=>crypto.createHash('sha256').update(value).digest('hex');
 const MAX_MODEL=500000;
 const LIMITATIONS=[
   'Checks use the Open-MBEE toolkit supported syntax, resolution and semantic rule inventory; this is not complete OMG conformance certification.',
   'The semantic kernel does not execute SysML behaviors or NOS3 simulation. Continuous FMI execution is a separate professional job: OpenSysML evaluates the SysML analysis verdict, FMPy supplies the plotted FMU trajectory, and neither establishes physical correctness.',
-  'Unresolved referential findings fail the Manta acceptance gate even when the upstream toolkit labels them warnings.'
+  'Unresolved referential findings fail the Daidalis acceptance gate even when the upstream toolkit labels them warnings.'
 ];
 function requireModelPath(value){if(typeof value!=='string'||!value.endsWith('.sysml'))throw Error('Use a project-relative .sysml model path');return value;}
 function abort(ctx){if(ctx.signal?.aborted)throw Error('Cancelled');}
@@ -89,9 +89,9 @@ export async function createModelBackendService({root=DEFAULT_ROOT,dataDir,store
   }
   async function record(model,result,ctx={},extra={}){
     abort(ctx);
-    const id='model_'+crypto.randomUUID().replaceAll('-',''),relative=`.manta/model-evidence/${id}.json`;
+    const id='model_'+crypto.randomUUID().replaceAll('-',''),relative=`.daidalis/model-evidence/${id}.json`;
     const target=safePath(model.workspace,relative,{write:true});await fs.mkdir(path.dirname(target),{recursive:true});
-    const doc={schema:'manta-model-evidence-v1',id,projectId:extra.projectId,createdAt:new Date().toISOString(),...result,...extra};
+    const doc={schema:'daidalis-model-evidence-v1',id,projectId:extra.projectId,createdAt:new Date().toISOString(),...result,...extra};
     await fs.writeFile(target,JSON.stringify(doc,null,2));
     const evidence={id,path:relative,sha256:sha(await fs.readFile(target))};
     if(store.add)store.add('artifacts',{id:'artifact_'+crypto.randomUUID(),projectId:extra.projectId,threadId:ctx.threadId||null,runId:ctx.runId||null,name:path.basename(model.path)+' · '+(extra.operation||'validation'),path:relative,type:'application/json',createdAt:doc.createdAt});
@@ -165,7 +165,7 @@ export async function createModelBackendService({root=DEFAULT_ROOT,dataDir,store
       const ws=workspace(args.projectId);let sources=args.sources;
       if(!sources){sources=[];for(const file of ['components/generic_adcs/fsw/shared/generic_adcs_utilities.c','components/generic_adcs/fsw/shared/generic_adcs_adac.c','components/generic_adcs/fsw/cfs/src/generic_adcs_ingest.c'])try{await fs.access(safePath(ws,file));sources.push({path:file});}catch{}}
       const result=await service.importModel({...args,path:args.path||'models/nos3-attitude-interface.sysml',content:await fs.readFile(args.scope==='integration'?INTEGRATION_TEMPLATE:TEMPLATE,'utf8'),sources},ctx);
-      return {...result,origin:'Manta source-linked reconstruction; not a NASA-issued SysML model',upstreamEvidence:!!sources.length,requirementIds:args.scope==='integration'?['R-FRAME','R-SIGN','R-INVALID','R-SENSOR-SEPARATION']:['R-ROTATION','R-SIGN','R-SENSOR-SEPARATION'],executionScope:args.scope==='integration'?'Selected NOS3/cFS/42 star-tracker live chain, awaiting actual execution evidence':'NOS3 generic_adcs quaternion utility component; full input path/integration remains pending'};
+      return {...result,origin:'Daidalis source-linked reconstruction; not a NASA-issued SysML model',upstreamEvidence:!!sources.length,requirementIds:args.scope==='integration'?['R-FRAME','R-SIGN','R-INVALID','R-SENSOR-SEPARATION']:['R-ROTATION','R-SIGN','R-SENSOR-SEPARATION'],executionScope:args.scope==='integration'?'Selected NOS3/cFS/42 star-tracker live chain, awaiting actual execution evidence':'NOS3 generic_adcs quaternion utility component; full input path/integration remains pending'};
     }
   };
   return service;

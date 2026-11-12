@@ -5,7 +5,7 @@ import {renderToolHub} from '../public/tool-hub.mjs';
 test('known job/model operations create bounded navigation hints, arbitrary JSON fields do not',()=>{
  const jobId='nos3_'+'a'.repeat(32);
  assert.equal(toolResultPresentation({tool:'wait_nos3_job',result:{jobId,status:'completed'}}).actions[0].id,jobId);
- assert.equal(toolResultPresentation({tool:'mcp__manta__get_nos3_job',args:{jobId},result:{ready:false}}).actions[0].id,jobId);
+ assert.equal(toolResultPresentation({tool:'mcp__daidalis__get_nos3_job',args:{jobId},result:{ready:false}}).actions[0].id,jobId);
  assert.equal(toolResultPresentation({tool:'call_external_tool',result:{jobId}}).actions.length,0);
  assert.equal(toolResultPresentation({tool:'get_nos3_job',result:{jobId:'bad" onclick="'}}).actions.length,0);
  assert.equal(toolResultPresentation({tool:'query_system_model',args:{path:'models/a.sysml'},result:{valid:true}}).actions[0].path,'models/a.sysml');

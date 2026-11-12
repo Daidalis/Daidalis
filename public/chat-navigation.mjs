@@ -1,4 +1,5 @@
 import {runExecutionStatus} from '../shared/run-presentation.mjs';
+import {containsThreadMention} from './legacy-names.mjs';
 const routineReadTools=new Set(['read_file','list_files','search_files','search_knowledge','web_search','web_fetch','WebFetch','WebSearch','codex.webSearch','Read','Glob','Grep']);
 /** Source and file discovery failures remain inspectable in the process record.
  * Solver, verification, write and approval failures are never treated as routine. */
@@ -29,7 +30,7 @@ export function compactThreadHandoffs(row={}) {
   const previous=byThread.get(activity.childThreadId);
   if(!previous||activity.type==='thread.result'||previous.type!=='thread.result')byThread.set(activity.childThreadId,activity);
  }
- return [...byThread.values()].filter(a=>a.type==='thread.result'||!prose.some(text=>text.includes('#manta-thread:'+a.childThreadId)));
+ return [...byThread.values()].filter(a=>a.type==='thread.result'||!prose.some(text=>containsThreadMention(text,a.childThreadId)));
 }
 
 /** A detail's follow-up is a draft in its owning chat, never a sent instruction.

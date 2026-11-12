@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import {constants as FC} from 'node:fs';
 import path from 'node:path';
@@ -47,7 +48,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
     if(!/^orbitground_[a-f0-9]{32}\.json$/.test(name))continue;
     const job=JSON.parse(await fs.readFile(path.join(disk,name),'utf8'));
     if(!ID.test(job.id)||name!==job.id+'.json')throw Error('Invalid persisted orbit-ground job');
-    if(!TERMINAL.has(job.status)){job.status='interrupted';job.reason='Manta stopped before the orbit-ground evidence receipt was committed';job.finishedAt=now();await atomicJson(path.join(disk,name),job);}
+    if(!TERMINAL.has(job.status)){job.status='interrupted';job.reason='Daidalis stopped before the orbit-ground evidence receipt was committed';job.finishedAt=now();await atomicJson(path.join(disk,name),job);}
     jobs.set(job.id,job);
   }
   async function inputSource(job){
@@ -56,7 +57,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
     return bytes;
   }
   async function finish(job,output){
-    if(output?.schema&&output.schema!=='manta-orbit-ground-response-v1')throw Error('Orbit-ground worker response schema mismatch');
+    if(output?.schema&&!productSchemaMatches(output.schema,'daidalis-orbit-ground-response-v1'))throw Error('Orbit-ground worker response schema mismatch');
     const success=output?.success===true&&output.exitCode===0;
     const files=output?.files||[];
     if(!Array.isArray(files)||files.length>4)throw Error('Orbit-ground worker returned too many artifacts');
@@ -73,7 +74,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
     }
     if(success){
       const receipt=output.receipt;
-      if(receipt?.schema!=='manta-orbit-ground-receipt-v1'||receipt.jobId!==job.id||receipt.inputHash!==job.inputHash||!HASH.test(output.workerSha256||'')||receipt.workerSha256!==output.workerSha256||receipt.orbit?.jobId!==job.orbit.jobId||receipt.orbit?.receiptSha256!==job.orbit.receiptSha256||receipt.orbit?.modelSha256!==job.orbit.modelSha256||receipt.orbit?.posWSha256!==job.orbit.posWSha256||receipt.orbit?.timeSha256!==job.orbit.timeSha256||receipt.orbit?.epochUtc!==job.orbit.epochUtc||receipt.orbit?.leapSecondsAssumed!==job.orbit.leapSecondsAssumed||receipt.census?.sha256!==job.census.sha256||receipt.census?.path!==job.census.path||receipt.census?.expectedSourceEpsg!==4269||receipt.census?.featureIdField!=='STATEFP')throw Error('Orbit-ground receipt does not bind the exact inputs and worker');
+      if(!productSchemaMatches(receipt?.schema,'daidalis-orbit-ground-receipt-v1')||receipt.jobId!==job.id||receipt.inputHash!==job.inputHash||!HASH.test(output.workerSha256||'')||receipt.workerSha256!==output.workerSha256||receipt.orbit?.jobId!==job.orbit.jobId||receipt.orbit?.receiptSha256!==job.orbit.receiptSha256||receipt.orbit?.modelSha256!==job.orbit.modelSha256||receipt.orbit?.posWSha256!==job.orbit.posWSha256||receipt.orbit?.timeSha256!==job.orbit.timeSha256||receipt.orbit?.epochUtc!==job.orbit.epochUtc||receipt.orbit?.leapSecondsAssumed!==job.orbit.leapSecondsAssumed||receipt.census?.sha256!==job.census.sha256||receipt.census?.path!==job.census.path||receipt.census?.expectedSourceEpsg!==4269||receipt.census?.featureIdField!=='STATEFP')throw Error('Orbit-ground receipt does not bind the exact inputs and worker');
       if(!output.metrics||!Number.isInteger(output.metrics.selectedSamples)||output.metrics.selectedSamples<2||output.metrics.selectedSamples>job.maxSamples||!Number.isInteger(output.metrics.nativeSamples)||output.metrics.nativeSamples<output.metrics.selectedSamples)throw Error('Orbit-ground sample counts are invalid');
       for(const file of verifiedFiles.filter(item=>item.name!=='receipt.json'))if(receipt.outputSha256?.[file.name]!==sha(file.bytes))throw Error('Orbit-ground receipt output hash mismatch: '+file.name);
       let recorded;try{recorded=JSON.parse(receiptFile);}catch{throw Error('Orbit-ground receipt artifact is invalid JSON');}
@@ -83,7 +84,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
     // receipt set has passed every binding and hash check.
     try{for(const file of verifiedFiles)await artifact(job,file.name,file.bytes,file.mimeType);}
     catch(error){for(const name of required){delete job.artifactHashes[name];await fs.rm(safePath(folder(job),name),{force:true}).catch(()=>{});}throw error;}
-    const result={schema:'manta-orbit-ground-result-v1',jobId:job.id,status:job.status,ready:true,executionSucceeded:success,passed:null,orbit:job.orbit,census:job.census,inputHash:job.inputHash,tool:output?.tool||null,metrics:success?output.metrics||null:null,receipt:success?output.receipt:null,diagnostics:String(output?.diagnostics||job.reason||'').slice(0,4000),resultPath:job.relative+'/result.json',mapPath:success?job.relative+'/ground-track.geojson':null,samplesPath:success?job.relative+'/ground-samples.csv':null,reportPath:success?job.relative+'/report.md':null,scope:'Bounded native 42 world-frame sub-satellite point classification against the supplied NAD83 state boundary; no sensor footprint or coverage assessment',limitations:['Earth-rotation/frame handling, datum operation and boundary proximity need independent engineering review before mission use.','Point classification is not sensor field of view, revisit, imaging opportunity, ground contact, 24-hour delivery, three-month operation or hardware verification.','No mission requirement is marked passed by this job.']};
+    const result={schema:'daidalis-orbit-ground-result-v1',jobId:job.id,status:job.status,ready:true,executionSucceeded:success,passed:null,orbit:job.orbit,census:job.census,inputHash:job.inputHash,tool:output?.tool||null,metrics:success?output.metrics||null:null,receipt:success?output.receipt:null,diagnostics:String(output?.diagnostics||job.reason||'').slice(0,4000),resultPath:job.relative+'/result.json',mapPath:success?job.relative+'/ground-track.geojson':null,samplesPath:success?job.relative+'/ground-samples.csv':null,reportPath:success?job.relative+'/report.md':null,scope:'Bounded native 42 world-frame sub-satellite point classification against the supplied NAD83 state boundary; no sensor footprint or coverage assessment',limitations:['Earth-rotation/frame handling, datum operation and boundary proximity need independent engineering review before mission use.','Point classification is not sensor field of view, revisit, imaging opportunity, ground contact, 24-hour delivery, three-month operation or hardware verification.','No mission requirement is marked passed by this job.']};
     await artifact(job,'result.json',Buffer.from(JSON.stringify(result,null,2)+'\n'),'application/json');
     job.resultPath=result.resultPath;job.resultSha256=job.artifactHashes['result.json'].sha256;job.artifacts=Object.values(job.artifactHashes);
     if(store.add)for(const entry of job.artifacts)store.add('artifacts',{id:'artifact_'+crypto.randomUUID(),projectId:job.projectId,threadId:job.threadId,runId:job.runId,name:job.id+' · '+entry.name,path:entry.path,type:entry.mimeType,createdAt:now()});
@@ -96,7 +97,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
       const ready=await service.catalog({projectId:job.projectId});
       if(!ready.environment.ready)throw Error(ready.environment.reason||'Orbit-ground environment is not ready');
       const source=await inputSource(job);
-      const request={schema:'manta-orbit-ground-input-v1',jobId:job.id,inputHash:job.inputHash,orbit:{jobId:job.orbit.jobId,receiptSha256:job.orbit.receiptSha256,modelSha256:job.orbit.modelSha256},census:{path:job.census.path,sha256:job.census.sha256,base64:source.toString('base64'),expectedSourceEpsg:4269,featureIdField:'STATEFP'},maxSamples:job.maxSamples};
+      const request={schema:'daidalis-orbit-ground-input-v1',jobId:job.id,inputHash:job.inputHash,orbit:{jobId:job.orbit.jobId,receiptSha256:job.orbit.receiptSha256,modelSha256:job.orbit.modelSha256},census:{path:job.census.path,sha256:job.census.sha256,base64:source.toString('base64'),expectedSourceEpsg:4269,featureIdField:'STATEFP'},maxSamples:job.maxSamples};
       if(runner.requiresNativeFiles){
         request.nativeFiles={};
         for(const name of ['receipt.json','time.42','PosN.42','PosW.42']){
@@ -145,7 +146,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
       const root=`engineering/orbit/${orbit42JobId}/`,receiptEntry=orbitResult.artifacts?.find(entry=>entry.path===root+'receipt.json'),posWEntry=orbitResult.artifacts?.find(entry=>entry.path===root+'PosW.42'),timeEntry=orbitResult.artifacts?.find(entry=>entry.path===root+'time.42');
       const native=orbitResult.receipt,raw=Array.isArray(native?.rawOutputs)?native.rawOutputs:[];
       const rawHash=name=>raw.find(entry=>entry?.path===name||entry?.path==='InOut/'+name)?.sha256;
-      if(native?.schema!=='manta-orbit42-receipt-v1'||native.jobId!==orbit42JobId||native.inputHash!==orbitResult.inputHash||!HASH.test(receiptEntry?.sha256||'')||!HASH.test(posWEntry?.sha256||'')||!HASH.test(timeEntry?.sha256||'')||rawHash('PosW.42')!==posWEntry.sha256||rawHash('time.42')!==timeEntry.sha256||typeof native.epochUtc!=='string'||!Number.isInteger(native.leapSecondsAssumed))throw fail('NASA 42 native PosW/time/clock receipt is incomplete or not pinned; rerun with the reviewed adapter');
+      if(!productSchemaMatches(native?.schema,'daidalis-orbit42-receipt-v1')||native.jobId!==orbit42JobId||native.inputHash!==orbitResult.inputHash||!HASH.test(receiptEntry?.sha256||'')||!HASH.test(posWEntry?.sha256||'')||!HASH.test(timeEntry?.sha256||'')||rawHash('PosW.42')!==posWEntry.sha256||rawHash('time.42')!==timeEntry.sha256||typeof native.epochUtc!=='string'||!Number.isInteger(native.leapSecondsAssumed))throw fail('NASA 42 native PosW/time/clock receipt is incomplete or not pinned; rerun with the reviewed adapter');
       // Result integrity checks every registered orbit artifact. Re-read the
       // exact receipt bytes to bind the SHA supplied to the separate worker.
       const receiptBytes=await readRegular(safePath(ws,root+'receipt.json'),4*1024*1024);
@@ -170,7 +171,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
         }
       }
       await artifact(job,'source.zip',source,'application/zip');
-      await artifact(job,'input.json',Buffer.from(JSON.stringify({schema:'manta-orbit-ground-input-record-v1',jobId,orbit,census,maxSamples,inputHash},null,2)+'\n'),'application/json');
+      await artifact(job,'input.json',Buffer.from(JSON.stringify({schema:'daidalis-orbit-ground-input-record-v1',jobId,orbit,census,maxSamples,inputHash},null,2)+'\n'),'application/json');
       jobs.set(job.id,job);await persist(job);queue.push(job);queueMicrotask(pump);return publicJob(job);
     },
     async list({projectId}={}){workspace(projectId);return [...jobs.values()].filter(job=>job.projectId===projectId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).map(publicJob);},
@@ -181,7 +182,7 @@ export async function createOrbitGroundService({dataDir,store,orbit42Jobs,geospa
     },
     async wait(args,{signal,timeoutMs=1800000}={}){const job=scoped(args);if(TERMINAL.has(job.status))return {...publicJob(job),result:await service.result(args)};aborted(signal);return new Promise((resolve,reject)=>{const cleanup=()=>{clearTimeout(timer);events.off(job.id,changed);signal?.removeEventListener('abort',abort);};const changed=async next=>{if(TERMINAL.has(next.status)){cleanup();try{resolve({...next,result:await service.result(args)});}catch(error){reject(error);}}};const abort=()=>{cleanup();reject(fail('Cancelled waiting; orbit-ground job continues','CANCELLED'));};const timer=setTimeout(()=>{cleanup();resolve({...publicJob(job),waitTimedOut:true});},Math.min(Math.max(timeoutMs,1),1800000));events.on(job.id,changed);signal?.addEventListener('abort',abort,{once:true});if(TERMINAL.has(job.status))changed(publicJob(job));});},
     async cancel(args){const job=scoped(args);if(TERMINAL.has(job.status))return publicJob(job);job.cancelRequested=true;if(controllers.has(job.id))controllers.get(job.id).abort(fail('Cancelled by user','CANCELLED'));else{job.status='cancelled';job.reason='Cancelled before orbit-ground execution';job.finishedAt=now();await finish(job,{success:false,exitCode:2,files:[],diagnostics:job.reason});await persist(job);}return publicJob(job);},
-    async close(){closed=true;for(const job of jobs.values())if(!TERMINAL.has(job.status)){job.shutdown=true;if(controllers.has(job.id))controllers.get(job.id).abort(fail('Manta closing','INTERRUPTED'));else{job.status='interrupted';job.reason='Manta stopped before orbit-ground execution';job.finishedAt=now();await persist(job);}}await Promise.allSettled([...tasks]);await runner.close?.();},
+    async close(){closed=true;for(const job of jobs.values())if(!TERMINAL.has(job.status)){job.shutdown=true;if(controllers.has(job.id))controllers.get(job.id).abort(fail('Daidalis closing','INTERRUPTED'));else{job.status='interrupted';job.reason='Daidalis stopped before orbit-ground execution';job.finishedAt=now();await persist(job);}}await Promise.allSettled([...tasks]);await runner.close?.();},
   };
   return service;
 }

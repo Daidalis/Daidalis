@@ -7,7 +7,7 @@ if [ ! -f "$state/vm.pid" ]; then exit 0; fi
 pid=$(cat "$state/vm.pid")
 if ! kill -0 "$pid" 2>/dev/null; then exit 0; fi
 if ! /usr/bin/python3 "$base/host/vm-runtime.py" --owns-process "$state" "$pid"; then
-  echo 'PID no longer belongs to this Manta VM; refusing signal.' >&2
+  echo 'PID no longer belongs to this Daidalis VM; refusing signal.' >&2
   exit 1
 fi
 kill -TERM "$pid"

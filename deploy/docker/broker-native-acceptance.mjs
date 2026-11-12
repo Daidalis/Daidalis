@@ -41,7 +41,7 @@ const model=http.createServer(async(req,res)=>{
 async function api(route,body){const r=await fetch(base+route,body?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}:{});const value=await r.json();assert.ok(r.ok,JSON.stringify(value));return value;}
 await new Promise(resolve=>model.listen(18766,'127.0.0.1',resolve));
 try{
- await Promise.all((process.env.MANTA_NATIVE_PARALLEL==='1'?['codex-app-server','claude-agent','claude-agent','claude-agent','claude-agent']:['codex-app-server','claude-agent']).map(async type=>{
+ await Promise.all((process.env.DAIDALIS_NATIVE_PARALLEL==='1'?['codex-app-server','claude-agent','claude-agent','claude-agent','claude-agent']:['codex-app-server','claude-agent']).map(async type=>{
   const provider=await api('/api/providers',{name:'Local broker protocol fixture '+type,type,baseUrl:'http://127.0.0.1:18766/v1',model:'mock-model',apiKey:'local-fixture-not-a-real-key'});
   const project=await api('/api/projects',{name:'Native broker fixture '+type,resources:{maxAutoResumes:0}});
   let sessionId;

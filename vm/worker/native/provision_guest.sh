@@ -1,4 +1,10 @@
 #!/bin/bash
+
+# Paths and account are fixed by the host for existing VM disks.
+export DAIDALIS_VM_ROOT=${DAIDALIS_VM_ROOT:-/srv/daidalis}
+export DAIDALIS_VM_TRANSFER=${DAIDALIS_VM_TRANSFER:-/mnt/daidalis-transfer}
+export DAIDALIS_VM_HOME=${DAIDALIS_VM_HOME:-/home/daidalis}
+export DAIDALIS_VM_USER=${DAIDALIS_VM_USER:-daidalis}
 set -euo pipefail
 # Run only inside the dedicated Ubuntu Jammy ARM64 VM.
 if [[ $(uname -s) != Linux || $(uname -m) != aarch64 ]]; then
@@ -6,9 +12,9 @@ if [[ $(uname -s) != Linux || $(uname -m) != aarch64 ]]; then
   exit 2
 fi
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-source_root=${1:-/srv/manta/source}
-work_root=${2:-/srv/manta/nos3}
-receipt_root=${3:-/srv/manta/receipts}
+source_root=${1:-${DAIDALIS_VM_ROOT}/source}
+work_root=${2:-${DAIDALIS_VM_ROOT}/nos3}
+receipt_root=${3:-${DAIDALIS_VM_ROOT}/receipts}
 mkdir -p "$receipt_root"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
@@ -26,17 +32,17 @@ while IFS= read -r package_path; do
 done < <(dpkg-query -L nos_engine itc-common)
 ln -sf /usr/lib/libnos_engine_client.so /usr/lib/libnos_engine_client_cxx11.so
 ldconfig
-if ! grep -q '# Manta isolated NOS3 aliases' /etc/hosts; then
-  echo '127.0.0.1 nos-engine-server sc01-nos-engine-server fortytwo truth42sim nos-fsw # Manta isolated NOS3 aliases' >> /etc/hosts
+if ! grep -q '# Daidalis isolated NOS3 aliases' /etc/hosts; then
+  echo '127.0.0.1 nos-engine-server sc01-nos-engine-server fortytwo truth42sim nos-fsw # Daidalis isolated NOS3 aliases' >> /etc/hosts
 fi
 # POSIX queues belong to this VM kernel only.
 sysctl -w fs.mqueue.msg_max=10000
 asset_archive="$(dirname -- "$source_root")/42-assets.tar.gz"
-if [[ -f "$asset_archive" && ! -f /srv/manta/42-assets/.manta-assets-ready ]]; then
-  mkdir -p /srv/manta/42-assets
-  tar -xzf "$asset_archive" -C /srv/manta/42-assets
-  touch /srv/manta/42-assets/.manta-assets-ready
-  chown -R -P --no-dereference manta:manta /srv/manta/42-assets
+if [[ -f "$asset_archive" && ! -f ${DAIDALIS_VM_ROOT}/42-assets/.daidalis-assets-ready ]]; then
+  mkdir -p ${DAIDALIS_VM_ROOT}/42-assets
+  tar -xzf "$asset_archive" -C ${DAIDALIS_VM_ROOT}/42-assets
+  touch ${DAIDALIS_VM_ROOT}/42-assets/.daidalis-assets-ready
+  chown -R -P --no-dereference ${DAIDALIS_VM_USER}:${DAIDALIS_VM_USER} ${DAIDALIS_VM_ROOT}/42-assets
 fi
 python3 "$script_dir/configure_native.py" --source "$source_root/nos3" \
   --fortytwo "$source_root/42" --work "$work_root"
@@ -44,5 +50,5 @@ dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' > "$receipt_root/gu
 sha256sum "$source_root/packages/"*.deb > "$receipt_root/nasa-packages.sha256"
 ldd /usr/bin/nos_engine_server_standalone > "$receipt_root/nosengine-linkage.txt"
 uname -a > "$receipt_root/kernel.txt"
-chown -R -P --no-dereference manta:manta "$work_root" "$work_root/../42" "$receipt_root"
+chown -R -P --no-dereference ${DAIDALIS_VM_USER}:${DAIDALIS_VM_USER} "$work_root" "$work_root/../42" "$receipt_root"
 echo 'Guest provisioned; no macOS packages or configuration modified.'

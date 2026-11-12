@@ -7,13 +7,14 @@ import path from 'node:path';
 import {createStore} from '../server/store.mjs';
 import {createEngine} from '../server/engine.mjs';
 import {TOOL_DEFINITIONS} from '../server/tools.mjs';
+import {legacyExecutionContract,legacyToolNamespace} from '../shared/legacy-names.mjs';
 
 const NAMES=['codex-app-server','claude-agent-sdk','openai-agents-sdk'];
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 async function eventually(check,label='condition',timeout=3000){const end=Date.now()+timeout;while(Date.now()<end){if(check())return;await new Promise(r=>setTimeout(r,5));}assert.fail('Timed out: '+label);}
 function waitForGate(gate,signal){return new Promise((resolve,reject)=>{const aborted=()=>reject(Object.assign(new Error('Native fixture interrupted'),{name:'AbortError'}));if(signal.aborted)return aborted();signal.addEventListener('abort',aborted,{once:true});gate.then(resolve,reject).finally(()=>signal.removeEventListener('abort',aborted));});}
 async function fixture(t,handler,options={}){
-  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'syspilot-native-engine-'))),dataDir=path.join(root,'data');
+  const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-native-engine-'))),dataDir=path.join(root,'data');
   const calls=[],events=[],engines=[],cancellations=[];let sequence=0;
   const adapters=Object.fromEntries(NAMES.map(name=>[name,{startTurn(options){
     const sessionId=options.sessionId||name+'-session-'+(++sequence),call={name,options,sessionId,tools:structuredClone(options.tools),steerings:[]};calls.push(call);
@@ -42,7 +43,7 @@ test('Native sessions persist per provider and thread; server restart resumes wi
   await completed(h,{providerId:'api-profile',content:'Use official Agents SDK'});const sdk=h.calls.at(-1);assert.equal(sdk.name,'openai-agents-sdk');assert.equal(sdk.options.sessionId,undefined);
   const worker=h.store.createThread(h.project.id,'Independent worker',h.thread.id,{assignment:'Check the independent interface'});await completed(h,{threadId:worker.id,content:'Independent worker request'});const workerCall=h.calls.at(-1);assert.notEqual(workerCall.sessionId,first.sessionId);assert.equal(JSON.stringify(workerCall.options.history).includes('MAIN_ONLY_CONTEXT'),false);assert.equal(workerCall.tools.some(t=>t.name==='record_engineering_object'),false);
   const saved=h.store.get('threads',h.thread.id).runtimeSessions;assert.deepEqual(Object.keys(saved).sort(),['api-profile','claude-local','codex-local']);assert.equal(saved['codex-local'].sessionId,first.sessionId);
-  await h.engine.close();const restarted=h.open();await completed({...h,...restarted},{content:'Continue after restarting Manta'});const resumed=h.calls.at(-1);assert.equal(resumed.options.sessionId,first.sessionId);assert.deepEqual(resumed.options.history,[]);assert.equal(restarted.store.get('threads',worker.id).runtimeSessions['codex-local'].sessionId,workerCall.sessionId);
+  await h.engine.close();const restarted=h.open();await completed({...h,...restarted},{content:'Continue after restarting Daidalis'});const resumed=h.calls.at(-1);assert.equal(resumed.options.sessionId,first.sessionId);assert.deepEqual(resumed.options.history,[]);assert.equal(restarted.store.get('threads',worker.id).runtimeSessions['codex-local'].sessionId,workerCall.sessionId);
 });
 
 test('Cumulative partial messages update one public row, final answers are not duplicated, and reasoning events stay private',async t=>{
@@ -274,4 +275,54 @@ test('exhausted model timeouts are resumable interruptions with attempt details'
  await eventually(()=>!h.engine.active.has(run.id));
  assert.equal(run.status,'interrupted');assert.equal(run.stopReason,'model-request-timeout');assert.match(run.error,/已尝试 3 次/);assert.match(run.error,/每次请求时限 1 秒/);
  assert.ok(h.thread.runtimeSessions['api-profile'].sessionId);
+});
+
+
+function previousNamedSession(h,call,{withProfileModel=false}={}) {
+  const provider=h.store.get('providers',call.options.providerId),session=h.store.get('threads',call.options.threadId||h.thread.id).runtimeSessions[provider.id];
+  const contract={runtime:call.name,workspace:call.options.workspace,...(call.name==='codex-app-server'&&!withProfileModel?{}:{model:provider.model||''}),baseUrl:provider.baseUrl||'',tools:call.tools.map(t=>({name:t.name,description:t.description,parameters:t.parameters}))};
+  session.signature=createHash('sha256').update(JSON.stringify(legacyExecutionContract(contract))).digest('hex');
+  delete session.toolNamespace;
+  if(withProfileModel)delete session.requestedModel;
+  h.store.save();return session;
+}
+
+for(const [providerId,withProfileModel] of [['codex-local',false],['codex-local',true],['claude-local',false]])test('rename preserves the exact existing '+providerId+' contract and opaque session across restart; prior model field '+withProfileModel,async t=>{
+  const h=await fixture(t,async({options})=>{
+    const files=await options.executeTool('list_files',{});assert(Array.isArray(files.files));
+    return {content:'The existing engineering session continued.'};
+  });
+  const model='fixture-daidalis-model',baseUrl='https://daidalis.example.test/v1';
+  h.store.patch('providers',providerId,{model,baseUrl});
+  await completed(h,{providerId});const original=h.calls.at(-1),workspace=h.store.workspace(h.project.id);
+  assert(workspace.includes('daidalis'));assert.equal(original.options.model,model);assert.equal(original.options.baseUrl,baseUrl);
+  const session=previousNamedSession(h,original,{withProfileModel}),oldSignature=session.signature;
+  await h.engine.close();const restarted=h.open();await completed({...h,...restarted},{providerId});
+  const resumed=h.calls.at(-1),persisted=restarted.store.get('threads',h.thread.id).runtimeSessions[providerId];
+  assert.equal(resumed.options.sessionId,original.sessionId);assert.deepEqual(resumed.options.history,[]);
+  assert.equal(resumed.options.workspace,workspace);assert.equal(resumed.options.model,model);assert.equal(resumed.options.baseUrl,baseUrl);
+  assert.equal(resumed.options.legacyToolNamespace,legacyToolNamespace);assert.equal(persisted.toolNamespace,legacyToolNamespace);
+  assert.notEqual(persisted.signature,oldSignature);assert.equal(restarted.store.get('threads',h.thread.id).runtimeSessionHistory,undefined);
+  await completed({...h,...restarted},{providerId});assert.equal(h.calls.at(-1).options.sessionId,original.sessionId);assert.equal(h.calls.at(-1).options.legacyToolNamespace,legacyToolNamespace);
+});
+
+for(const providerId of ['codex-local','claude-local'])test('previous-name '+providerId+' session cannot retain coordinator tools after a role change',async t=>{
+  const h=await fixture(t,async({options})=>{
+    if(options.instructions.includes('Role: worker'))await assert.rejects(options.executeTool('start_thread',{task:'Forbidden escalation'}),/not permitted/);
+    return {content:'Current role boundaries preserved.'};
+  });
+  await completed(h,{providerId});const original=h.calls.at(-1);assert(original.tools.some(t=>t.name==='start_thread'));
+  previousNamedSession(h,original);h.thread.kind='worker';h.store.save();
+  await completed(h,{providerId});const current=h.calls.at(-1);
+  assert.equal(current.options.sessionId,undefined);assert.notEqual(current.sessionId,original.sessionId);
+  assert.equal(current.options.legacyToolNamespace,undefined);assert.equal(current.tools.some(t=>t.name==='start_thread'),false);
+  assert.equal(h.thread.runtimeSessions[providerId].toolNamespace,'daidalis');assert.equal(h.thread.runtimeSessionHistory.at(-1).sessionId,original.sessionId);
+});
+
+for(const [providerId,change] of [['codex-local',{baseUrl:'https://changed.daidalis.example.test/v1'}],['claude-local',{model:'changed-daidalis-model'}]])test('previous-name '+providerId+' signature cannot waive a changed provider contract',async t=>{
+  const h=await fixture(t,async()=>({content:'Current provider contract honored.'}));
+  await completed(h,{providerId});const original=h.calls.at(-1);previousNamedSession(h,original);
+  h.store.patch('providers',providerId,change);await completed(h,{providerId});
+  assert.equal(h.calls.at(-1).options.sessionId,undefined);assert.equal(h.calls.at(-1).options.legacyToolNamespace,undefined);
+  assert.equal(h.thread.runtimeSessionHistory.at(-1).sessionId,original.sessionId);
 });

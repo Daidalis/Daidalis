@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tarfile
+from name_compat import profile, LEGACY, CURRENT
 
 base = Path(__file__).resolve().parent.parent
 assets = base / 'assets'
@@ -26,15 +27,19 @@ def reuse_prepared_guest():
     config_file=state/'config.json'
     manifest_file=state/'image-manifest.json'
     receipt_file=state/'native-ready.json'
-    required=[config_file,manifest_file,receipt_file,state/'ubuntu.raw',state/'seed.iso',assets/'vmlinuz',assets/'initrd',base/'host/manta-vm']
+    selected = profile(state)
+    executable = base / 'host' / CURRENT['binary']
+    if not executable.exists() and selected == LEGACY:
+        executable = base / 'host' / LEGACY['binary']
+    required=[config_file,manifest_file,receipt_file,state/'ubuntu.raw',state/'seed.iso',assets/'vmlinuz',assets/'initrd',executable]
     if not all(file.is_file() and not file.is_symlink() for file in required):return False
     config=json.loads(config_file.read_text());manifest=json.loads(manifest_file.read_text());receipt=json.loads(receipt_file.read_text())
     expected=dict(kernel=str(assets/'vmlinuz'),initrd=str(assets/'initrd'),disk=str(state/'ubuntu.raw'),seed=str(state/'seed.iso'),state=str(state),shared=str(base/'handoff'),cpu=4,memoryMiB=4096,minimumHostFreeGiB=5)
     if config!=expected:raise RuntimeError('Existing VM configuration differs from the fixed isolated runner')
     if manifest.get('architecture')!='arm64' or manifest.get('distribution')!='Ubuntu22.04':raise RuntimeError('Existing VM image manifest does not match the supported guest')
-    if receipt.get('schema')!='manta-nos3-native-ready-v1' or receipt.get('ready') is not True:raise RuntimeError('Existing native readiness receipt is invalid')
+    if receipt.get('schema')!=selected['ready_schema'] or receipt.get('ready') is not True:raise RuntimeError('Existing native readiness receipt is invalid')
     if not 1024**3 <= (state/'ubuntu.raw').stat().st_size <= 10*1024**3:raise RuntimeError('Existing VM disk exceeds the fixed resource cap')
-    subprocess.run(['/usr/bin/codesign','--verify','--strict',str(base/'host/manta-vm')],check=True)
+    subprocess.run(['/usr/bin/codesign','--verify','--strict',str(executable)],check=True)
     prepared=manifest.get('preparedFiles')
     if prepared is None:
         # One-time upgrade of the original manifest: use the already pinned
@@ -108,15 +113,15 @@ if not initrd.exists():
 
 key = state / 'id_ed25519'
 if not key.exists():
-    subprocess.run(['/usr/bin/ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'manta-project-linux-vm', '-f', str(key)], check=True)
+    subprocess.run(['/usr/bin/ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'daidalis-project-linux-vm', '-f', str(key)], check=True)
 public_key = key.with_suffix('.pub').read_text().strip()
 seed = state / 'seed'
 seed.mkdir(exist_ok=True)
-(seed / 'meta-data').write_text('instance-id: manta-nos3-jammy-arm64-v1\nlocal-hostname: manta-nos3\n')
+(seed / 'meta-data').write_text('instance-id: daidalis-nos3-jammy-arm64-v1\nlocal-hostname: daidalis-nos3\n')
 userdata = '''#cloud-config
 users:
-  - name: manta
-    gecos: Manta isolated engineering runner
+  - name: daidalis
+    gecos: Daidalis isolated engineering runner
     groups: [adm, sudo]
     shell: /bin/bash
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -132,7 +137,7 @@ growpart:
   devices: ['/']
 resize_rootfs: true
 write_files:
-  - path: /usr/local/lib/manta/vsock-ssh.py
+  - path: /usr/local/lib/daidalis/vsock-ssh.py
     owner: root:root
     permissions: '0755'
     content: |
@@ -154,19 +159,19 @@ write_files:
       while True:
           connection, _ = listener.accept()
           threading.Thread(target=relay,args=(connection,),daemon=True).start()
-  - path: /etc/systemd/system/manta-vsock-ssh.service
+  - path: /etc/systemd/system/daidalis-vsock-ssh.service
     permissions: '0644'
     content: |
       [Unit]
-      Description=Manta project-only SSH over Virtio socket
+      Description=Daidalis project-only SSH over Virtio socket
       After=ssh.service
       [Service]
-      ExecStart=/usr/bin/python3 /usr/local/lib/manta/vsock-ssh.py
+      ExecStart=/usr/bin/python3 /usr/local/lib/daidalis/vsock-ssh.py
       Restart=on-failure
       RestartSec=2
       [Install]
       WantedBy=multi-user.target
-  - path: /etc/ssh/sshd_config.d/99-manta-vsock-only.conf
+  - path: /etc/ssh/sshd_config.d/99-daidalis-vsock-only.conf
     permissions: '0644'
     content: |
       ListenAddress 127.0.0.1
@@ -175,11 +180,11 @@ write_files:
 runcmd:
   - [systemctl, daemon-reload]
   - [systemctl, restart, ssh]
-  - [systemctl, enable, --now, manta-vsock-ssh.service]
-  - [mkdir, -p, /mnt/manta-transfer]
-  - [sh, -c, 'echo "manta-transfer /mnt/manta-transfer virtiofs defaults,nofail 0 0" >> /etc/fstab']
-  - [mount, /mnt/manta-transfer]
-  - [sh, -c, 'printf "MANTA_GUEST_READY\\n" > /dev/hvc0']
+  - [systemctl, enable, --now, daidalis-vsock-ssh.service]
+  - [mkdir, -p, /mnt/daidalis-transfer]
+  - [sh, -c, 'echo "daidalis-transfer /mnt/daidalis-transfer virtiofs defaults,nofail 0 0" >> /etc/fstab']
+  - [mount, /mnt/daidalis-transfer]
+  - [sh, -c, 'printf "DAIDALIS_GUEST_READY\\n" > /dev/hvc0']
 '''.replace('PUBLIC_KEY', public_key)
 (seed / 'user-data').write_text(userdata)
 seed_iso = state / 'seed.iso'

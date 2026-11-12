@@ -10,7 +10,8 @@ func runtimeDirectory(_ state: String) -> String {
     let canonical = resolved.map { String(cString:$0) } ?? URL(fileURLWithPath:state).standardizedFileURL.path
     if let resolved { free(resolved) }
     let digest = SHA256.hash(data:Data(canonical.utf8)).map { String(format:"%02x",$0) }.joined().prefix(16)
-    return "/private/tmp/manta-vm-\(getuid())-\(digest)"
+    let prefix = vmRuntimeNamePrefix(state)
+    return "/private/tmp/\(prefix)-\(getuid())-\(digest)"
 }
 
 func prepareRuntimeDirectory(_ state: String) throws -> String {
@@ -20,7 +21,7 @@ func prepareRuntimeDirectory(_ state: String) throws -> String {
     guard lstat(directory,&info) == 0,
           info.st_mode & mode_t(S_IFMT) == mode_t(S_IFDIR),
           info.st_uid == getuid(), info.st_mode & 0o777 == 0o700 else {
-        throw NSError(domain:"MantaVM",code:5,userInfo:[NSLocalizedDescriptionKey:"Manta VM communication directory must be a private directory owned by this user"])
+        throw NSError(domain:"DaidalisVM",code:5,userInfo:[NSLocalizedDescriptionKey:"Daidalis VM communication directory must be a private directory owned by this user"])
     }
     return directory
 }
@@ -60,18 +61,18 @@ final class Machine: NSObject, VZVirtualMachineDelegate {
             try? json.write(to:URL(fileURLWithPath:settings.state).appendingPathComponent("status.json"), options:.atomic)
             try? json.write(to:URL(fileURLWithPath:settings.state).appendingPathComponent("runtime.json"), options:.atomic)
         }
-        print("MANTA_VM \(value)\(error.map { ": \($0)" } ?? "")")
+        print("DAIDALIS_VM \(value)\(error.map { ": \($0)" } ?? "")")
         fflush(stdout)
     }
 
     func configure() throws {
-        guard VZVirtualMachine.isSupported else { throw NSError(domain:"MantaVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Apple Virtualization unavailable in this execution context"]) }
+        guard VZVirtualMachine.isSupported else { throw NSError(domain:"DaidalisVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Apple Virtualization unavailable in this execution context"]) }
         guard settings.cpu >= 1 && settings.cpu <= 4 && settings.memoryMiB >= 512 && settings.memoryMiB <= 4096 && settings.minimumHostFreeGiB >= 5 else {
-            throw NSError(domain:"MantaVM",code:3,userInfo:[NSLocalizedDescriptionKey:"VM resource configuration exceeds the isolated runner limits"])
+            throw NSError(domain:"DaidalisVM",code:3,userInfo:[NSLocalizedDescriptionKey:"VM resource configuration exceeds the isolated runner limits"])
         }
         let attrs = try FileManager.default.attributesOfFileSystem(forPath:settings.disk)
         guard let free = attrs[.systemFreeSize] as? NSNumber, free.uint64Value >= settings.minimumHostFreeGiB * 1024 * 1024 * 1024 else {
-            throw NSError(domain:"MantaVM",code:4,userInfo:[NSLocalizedDescriptionKey:"Insufficient host free space; preserving the configured host reserve"])
+            throw NSError(domain:"DaidalisVM",code:4,userInfo:[NSLocalizedDescriptionKey:"Insufficient host free space; preserving the configured host reserve"])
         }
         let config = VZVirtualMachineConfiguration()
         let boot = VZLinuxBootLoader(kernelURL: URL(fileURLWithPath:settings.kernel))
@@ -99,7 +100,7 @@ final class Machine: NSObject, VZVirtualMachineDelegate {
         network.macAddress = VZMACAddress(string:"52:54:00:4d:41:4e")!
         config.networkDevices = [network]
         config.socketDevices = [VZVirtioSocketDeviceConfiguration()]
-        let share = VZVirtioFileSystemDeviceConfiguration(tag:"manta-transfer")
+        let share = VZVirtioFileSystemDeviceConfiguration(tag:vmTransferNameTag(settings.state))
         share.share = VZSingleDirectoryShare(directory:VZSharedDirectory(url:URL(fileURLWithPath:settings.shared),readOnly:false))
         config.directorySharingDevices = [share]
         try config.validate()
@@ -109,11 +110,11 @@ final class Machine: NSObject, VZVirtualMachineDelegate {
 
     func setupSSHRelay() throws {
         let path = try prepareRuntimeDirectory(settings.state) + "/ssh.sock"
-        guard path.utf8.count < 104 else { throw NSError(domain:"MantaVM",code:2,userInfo:[NSLocalizedDescriptionKey:"SSH socket path too long"]) }
+        guard path.utf8.count < 104 else { throw NSError(domain:"DaidalisVM",code:2,userInfo:[NSLocalizedDescriptionKey:"SSH socket path too long"]) }
         var previous = stat()
         if lstat(path,&previous) == 0 {
             guard previous.st_mode & mode_t(S_IFMT) == mode_t(S_IFSOCK), previous.st_uid == getuid() else {
-                throw NSError(domain:"MantaVM",code:6,userInfo:[NSLocalizedDescriptionKey:"Refusing to replace a non-socket SSH relay path"])
+                throw NSError(domain:"DaidalisVM",code:6,userInfo:[NSLocalizedDescriptionKey:"Refusing to replace a non-socket SSH relay path"])
             }
             unlink(path)
         } else if errno != ENOENT { throw NSError(domain:NSPOSIXErrorDomain,code:Int(errno)) }
@@ -220,10 +221,10 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--socket-pat
     print(runtimeDirectory(CommandLine.arguments[2]) + "/ssh.sock")
     exit(0)
 }
-guard CommandLine.arguments.count == 2 else { fail("Usage: manta-vm CONFIG.json") }
+guard CommandLine.arguments.count == 2 else { fail("Usage: daidalis-vm CONFIG.json") }
 do {
     let settings = try JSONDecoder().decode(Settings.self,from:Data(contentsOf:URL(fileURLWithPath:CommandLine.arguments[1])))
     let machine = Machine(settings)
     try machine.start()
     RunLoop.main.run()
-} catch { fail("Manta VM: \(error)") }
+} catch { fail("Daidalis VM: \(error)") }

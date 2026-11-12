@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {sha256,sourceFingerprint} from '../../server/nos3/core.mjs';
@@ -5,7 +6,7 @@ import {safePath,spawnBounded} from '../../server/sandbox.mjs';
 
 // Operator-configured adapter for the disposable Linux guest. Models cannot
 // choose executables, source directories or provisioning commands.
-export function createNativeNos3Adapter({sourceRoot,toolRoot,workRoot='/srv/manta/nos3',expectedInventoryHash,execute=spawnBounded}={}) {
+export function createNativeNos3Adapter({sourceRoot,toolRoot,workRoot='/srv/daidalis/nos3',expectedInventoryHash,execute=spawnBounded}={}) {
   if(![sourceRoot,toolRoot,workRoot].every(x=>typeof x==='string'&&path.isAbsolute(x)))throw Error('Native worker requires absolute, administrator-selected paths');
   async function validateSource(baseline,signal) {
     if(signal?.aborted)throw Error('Cancelled');
@@ -13,7 +14,7 @@ export function createNativeNos3Adapter({sourceRoot,toolRoot,workRoot='/srv/mant
     const raw=await fs.readFile(path.join(sourceRoot,'integrity.json'),'utf8'),inventory=JSON.parse(raw);
     if(!/^[a-f0-9]{64}$/.test(expectedInventoryHash||'')||sha256(raw)!==expectedInventoryHash)throw Error('Native source inventory differs from its provisioned integrity receipt');
     const manifest=JSON.parse(await fs.readFile(path.join(sourceRoot,'manifest.json'),'utf8'));
-    if(inventory.schema!=='manta-nos3-native-source-v1'||inventory.manifestSha256!==sha256(JSON.stringify(manifest))||!Array.isArray(inventory.files)||!inventory.files.length)throw Error('Native source inventory is missing or inconsistent');
+    if(!productSchemaMatches(inventory.schema,'daidalis-nos3-native-source-v1')||inventory.manifestSha256!==sha256(JSON.stringify(manifest))||!Array.isArray(inventory.files)||!inventory.files.length)throw Error('Native source inventory is missing or inconsistent');
     const root=manifest.find(x=>x.repo==='nasa/nos3'&&!x.path);
     if(root?.revision!==baseline.revision)throw Error('Native NOS3 root revision mismatch');
     for(const entry of manifest.filter(x=>x.path&&x.path!=='42')) {
@@ -49,7 +50,7 @@ export function createNativeNos3Adapter({sourceRoot,toolRoot,workRoot='/srv/mant
       : [['/bin/bash',path.join(toolRoot,'nos3-plan/build_native.sh'),workRoot]];
     const executions=[{argv:['/usr/bin/python3',...checkArgs],exitCode:readiness.code,log:'native-readiness.log'}];
     for(let i=0;i<commands.length;i++) {
-      const argv=commands[i],r=await execute(argv[0],argv.slice(1),{cwd:workRoot,env:{PATH:'/usr/local/bin:/usr/bin:/bin',HOME:path.join(dir,'home'),TMPDIR:path.join(dir,'tmp'),LANG:'C.UTF-8',MANTA_NOS3_JOB_DIR:dir,MANTA_NOS3_INPUT:path.join(dir,'input.json')},signal,killGraceMs:15000,timeoutMs:Math.min(job.timeoutMs,maxJobMs),maxBytes:1000000});
+      const argv=commands[i],r=await execute(argv[0],argv.slice(1),{cwd:workRoot,env:{PATH:'/usr/local/bin:/usr/bin:/bin',HOME:path.join(dir,'home'),TMPDIR:path.join(dir,'tmp'),LANG:'C.UTF-8',DAIDALIS_NOS3_JOB_DIR:dir,DAIDALIS_NOS3_INPUT:path.join(dir,'input.json')},signal,killGraceMs:15000,timeoutMs:Math.min(job.timeoutMs,maxJobMs),maxBytes:1000000});
       const log=`step-${i}.log`;
       await fs.writeFile(path.join(dir,log),JSON.stringify({argv,exitCode:r.code})+'\n'+r.stdout+r.stderr);
       executions.push({argv,exitCode:r.code,log});
@@ -60,9 +61,9 @@ export function createNativeNos3Adapter({sourceRoot,toolRoot,workRoot='/srv/mant
     else {
       const binaries=['fsw/build/exe/cpu1/core-cpu1','sims/build/bin/nos3-single-simulator','../42/42'];
       const hashes=await Promise.all(binaries.map(async file=>({path:file,sha256:sha256(await fs.readFile(path.resolve(workRoot,file)))})));
-      report={schema:'manta-nos3-verification-v1',scope:'build',passed:true,fullNos3Simulation:false,checks:hashes.map(x=>({id:'BUILD-'+path.basename(x.path),criterion:'Native Linux ARM64 executable exists after successful upstream build',passed:true,sha256:x.sha256})),binaries:hashes,pendingRequirements:[{id:'R-LIVE-CHAIN',status:'not-tested',reason:'Build-only job does not execute the simulator.'}]};
+      report={schema:'daidalis-nos3-verification-v1',scope:'build',passed:true,fullNos3Simulation:false,checks:hashes.map(x=>({id:'BUILD-'+path.basename(x.path),criterion:'Native Linux ARM64 executable exists after successful upstream build',passed:true,sha256:x.sha256})),binaries:hashes,pendingRequirements:[{id:'R-LIVE-CHAIN',status:'not-tested',reason:'Build-only job does not execute the simulator.'}]};
     }
-    if(report.schema!=='manta-nos3-verification-v1'||report.scope!==job.scope||!Array.isArray(report.checks)||!report.checks.length||report.checks.some(x=>typeof x.passed!=='boolean'||!x.id||!x.criterion)||report.passed!==report.checks.every(x=>x.passed))throw Error('Invalid native verification report');
+    if(!productSchemaMatches(report.schema,'daidalis-nos3-verification-v1')||report.scope!==job.scope||!Array.isArray(report.checks)||!report.checks.length||report.checks.some(x=>typeof x.passed!=='boolean'||!x.id||!x.criterion)||report.passed!==report.checks.every(x=>x.passed))throw Error('Invalid native verification report');
     if(job.scope==='integration'&&report.passed&&(report.fullNos3Simulation!==true||!report.telemetryFiles?.length))throw Error('Native integration did not identify live telemetry');
     let evidenceBytes=0;
     for(const rel of report.telemetryFiles||[]) {

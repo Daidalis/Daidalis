@@ -8,7 +8,7 @@ try:
     if hashlib.sha256(WORKER.read_bytes()).hexdigest()!=PIN:raise ValueError('Ground worker differs from reviewed hash')
     spec=importlib.util.spec_from_file_location('ground_worker',WORKER);worker=importlib.util.module_from_spec(spec);spec.loader.exec_module(worker)
     if sys.argv[1]=='status':
-        print(json.dumps({'ready':True,'state':'ready','isolated':os.environ.get('MANTA_BROKER_TASK')=='1','isolation':'rootless-task-container' if os.environ.get('MANTA_BROKER_TASK')=='1' else 'shared-container','workerSha256':PIN,'versions':worker.versions()}))
+        print(json.dumps({'ready':True,'state':'ready','isolated':os.environ.get('DAIDALIS_BROKER_TASK')=='1','isolation':'rootless-task-container' if os.environ.get('DAIDALIS_BROKER_TASK')=='1' else 'shared-container','workerSha256':PIN,'versions':worker.versions()}))
     else:
         raw=sys.stdin.buffer.read(52*1024*1024+1)
         if len(raw)>52*1024*1024:raise ValueError('Ground request too large')
@@ -17,7 +17,7 @@ try:
         sys.stdin=io.TextIOWrapper(io.BytesIO(json.dumps(envelope).encode()))
         request,source=worker.read_request()
         resource.setrlimit(resource.RLIMIT_CPU,(120,120));resource.setrlimit(resource.RLIMIT_FSIZE,(140*1024*1024,140*1024*1024))
-        with tempfile.TemporaryDirectory(prefix='manta-ground-') as tmp:
+        with tempfile.TemporaryDirectory(prefix='daidalis-ground-') as tmp:
             worker.JOBS=pathlib.Path(tmp);work=worker.JOBS/request['orbit']['jobId']/'work';out=work/'InOut';out.mkdir(parents=True)
             for name,encoded in files.items():
                 if not isinstance(encoded,str) or len(encoded)>6*1024*1024:raise ValueError('Native snapshot too large')
@@ -28,4 +28,4 @@ try:
             result['workerSha256']=PIN
             print(json.dumps(result))
 except Exception as error:
-    print(json.dumps({'schema':'manta-orbit-ground-response-v1','success':False,'exitCode':2,'diagnostics':str(error),'reason':str(error),'ready':False,'state':'unavailable','isolated':False,'files':[]}))
+    print(json.dumps({'schema':'daidalis-orbit-ground-response-v1','success':False,'exitCode':2,'diagnostics':str(error),'reason':str(error),'ready':False,'state':'unavailable','isolated':False,'files':[]}))

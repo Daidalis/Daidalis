@@ -10,12 +10,13 @@ import stat
 import subprocess
 import sys
 import tempfile
+from name_compat import profile, CURRENT, LEGACY
 
 
 def runtime_directory(state):
     canonical = str(Path(state).resolve())
     digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:16]
-    return Path('/private/tmp') / f'manta-vm-{os.getuid()}-{digest}'
+    return Path('/private/tmp') / f'{profile(state)["runtime_prefix"]}-{os.getuid()}-{digest}'
 
 
 def private_directory(directory):
@@ -25,7 +26,7 @@ def private_directory(directory):
         pass
     info = directory.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
-        raise RuntimeError('Manta VM communication directory must be private and owned by this user')
+        raise RuntimeError('Daidalis VM communication directory must be private and owned by this user')
     return directory
 
 
@@ -46,19 +47,21 @@ def verify_executable(path):
     result = subprocess.run(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(path)], check=True, capture_output=True)
     entitlement = plistlib.loads(result.stdout)
     if entitlement.get('com.apple.security.virtualization') is not True:
-        raise RuntimeError('Manta VM executable lacks the Virtualization entitlement')
+        raise RuntimeError('Daidalis VM executable lacks the Virtualization entitlement')
 
 
 def cached_executable(state):
     state = Path(state).resolve()
-    source = state.parent / 'host/manta-vm'
+    source = state.parent / 'host' / CURRENT['binary']
+    if not source.exists() and profile(state) == LEGACY:
+        source = state.parent / 'host' / LEGACY['binary']
     info = source.lstat()
     if not stat.S_ISREG(info.st_mode) or info.st_size > 16 * 1024 * 1024:
-        raise RuntimeError('Manta VM executable must be a regular application-owned file')
+        raise RuntimeError('Daidalis VM executable must be a regular application-owned file')
     digest = file_digest(source)
     cache = private_directory(prepare_runtime(state) / 'executables')
     version = private_directory(cache / digest)
-    destination = version / 'manta-vm'
+    destination = version / 'daidalis-vm'
     lockfd = os.open(str(cache / '.lock'), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     with os.fdopen(lockfd, 'a+b') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
@@ -72,7 +75,7 @@ def cached_executable(state):
             return destination
         temporary = None
         try:
-            with tempfile.NamedTemporaryFile(dir=version, prefix='.manta-', delete=False) as output:
+            with tempfile.NamedTemporaryFile(dir=version, prefix='.daidalis-', delete=False) as output:
                 temporary = Path(output.name)
                 with source.open('rb') as incoming:
                     for chunk in iter(lambda: incoming.read(1024 * 1024), b''):
@@ -92,14 +95,17 @@ def cached_executable(state):
 
 def process_path_matches(state, command, arguments):
     state = Path(state).resolve()
-    original = state.parent / 'host/manta-vm'
-    if command != str(original):
+    binaries = {CURRENT['binary']}
+    if profile(state) == LEGACY:
+        binaries.add(LEGACY['binary'])
+    originals = {str(state.parent / 'host' / name) for name in binaries}
+    if command not in originals:
         cache = runtime_directory(state) / 'executables'
         try:
             relative = Path(command).relative_to(cache)
         except ValueError:
             return False
-        if len(relative.parts) != 2 or re.fullmatch(r'[a-f0-9]{64}', relative.parts[0]) is None or relative.parts[1] != 'manta-vm':
+        if len(relative.parts) != 2 or re.fullmatch(r'[a-f0-9]{64}', relative.parts[0]) is None or relative.parts[1] not in binaries:
             return False
     return arguments == command + ' ' + str(state / 'config.json')
 
@@ -113,7 +119,7 @@ def owns_process(state, pid):
     command = field('comm')
     if not command or not process_path_matches(state, command, field('args')):
         return False
-    if command != str(Path(state).resolve().parent / 'host/manta-vm'):
+    if Path(command).parent != Path(state).resolve().parent / 'host':
         cached = Path(command)
         info = cached.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
@@ -134,4 +140,4 @@ if __name__ == '__main__':
         else:
             raise SystemExit('Usage: vm-runtime.py STATE | --executable STATE | --owns-process STATE PID')
     except Exception as error:
-        raise SystemExit('Manta VM runtime: ' + str(error))
+        raise SystemExit('Daidalis VM runtime: ' + str(error))

@@ -7,6 +7,21 @@ copied into a per-turn, read-only 0600 tmpfs file. The fixed apiKeyHelper
 reads that file for Claude Code. Neither the key nor its bytes occur in the
 CLI argv, environment, persistent home, logs, or an SDK-visible file.
 """
+
+def _product_schema_matches(value, expected):
+    # Accept persisted pre-rename schemas without rewriting their evidence bytes.
+    return value == expected or (isinstance(value, str) and value.startswith('manta-') and 'daidalis-' + value[6:] == expected)
+
+
+def _vm_name_path(value):
+    # The SSH transport supplies roots from its fixed existing/new VM profiles.
+    import os
+    for prefix, key in (('/srv/daidalis', 'DAIDALIS_VM_ROOT'),
+                        ('/mnt/daidalis-transfer', 'DAIDALIS_VM_TRANSFER'),
+                        ('/home/daidalis', 'DAIDALIS_VM_HOME')):
+        value = value.replace(prefix, os.environ.get(key, prefix))
+    return value
+
 import hashlib
 import json
 import os
@@ -19,9 +34,9 @@ import sys
 from urllib.parse import urlsplit
 
 
-PROJECTS = pathlib.Path('/mnt/manta-transfer/eval-workspaces')
-SESSIONS = pathlib.Path('/srv/manta/agent-eval/sessions')
-ASSETS = pathlib.Path('/srv/manta/agent-eval/claude')
+PROJECTS = pathlib.Path(_vm_name_path('/mnt/daidalis-transfer/eval-workspaces'))
+SESSIONS = pathlib.Path(_vm_name_path('/srv/daidalis/agent-eval/sessions'))
+ASSETS = pathlib.Path(_vm_name_path('/srv/daidalis/agent-eval/claude'))
 CLI = ASSETS / 'claude'
 HELPER = ASSETS / 'key-helper'
 CLI_SHA256 = '1c67968ab8410c9644e2f4867167a0dab1a8c6c9de9cc83fe78449e5ae8a3633'
@@ -78,7 +93,7 @@ def verify_assets():
         if not os.access(item, os.X_OK):
             fail('Pinned Claude asset is not executable')
     receipt = json.loads((ASSETS / 'receipt.json').read_text())
-    if (receipt.get('schema') != 'manta-claude-native-asset-v1'
+    if (not _product_schema_matches(receipt.get('schema'), 'daidalis-claude-native-asset-v1')
             or receipt.get('package') != PACKAGE or receipt.get('version') != VERSION
             or receipt.get('npmIntegrity') != PACKAGE_INTEGRITY
             or receipt.get('binarySha256') != CLI_SHA256
@@ -224,7 +239,7 @@ def sandbox_command(workspace, session, secret_fd=None):
     command.extend((
         '--ro-bind', str(ASSETS), '/opt/claude',
         '--bind', str(workspace), '/work',
-        '--bind', str(session), '/home/manta',
+        '--bind', str(session), _vm_name_path('/home/daidalis'),
         '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp',
         '--tmpfs', '/run', '--dir', '/run/secrets',
         '--chdir', '/work',
@@ -236,27 +251,27 @@ def sandbox_command(workspace, session, secret_fd=None):
 
 def guest_environment(header):
     return {
-        'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': '/home/manta',
-        'CLAUDE_CONFIG_DIR': '/home/manta/.claude', 'TMPDIR': '/tmp',
+        'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': _vm_name_path('/home/daidalis'),
+        'CLAUDE_CONFIG_DIR': _vm_name_path('/home/daidalis/.claude'), 'TMPDIR': '/tmp',
         **header,
     }
 
 
 def probe(workspace, session):
     marker = b'not-a-real-api-key'
-    fd = os.memfd_create('manta-claude-probe', os.MFD_CLOEXEC)
+    fd = os.memfd_create('daidalis-claude-probe', os.MFD_CLOEXEC)
     try:
         os.write(fd, marker)
         os.lseek(fd, 0, os.SEEK_SET)
         script = (
-            'import json,os,stat,subprocess; '
-            'hidden=["/mnt/manta-transfer","/srv/manta","/Volumes","/Users","/home/manta/.ssh"]; '
+            _vm_name_path('import json,os,stat,subprocess; '
+            'hidden=["/mnt/daidalis-transfer","/srv/daidalis","/Volumes","/Users","/home/daidalis/.ssh"]; '
             'p="/run/secrets/api-key"; '
             'm=stat.S_IMODE(os.stat(p).st_mode); '
             'k=subprocess.check_output(["/opt/claude/key-helper"]); '
             'print(json.dumps({"cwd":os.getcwd(),"projectVisible":os.path.isdir("/work"),'
             '"hiddenPathsVisible":{x:os.path.exists(x) for x in hidden},'
-            '"privateSecretMode":oct(m),"helperWorks":k==b"not-a-real-api-key"}))'
+            '"privateSecretMode":oct(m),"helperWorks":k==b"not-a-real-api-key"}))')
         )
         result = subprocess.run(
             sandbox_command(workspace, session, fd) + ['/usr/bin/python3', '-c', script],
@@ -283,7 +298,7 @@ def probe(workspace, session):
 
 def launch(workspace, session):
     args, header_env, key = read_frames()
-    fd = os.memfd_create('manta-claude-key', os.MFD_CLOEXEC)
+    fd = os.memfd_create('daidalis-claude-key', os.MFD_CLOEXEC)
     try:
         os.write(fd, key)
         os.lseek(fd, 0, os.SEEK_SET)

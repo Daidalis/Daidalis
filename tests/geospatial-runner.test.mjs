@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import {createGeospatialRunner} from '../server/geospatial-runner.mjs';
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 async function fixture(t,initialReason){
-  const root=await fs.mkdtemp(path.join(os.tmpdir(),'manta-geo-runner-'));
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-geo-runner-'));
   await fs.mkdir(path.join(root,'host'));await fs.mkdir(path.join(root,'worker'));
   for(const name of ['vm-exec.sh','vm-status.sh'])await fs.writeFile(path.join(root,'host',name),'#!/bin/sh\n');
   for(const name of ['geospatial-run.py','geospatial-status.py','prepare-geospatial.sh','provision-worker.sh','prepare-native.sh'])await fs.writeFile(path.join(root,'worker',name),name+' fixture\n');
@@ -16,14 +16,14 @@ async function fixture(t,initialReason){
   const execute=async(_file,args,options={})=>{
     const command=args[1]||'';calls.push({helper:path.basename(args[0]),command,input:options.input});
     if(path.basename(args[0])==='vm-status.sh')return {code:0,stdout:JSON.stringify({state:'running'}),stderr:''};
-    if(command.startsWith('if test ! -f /srv/manta/geospatial-worker/geospatial-status.py'))return {code:0,stdout:JSON.stringify(reason?{ready:false,reason}:{ready:true,workerSha256:hash(await fs.readFile(path.join(root,'worker','geospatial-run.py'))),versions:{gdal:'fixture',proj:'fixture'},receiptSha256:hash('receipt')}),stderr:''};
-    if(command.startsWith('sudo install -d -o manta')){
+    if(command.startsWith('if test ! -f /srv/daidalis/geospatial-worker/geospatial-status.py'))return {code:0,stdout:JSON.stringify(reason?{ready:false,reason}:{ready:true,workerSha256:hash(await fs.readFile(path.join(root,'worker','geospatial-run.py'))),versions:{gdal:'fixture',proj:'fixture'},receiptSha256:hash('receipt')}),stderr:''};
+    if(command.startsWith('sudo install -d -o daidalis')){
       stageCount++;
       const digest=command.match(/cut -d ' ' -f 1\)" = ([a-f0-9]{64})/)[1];
       assert.equal(hash(options.input),digest);
       return {code:0,stdout:digest,stderr:''};
     }
-    if(command==='bash /srv/manta/geospatial-worker/prepare-geospatial.sh'){prepareCount++;reason=null;return {code:0,stdout:'prepared',stderr:''};}
+    if(command==='bash /srv/daidalis/geospatial-worker/prepare-geospatial.sh'){prepareCount++;reason=null;return {code:0,stdout:'prepared',stderr:''};}
     throw Error('Unexpected guest operation: '+command);
   };
   const runner=createGeospatialRunner({vmRoot:root,execute,hostPlatform:'darwin',hostArch:'arm64'});

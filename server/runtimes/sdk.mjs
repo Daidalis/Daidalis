@@ -3,6 +3,7 @@ import fss from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {DEFAULT_EXECUTION_BUDGET} from '../../shared/execution-budget.mjs';
+import {responseItemsFor} from '../../shared/legacy-names.mjs';
 
 const copy=value=>structuredClone(value);
 const textOf=content=>typeof content==='string'?content:!Array.isArray(content)?(content?.text||JSON.stringify(content??'')):(content||[]).filter(x=>['input_text','output_text','text'].includes(x.type)).map(x=>x.text||'').join('\n');
@@ -13,14 +14,14 @@ export function itemsToMessages(items,instructions=''){
     if(item.type==='function_call'){
       let previous=messages.at(-1);if(previous?.role!=='assistant'){previous={role:'assistant',content:'',tool_calls:[]};messages.push(previous);}
       (previous.tool_calls??=[]).push({id:item.callId,type:'function',function:{name:item.name,arguments:item.arguments}});
-      if(item.providerData?.syspilotResponseItems)previous.responseItems=copy(item.providerData.syspilotResponseItems);
+      if(responseItemsFor(item.providerData))previous.responseItems=copy(responseItemsFor(item.providerData));
     }else if(item.type==='function_call_result'){
       const images=(Array.isArray(item.output)?item.output:[]).filter(x=>['image','input_image'].includes(x.type)).map(imageOf).filter(Boolean);
       messages.push({role:'tool',tool_call_id:item.callId,content:typeof item.output==='string'?item.output:textOf(item.output),...(images.length?{images}:{})});
     }else if(['user','assistant','system','developer'].includes(item.role)){
       const images=(Array.isArray(item.content)?item.content:[]).filter(x=>['image','input_image'].includes(x.type)).map(imageOf).filter(Boolean);
       const m={role:item.role==='developer'?'system':item.role,content:textOf(item.content),...(images.length?{images}:{})};
-      if(item.providerData?.syspilotResponseItems)m.responseItems=copy(item.providerData.syspilotResponseItems);
+      if(responseItemsFor(item.providerData))m.responseItems=copy(responseItemsFor(item.providerData));
       messages.push(m);
     }
   }
@@ -36,7 +37,7 @@ export function messagesToItems(messages=[]){
     if(m.role==='assistant'){
       if(m.content||!m.tool_calls?.length)output.push({type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:String(m.content||'')}]});
       output.push(...(m.tool_calls||[]).map(c=>({type:'function_call',callId:c.id,name:c.function.name,arguments:c.function.arguments,status:'completed'})));
-      if(m.responseItems&&output.length)output[0].providerData={syspilotResponseItems:copy(m.responseItems)};
+      if(m.responseItems&&output.length)output[0].providerData={daidalisResponseItems:copy(m.responseItems)};
     }else output.push({type:'message',role:'user',content:m.images?.length?[{type:'input_text',text:m.content||''},...m.images.map(i=>({type:'input_image',image:`data:${i.mediaType};base64,${i.data}`}))]:String(m.content||'')});
     return output;
   });
@@ -116,7 +117,7 @@ export function createSdkRuntime({providers,dataDir,loadAgents=()=>import('@open
           event('sdk.model.completed','Model response received',{usage:response.usage||null});
           const output=[];if(response.content)output.push({id:'msg_'+randomUUID(),type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:response.content}]});
           output.push(...(response.toolCalls||[]).map(c=>({type:'function_call',callId:c.id||'call_'+randomUUID(),name:c.name,arguments:JSON.stringify(c.args||{}),status:'completed'})));
-          if(response.responseItems?.length){if(!output.length)output.push({type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:''}]});output[0].providerData={syspilotResponseItems:copy(response.responseItems)};}
+          if(response.responseItems?.length){if(!output.length)output.push({type:'message',role:'assistant',status:'completed',content:[{type:'output_text',text:''}]});output[0].providerData={daidalisResponseItems:copy(response.responseItems)};}
           checkpointItems.push(...copy(output));await session.checkpoint(checkpointItems);
           if(response.content)options.onMessage?.({id:output[0].id,text:response.content,phase:response.toolCalls?.length?'commentary':'final',partial:false});
           const usage=new Usage({requests:1,...response.usage});usageRecords.push(usage);
@@ -129,7 +130,7 @@ export function createSdkRuntime({providers,dataDir,loadAgents=()=>import('@open
             await saveTool(details,t.name,checkpointOutput(value));return asToolOutput(value);
           }finally{toolControllers.delete(invocation);}
         }}));
-        const agent=new Agent({name:'Manta',instructions:options.instructions||'',model,tools:sdkTools});
+        const agent=new Agent({name:'Daidalis',instructions:options.instructions||'',model,tools:sdkTools});
         const runner=new Runner({tracingDisabled:true,traceIncludeSensitiveData:false,toolExecution:{maxFunctionToolConcurrency:1},toolNotFoundBehavior:'return_error_to_model',toolErrorFormatter:args=>{event('sdk.tool.rejected','Tool is not permitted for this agent role',{tool:args.toolName,callId:args.callId});return JSON.stringify({error:`Tool ${args.toolName} is not permitted for this agent role`});}});
         let input=options.input||'',result,continuations=0;
         // Runner owns each model/tool segment; budget continuations keep the

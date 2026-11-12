@@ -18,7 +18,7 @@ The source-built VM helper requires the `com.apple.security.virtualization` enti
 
 - Guest: 4 vCPUs, 4096 MiB RAM, 10 GiB sparse logical root disk.
 - Host: a 5 GiB free-space guard requests shutdown before exhaustion; preparation requires 8 GiB available.
-- Writable shared directory: only `linux-vm/handoff`, mounted at `/mnt/manta-transfer`.
+- Writable shared directory: only `linux-vm/handoff`, mounted at `/mnt/daidalis-transfer`.
 - Guest networking: outbound NAT; SSH binds guest loopback and is reached through virtio-vsock, without LAN SSH exposure.
 - `state/` is mode 0700. The SSH key, known_hosts and host key trust are specific to this VM; all SSH calls use `-F /dev/null` and never read/write the user's global SSH config.
 - All apt packages, system services and engineering toolchain installation happen **inside the guest disk**.
@@ -38,7 +38,7 @@ Stop the VM before deleting the project directory. Preserving the directory pres
 
 `server/local-linux-vm.mjs` owns the application lifecycle. It calls only fixed helpers, stages the reviewed worker bundle, runs `worker/prepare-native.sh` inside the guest, provisions the private Node worker, and opens an authenticated loopback SSH tunnel. Models cannot supply a host command, executable path, endpoint, or credential environment variable.
 
-`worker/prepare-native.sh` locks both `/srv/manta/prepare.lock` and `/srv/manta/verification.lock`. A new guest installs the build toolchain and official NASA ARM64 packages, expands the pinned local archives, and builds the native mission. A prepared guest reuses `/srv/manta/receipts/native-ready.json` only after checking the fixed input hashes, all 23 native program/library hashes, and all 220 private 42 assets against source integrity. Runtime library changes after a receipt are preserved and require validation plus a new receipt; they are never silently replaced.
+`worker/prepare-native.sh` locks both `/srv/daidalis/prepare.lock` and `/srv/daidalis/verification.lock`. A new guest installs the build toolchain and official NASA ARM64 packages, expands the pinned local archives, and builds the native mission. A prepared guest reuses `/srv/daidalis/receipts/native-ready.json` only after checking the fixed input hashes, all 23 native program/library hashes, and all 220 private 42 assets against source integrity. Runtime library changes after a receipt are preserved and require validation plus a new receipt; they are never silently replaced.
 
 The 42 headless MEAN ephemeris asset profile is private to the guest. No runtime asset link resolves back into the host shared source tree. Ownership normalization uses explicit guest work directories with `chown -R -P --no-dereference`; it never follows a shared source symlink.
 

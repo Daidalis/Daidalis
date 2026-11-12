@@ -9,7 +9,7 @@ state=Path(sys.argv[1]); path=state/'runtime.json'
 data=json.loads(path.read_text()) if path.exists() else {'state':'not-prepared','guestReady':False}
 pid=data.get('pid')
 helper=state.parent/'host/vm-runtime.py'
-spec=importlib.util.spec_from_file_location('manta_vm_runtime',helper)
+spec=importlib.util.spec_from_file_location('daidalis_vm_runtime',helper)
 runtime=importlib.util.module_from_spec(spec);spec.loader.exec_module(runtime)
 try:
     if pid:

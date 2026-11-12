@@ -4,8 +4,8 @@ import {desktopRequest as request} from './desktop-transport.mjs';
 import {createTaskRunner} from './container-task-runner.mjs';
 import {commandTimeout} from '../shared/execution-budget.mjs';
 
-export function createBrokerRunner({socketPath=process.env.MANTA_BROKER_SOCKET,projectsRoot=process.env.MANTA_PROJECTS_ROOT||'/projects',transport=request}={}){
-  if(!socketPath)throw Error('Broker mode requires MANTA_BROKER_SOCKET; no shared execution fallback');
+export function createBrokerRunner({socketPath=process.env.DAIDALIS_BROKER_SOCKET,projectsRoot=process.env.DAIDALIS_PROJECTS_ROOT||'/projects',transport=request}={}){
+  if(!socketPath)throw Error('Broker mode requires DAIDALIS_BROKER_SOCKET; no shared execution fallback');
   const commands=new Map();
   const invoke=(payload,ctx={})=>transport(socketPath,'/task',payload,ctx);
   const runner=createTaskRunner({invoke,isolated:true});
@@ -13,7 +13,7 @@ export function createBrokerRunner({socketPath=process.env.MANTA_BROKER_SOCKET,p
     timeoutMs=commandTimeout(timeoutMs);
     const [base,root]=await Promise.all([fs.realpath(projectsRoot),fs.realpath(workspace)]);
     const project=path.relative(base,root);
-    if(!/^project-[A-Za-z0-9_-]{1,100}$/.test(project))throw Error('Broker commands require a managed project directly under MANTA_PROJECTS_ROOT');
+    if(!/^project-[A-Za-z0-9_-]{1,100}$/.test(project))throw Error('Broker commands require a managed project directly under DAIDALIS_PROJECTS_ROOT');
     const previous=commands.get(root)||Promise.resolve();
     const task=previous.catch(()=>{}).then(()=>invoke({kind:'command',project,command,timeoutMs}, {signal}));
     commands.set(root,task);

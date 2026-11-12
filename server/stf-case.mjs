@@ -1,3 +1,4 @@
+import {productSchemaMatches} from '../shared/legacy-names.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -27,7 +28,7 @@ export function createStfCaseService({root,assetsRoot}={}){
   async function workspaceRoot(workspace){if(typeof workspace!=='string'||!path.isAbsolute(workspace))throw fail('Project workspace required');const s=await fs.stat(workspace);if(!s.isDirectory())throw fail('Project workspace is not a folder');return fs.realpath(workspace);}
   async function namespace(workspace){const base=await workspaceRoot(workspace),target=path.join(base,NAMESPACE);try{const s=await fs.lstat(target);if(!s.isDirectory()||s.isSymbolicLink())throw fail('STF engineering directory cannot be a symbolic link');}catch(e){if(e.code!=='ENOENT')throw e;}return {base,target};}
   async function assetFiles(){const collected=[];let bytes=0;async function walk(dir,relative=''){const s=await fs.lstat(dir);if(s.isSymbolicLink()||!s.isDirectory())throw fail('STF template directory must be regular');for(const ent of (await fs.readdir(dir,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){if(ent.name.startsWith('.')||ent.isSymbolicLink())throw fail('STF template contains unsupported hidden/symbolic entries');const rel=relative?relative+'/'+ent.name:ent.name;const file=path.join(dir,ent.name);if(ent.isDirectory())await walk(file,rel);else if(ent.isFile()){const content=await regular(file);bytes+=content.length;if(bytes>8*1024*1024||collected.length>=500)throw fail('STF template size limit exceeded');collected.push({path:rel,content,sha256:hash(content)});}else throw fail('Unsupported STF template entry');}}await walk(assets);if(!collected.some(f=>f.path==='models/STFResourceMission.mo')||!collected.some(f=>f.path==='models/STFSystem.sysml'))throw fail('STF native model assets are unavailable',503);return collected;}
-  async function inspect(workspace){const {target}=await namespace(workspace);try{const manifest=JSON.parse(await regular(path.join(target,'manifest.json')));if(manifest.schema!=='manta-stf-project-v1'||!catalogItems.some(x=>x.variant===manifest.variant))throw fail('Unrecognized STF engineering project');return {...manifest,modelPath:NAMESPACE+'/models/STFResourceMission.mo',sysmlPath:NAMESPACE+'/models/STFSystem.sysml',readmePath:NAMESPACE+'/README.md',casePath:NAMESPACE,existing:true};}catch(e){if(e.code==='ENOENT')return null;throw e;}}
+  async function inspect(workspace){const {target}=await namespace(workspace);try{const manifest=JSON.parse(await regular(path.join(target,'manifest.json')));if(!productSchemaMatches(manifest.schema,'daidalis-stf-project-v1')||!catalogItems.some(x=>x.variant===manifest.variant))throw fail('Unrecognized STF engineering project');return {...manifest,modelPath:NAMESPACE+'/models/STFResourceMission.mo',sysmlPath:NAMESPACE+'/models/STFSystem.sysml',readmePath:NAMESPACE+'/README.md',casePath:NAMESPACE,existing:true};}catch(e){if(e.code==='ENOENT')return null;throw e;}}
   async function create({workspace,variant='from-zero'}={}){
     if(!catalogItems.some(x=>x.variant===variant))throw fail('Unknown STF engineering workflow');
     const {base,target}=await namespace(workspace);if(locks.has(base))throw fail('STF project creation is already running',409);locks.add(base);
@@ -36,7 +37,7 @@ export function createStfCaseService({root,assetsRoot}={}){
       const files=await assetFiles();
       try{await fs.mkdir(target,{mode:0o700});created=true;creationIdentity=await fs.lstat(target);}catch(e){if(e.code==='EEXIST')throw fail('STF folder already exists; existing files will not be overwritten',409);throw e;}
       for(const f of files){if(f.path==='manifest.json')continue;const destination=path.join(target,...f.path.split('/'));await fs.mkdir(path.dirname(destination),{recursive:true,mode:0o700});await fs.writeFile(destination,f.content,{flag:'wx',mode:0o600});}
-      const manifest={schema:'manta-stf-project-v1',caseId:'nasa-nos3-stf',variant,createdAt:new Date().toISOString(),source:{repository:'https://github.com/nasa/nos3',revision:PIN},
+      const manifest={schema:'daidalis-stf-project-v1',caseId:'nasa-nos3-stf',variant,createdAt:new Date().toISOString(),source:{repository:'https://github.com/nasa/nos3',revision:PIN},
         approvalStatus:'candidate-not-approved',engineeringComplete:false,modelClass:'STFResourceMission.Mission',files:files.filter(f=>f.path!=='manifest.json').map(({path,sha256,content})=>({path,sha256,bytes:content.length})),
         limitations:['This project is a traceable engineering reconstruction; creating files does not develop or qualify a complete flight system.',
           'All six L0 requirements and all 40 engineering work packages remain tracked; analysis results do not automatically close them.',
@@ -60,7 +61,7 @@ export function createStfCaseService({root,assetsRoot}={}){
     for(const s of selected){if(!s||!/^[a-z0-9-]{1,80}$/.test(s.id)||!['pass','fail'].includes(s.expectation)||typeof s.overrides!=='object')throw fail('Invalid STF scenario');const r=simulateMission(s.overrides);
       const {rows,packets,...summary}=r;const report={...summary,scenarioId:s.id,name:s.name,expected:s.expectation,expectedBehaviorObserved:r.passed===(s.expectation==='pass')};
       await fs.writeFile(path.join(dir,s.id+'.json'),json(report),{flag:'wx',mode:0o600});await fs.writeFile(path.join(dir,s.id+'.csv'),rowsToCSV(rows),{flag:'wx',mode:0o600});results.push(report);}
-    const acceptance={schema:'manta-stf-reference-verification-v1',jobId,createdAt:new Date().toISOString(),inputs,controllerSha256:source.sha256,
+    const acceptance={schema:'daidalis-stf-reference-verification-v1',jobId,createdAt:new Date().toISOString(),inputs,controllerSha256:source.sha256,
       status:results.every(x=>x.expectedBehaviorObserved)?'completed':'failed',scope:'packet-controller-and-proposed-energy-reference-analysis',
       nativeModelicaExecuted:false,nativeNos3Executed:false,engineeringComplete:false,
       results,files:results.flatMap(x=>[relative+'/'+x.scenarioId+'.json',relative+'/'+x.scenarioId+'.csv'])};
@@ -72,5 +73,5 @@ export function createStfCaseService({root,assetsRoot}={}){
       '所有六条 L0、科学产品/覆盖、真实地面交付、三个月寿命、物理/HIL、环境、独立保证和任务接受继续保留未闭合状态。',''];
     await fs.writeFile(path.join(dir,'acceptance.md'),lines.join('\n'),{flag:'wx',mode:0o600});return {...acceptance,resultPath:relative+'/acceptance.json',reportPath:relative+'/acceptance.md'};
   }
-  return {catalog:()=>({schema:'manta-stf-case-catalog-v1',cases:structuredClone(catalogItems),engineeringComplete:false}),create,inspect,verify};
+  return {catalog:()=>({schema:'daidalis-stf-case-catalog-v1',cases:structuredClone(catalogItems),engineeringComplete:false}),create,inspect,verify};
 }

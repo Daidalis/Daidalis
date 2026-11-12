@@ -18,7 +18,7 @@ import {commandTimeout,MAX_COMMAND_TIMEOUT_MS} from '../shared/execution-budget.
 const schema=(properties,required=[])=>({type:'object',properties,required,additionalProperties:false});
 const str={type:'string'},num={type:'number'};
 const strings={type:'array',items:str};
-const taskParameters=schema({name:str,task:str,providerId:str,taskKey:{type:'string',description:'Stable key for this assignment; reusing it reuses the existing task instead of duplicating work.'},scope:{type:'string',description:'Work delegated exclusively to this task; the parent must not repeat it while active.'},workKind:{type:'string',enum:['public_sources'],description:'Set public_sources when this thread owns public-source research. While it runs, the Coordinator must wait or steer instead of repeating Manta public fetches.'},deliverables:strings,ownedPaths:{type:'array',items:str,description:'Exclusive project-relative file or directory write scopes. Avoid overlapping paths; no root, traversal or globs.'},acceptanceCriteria:strings},['task']);
+const taskParameters=schema({name:str,task:str,providerId:str,taskKey:{type:'string',description:'Stable key for this assignment; reusing it reuses the existing task instead of duplicating work.'},scope:{type:'string',description:'Work delegated exclusively to this task; the parent must not repeat it while active.'},workKind:{type:'string',enum:['public_sources'],description:'Set public_sources when this thread owns public-source research. While it runs, the Coordinator must wait or steer instead of repeating Daidalis public fetches.'},deliverables:strings,ownedPaths:{type:'array',items:str,description:'Exclusive project-relative file or directory write scopes. Avoid overlapping paths; no root, traversal or globs.'},acceptanceCriteria:strings},['task']);
 function engineeringSummary(report){if(!report?.series||typeof report.series!=='object')return report;const preview={};for(const [key,values]of Object.entries(report.series))preview[key]=Array.isArray(values)?(values.length>12?[...values.slice(0,6),...values.slice(-6)]:values):values;return {...report,series:{sampleCount:report.series.time?.length||0,preview,previewIsFullSeries:false,fullSeries:'Read the recorded result.json/series.csv artifact for all samples.'}};}
 export const TOOL_DEFINITIONS=[
   ...INTEGRATION_TOOL_DEFINITIONS,
@@ -64,7 +64,7 @@ export function createToolRuntime({store,emit,requestApproval=async()=>false,get
   if(!nos3)for(const name of ['inspect_nos3','prepare_nos3_environment','submit_nos3_job','get_nos3_job','wait_nos3_job','cancel_nos3_job','bind_nos3_results'])disabled.add(name);
   }
   // Only an explicitly configured, project-scoped isolated launcher exposes
-  // binary import. General Manta instances must not inherit an unbounded
+  // binary import. General Daidalis instances must not inherit an unbounded
   // public download capability by default.
   if(typeof assetFetcher!=='function')disabled.add('fetch_public_asset');
   if(!geospatialJobs)for(const tool of GEOSPATIAL_TOOL_DEFINITIONS)disabled.add(tool.name);

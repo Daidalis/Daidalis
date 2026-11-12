@@ -21,7 +21,7 @@ function requestInMemory(server,url){
 }
 
 test('studio wires injected Orbit 42 tools into a native Agent turn and verifies workspace evidence',async t=>{
- const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'manta-orbit42-studio-'));
+ const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-orbit42-studio-'));
  let app;
  t.after(async()=>{await app?.close();await fs.rm(temporary,{recursive:true,force:true});});
  let owner,verified=true,expectedHash=sha(trajectory),status='queued',capturedTools=[],bridgeResults=[];

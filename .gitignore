@@ -22,7 +22,7 @@ vm/assets/
 vm/handoff/
 vm/host/module-cache/
 vm/host/pycache/
-vm/host/manta-vm
+vm/host/*-vm
 vm/host/vm-probe
 *.raw
 *.qcow2

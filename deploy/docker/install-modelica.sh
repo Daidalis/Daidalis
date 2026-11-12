@@ -27,11 +27,11 @@ timeout -k 30 3600 apt-get -o Acquire::https::Timeout=30 -o Acquire::Retries=2 i
 omc --version
 # Materialize the bundled standard library once, rather than unpacking it and
 # refreshing the online package index for every task's temporary HOME.
-mkdir -p /tmp/manta-modelica-preload
-printf 'loadModel(Modelica,{"4.0.0"});\ngetErrorString();\n' > /tmp/manta-preload.mos
-HOME=/tmp/manta-modelica-preload omc /tmp/manta-preload.mos > /tmp/manta-preload.log
-test -f '/tmp/manta-modelica-preload/.openmodelica/libraries/Modelica 4.0.0+maint.om/package.mo'
-cp -a /tmp/manta-modelica-preload/.openmodelica/libraries /opt/modelica-libraries
+mkdir -p /tmp/daidalis-modelica-preload
+printf 'loadModel(Modelica,{"4.0.0"});\ngetErrorString();\n' > /tmp/daidalis-preload.mos
+HOME=/tmp/daidalis-modelica-preload omc /tmp/daidalis-preload.mos > /tmp/daidalis-preload.log
+test -f '/tmp/daidalis-modelica-preload/.openmodelica/libraries/Modelica 4.0.0+maint.om/package.mo'
+cp -a /tmp/daidalis-modelica-preload/.openmodelica/libraries /opt/modelica-libraries
 chmod -R a+rX /opt/modelica-libraries
-rm -rf /tmp/manta-modelica-preload /tmp/manta-preload.mos /tmp/manta-preload.log
+rm -rf /tmp/daidalis-modelica-preload /tmp/daidalis-preload.mos /tmp/daidalis-preload.log
 rm -rf /var/lib/apt/lists/* /tmp/openmodelica.asc
