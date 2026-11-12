@@ -1,7 +1,7 @@
 {
   "schema": "manta-recorded-trajectory-v1",
   "provenance": "example",
-  "note": "VehicleDrive.mo 的 60 秒起步轨迹。battery 为荷电状态（%），inverter 为输出功率（kW），motor 为车速（km/h）。不是 SysML FMI 执行。",
+  "note": "VehicleDrive.mo 的 60 秒起步轨迹，与 electric-vehicle.fmu 同一模型。battery 为荷电状态（%），inverter 为输出功率（kW），motor 为车速（km/h）。这份 CSV 是记录轨迹，PullAwayCheck 才调用 FMU。",
   "csv": "electric-vehicle-drive.csv",
   "checks": [
     {"variable": "battery", "passed": true}
