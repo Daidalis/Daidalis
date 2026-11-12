@@ -1,6 +1,7 @@
 package ElectricVehicleExterior {
     private import SI::*;
     private import ScalarValues::*;
+    private import AnalysisTooling::*;
 
     doc /* 新能源汽车 — an illustrative electric sedan with 18-inch wheels.
            X points forward, Y left and Z up. Ground is Z = 0. The front bumper
@@ -12,7 +13,13 @@ package ElectricVehicleExterior {
            Nominal 235/45R18 tire radius = 18 * 25.4 / 2 + 235 * 0.45 = 334.35 mm.
            Axle heights use this unloaded radius. The paint, panel sections,
            lights, glass and wheel cover profiles are illustrative dimensions.
-           Dimensional references are linked in the project README. */
+           Dimensional references are linked in the project README.
+
+           battery, inverter and motor sit inside that envelope. Their names
+           match the outputs of the sibling electric-vehicle.fmu, built from
+           VehicleDrive.mo. PullAwayCheck runs that 60 s pull-away and checks
+           motor, the road speed in km/h. electric-vehicle-drive.csv is the
+           FMPy co-simulation of that FMU: 121 samples at 0.5 s. */
 
 
     item def RoadTyre :> ShapeItems::RightCircularCylinder {
@@ -174,6 +181,38 @@ package ElectricVehicleExterior {
             attribute centerX = 0 [mm]; attribute centerY = 0 [mm]; attribute centerZ = 0 [mm];
         }
 
+    }
+
+    port def PowerPort {
+        out attribute value : Real;
+    }
+
+    part def BatteryPack :> ShapeItems::RectangularCuboid {
+        doc /* Floor pack inside the body envelope. Recorded column battery is state of charge, percent. */
+        port output : PowerPort;
+        attribute :>> length = 1600 [mm];
+        attribute :>> width = 1100 [mm];
+        attribute :>> height = 140 [mm];
+        attribute color : String = "#1F4B3A";
+    }
+
+    part def Inverter :> ShapeItems::RectangularCuboid {
+        doc /* Front power electronics. Recorded column inverter is output power, kilowatts. */
+        port input : PowerPort;
+        port output : PowerPort;
+        attribute :>> length = 260 [mm];
+        attribute :>> width = 180 [mm];
+        attribute :>> height = 70 [mm];
+        attribute color : String = "#C4A15A";
+    }
+
+    part def DriveMotor :> ShapeItems::RightCircularCylinder {
+        doc /* Front drive unit, axis along Y. Recorded column motor is road speed, km/h. */
+        port input : PowerPort;
+        attribute :>> radius = 90 [mm];
+        attribute :>> height = 220 [mm];
+        attribute axis : String = "Y";
+        attribute color : String = "#4C5560";
     }
 
     part '新能源汽车' {
@@ -1210,6 +1249,45 @@ package ElectricVehicleExterior {
             attribute centerX = -1383 [mm]; attribute centerY = -911 [mm]; attribute centerZ = 334.35 [mm];
         }
 
+        part battery : BatteryPack {
+            attribute centerX = -200 [mm]; attribute centerY = 0 [mm]; attribute centerZ = 70 [mm];
+        }
+
+        part inverter : Inverter {
+            attribute centerX = 500 [mm]; attribute centerY = 0 [mm]; attribute centerZ = 175 [mm];
+        }
+
+        part motor : DriveMotor {
+            attribute centerX = 1200 [mm]; attribute centerY = 0 [mm]; attribute centerZ = 250 [mm];
+        }
+
+        connection batteryToInverter connect battery.output to inverter.input;
+        connection inverterToMotor connect inverter.output to motor.input;
+        flow power from battery.output to inverter.input;
+        flow torque from inverter.output to motor.input;
+
+    }
+
+    calc def PullAway {
+        doc /* 60 s pull-away. The returned sample is motor, road speed in km/h. */
+        metadata ToolExecution {
+            toolName = "fmi";
+            uri = "file:///examples/physical-preview/electric-vehicle.fmu";
+        }
+        in stopTime : Real = 60.0 {
+            @ToolVariable { name = "fmi:stopTime"; }
+        }
+        in stepSize : Real = 0.5 {
+            @ToolVariable { name = "fmi:stepSize"; }
+        }
+        return speed : Real[1] {
+            @ToolVariable { name = "motor"; }
+        }
+    }
+
+    analysis def PullAwayCheck {
+        return result : Real = PullAway();
+        assert constraint { result > 49 and result < 52 }
     }
 
 }
