@@ -1,8 +1,8 @@
 model VehicleDrive
   "60 s pull-away. battery is state of charge in percent, inverter is kilowatts, motor is km/h."
-  Real battery(start = 78, fixed = true);
-  Real inverter(start = 0, fixed = true);
-  Real motor(start = 0, fixed = true);
+  output Real battery(start = 78, fixed = true);
+  output Real inverter(start = 0, fixed = true);
+  output Real motor(start = 0, fixed = true);
   Real command;
 equation
   command = if time < 8 then 45 else if time < 25 then 18 else if time < 40 then 0 else 12;

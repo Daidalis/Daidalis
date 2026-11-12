@@ -1,6 +1,7 @@
 package ElectricVehicleExterior {
     private import SI::*;
     private import ScalarValues::*;
+    private import AnalysisTooling::*;
 
     doc /* 新能源汽车 — an illustrative electric sedan with 18-inch wheels.
            X points forward, Y left and Z up. Ground is Z = 0. The front bumper
@@ -15,9 +16,10 @@ package ElectricVehicleExterior {
            Dimensional references are linked in the project README.
 
            battery, inverter and motor sit inside that envelope. Their names
-           match the columns of the sibling electric-vehicle-drive.csv, loaded
-           through electric-vehicle.recorded.json. That curve is a 60 s
-           pull-away from VehicleDrive.mo, not an FMI run of this SysML file. */
+           match the outputs of the sibling electric-vehicle.fmu, built from
+           VehicleDrive.mo. PullAwayCheck runs that 60 s pull-away and checks
+           motor, the road speed in km/h. electric-vehicle-drive.csv is a
+           recorded copy of the same trajectory. */
 
 
     item def RoadTyre :> ShapeItems::RightCircularCylinder {
@@ -1264,6 +1266,28 @@ package ElectricVehicleExterior {
         flow power from battery.output to inverter.input;
         flow torque from inverter.output to motor.input;
 
+    }
+
+    calc def PullAway {
+        doc /* 60 s pull-away. The returned sample is motor, road speed in km/h. */
+        metadata ToolExecution {
+            toolName = "fmi";
+            uri = "file:///examples/physical-preview/electric-vehicle.fmu";
+        }
+        in stopTime : Real = 60.0 {
+            @ToolVariable { name = "fmi:stopTime"; }
+        }
+        in stepSize : Real = 0.5 {
+            @ToolVariable { name = "fmi:stepSize"; }
+        }
+        return speed : Real[1] {
+            @ToolVariable { name = "motor"; }
+        }
+    }
+
+    analysis def PullAwayCheck {
+        return result : Real = PullAway();
+        assert constraint { result > 49 and result < 52 }
     }
 
 }
