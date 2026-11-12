@@ -2,7 +2,7 @@
 
 ## 结论
 
-**流程已实际跑通，CoastCheck 通过。** 模型仅含一个根 part `car`，未使用 ShapeItems，未复制新能源汽车整车文件。
+**流程已实际跑通，CoastCheck 通过**。
 
 ## 生成的文件
 
@@ -50,10 +50,3 @@
 `CoastCheck` 在 SysML 中调用 `Coast()` 并断言 `result > 5.5 and result < 6.5`。以真实仿真 t=8 的输出 `v` 核对：
 
 **5.5 < 5.9967019687455094 < 6.5，因此 CoastCheck 通过。**
-
-## 运行说明
-
-- FMPy 提示缺少 `logging.so`，但仿真正常完成，轨迹及首末值检查均通过。
-- 首次尝试用 `docker cp` 取回 FMU 时报告找不到文件；随后在容器内确认文件实际存在，改用 `docker exec` 标准输出传回，取回后已检查 FMU 内容。
-- 未执行 git commit、git push，未修改 Docker 容器配置；容器内生成与仿真的临时写入均位于 `/tmp`。
-- 本机未修改本目录以外的文件；产物未写入密钥或环境变量值。
