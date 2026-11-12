@@ -33,6 +33,16 @@ On startup, former `models` rows move to `legacyProjectGraphs` in the persistent
 
 Agent reads and object-write responses include current objects and history counts, without replaying historical revisions. This also applies when explicitly reusing an archived ID. The service retains the full revision history for human inspection.
 
+## Durable engineering plan
+
+The coordinator reads `get_engineering_plan` and saves the complete work plan with `update_engineering_plan`. Use `expectedRevision: 0` for the initial plan, then the latest plan revision for updates. A rejected update leaves the previous plan unchanged: correct validation errors and retry; for a revision conflict, read and merge the current plan first. Confirm the returned revision before reporting a successful save.
+
+Work items can link project-relative `modelPaths`, deliverables and verification acceptance criteria without registering every SysML requirement. `recordIds` and `verification.requirementIds` refer to explicitly registered engineering object IDs, not SysML element names. Leave these lists empty unless those records exist. To register a sourced object, omit `expectedRevision` or use `0` for creation; when updating it, supply its current object revision, which is separate from the plan and overall engineering state revisions.
+
+`artifactIds` holds project artifact IDs returned by `create_artifact`; IDs returned by model validation or import belong to the model backend and do not qualify. Use `modelPaths` for source-file links. Evidence links likewise require existing engineering evidence, completed tool receipt or project artifact IDs, rather than file paths or model/run IDs.
+
+Omit `review` or use `null` until a review exists. An empty placeholder (`{"findings":"","evidenceIds":[]}`) on an item whose status is not `reviewed` is treated as no review. Items marked `reviewed` still require nonempty findings and existing evidence references. Unknown IDs, fabricated evidence and stale revisions remain errors; plan metadata does not grant engineering acceptance.
+
 ## Verification and limits
 
 Run the focused HTTP suite with an existing Node runtime:
