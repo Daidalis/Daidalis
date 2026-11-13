@@ -3,7 +3,7 @@ ARG NODE_IMAGE=docker.m.daocloud.io/library/node:22-bookworm-slim@sha256:5ec23b7
 FROM ${NODE_IMAGE} AS base
 ENV DEBIAN_FRONTEND=noninteractive
 RUN --network=host \
-  find /etc/apt \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's|https\?://deb.debian.org|https://mirrors.aliyun.com|g' {} + \
+  find /etc/apt \( -name sources.list -o -name '*.sources' -o -name '*.list' \) -exec sed -i 's|https\?://deb.debian.org|http://mirrors.aliyun.com|g' {} + \
   && apt-get update && apt-get install -y --no-install-recommends ca-certificates python3 git tini && rm -rf /var/lib/apt/lists/*
 
 FROM base AS tools

@@ -11,9 +11,11 @@ const isDefinition = node => /Definition$/.test(node.metaclass);
 const axes = ['X','Y','Z'];
 
 function millimetres(value) {
-  const match = lengthLiteral.exec(value || '');
-  if (!match || !units.has(match[2])) return NaN;
-  return Number(match[1]) * units.get(match[2]);
+  const text = String(value || '').trim().replace(/^"(.*)"$/, '$1');
+  const match = lengthLiteral.exec(text) || /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*(?:SI::)?([\wµμ]+)$/i.exec(text);
+  const unit = match && match[2];
+  if (!match || !units.has(unit)) return NaN;
+  return Number(match[1]) * units.get(unit);
 }
 
 function collectAttributes(chain) {
@@ -42,8 +44,11 @@ function declaredStandardType(node, lines) {
 function geometryOf(chain, attributes, lines) {
   const selector = attributes.get('shape');
   if (selector) {
-    const shape = /^"(box|sphere|cylinder|cone|loft)"$/.exec(selector.value)?.[1];
+    const shape = /^(?:"|')?(box|sphere|cylinder|cone|loft)(?:"|')?$/.exec(selector.value.trim())?.[1];
     return {shape, declaration:selector.node, unsupported:!shape};
+  }
+  if (['length','width','height'].every(name => attributes.has(name))) {
+    return {shape:'box', declaration:attributes.get('length').node};
   }
   for (const node of [...chain].reverse()) {
     const standard = declaredStandardType(node, lines);
@@ -114,7 +119,7 @@ function primitiveForm(shape, attributes) {
   if (shape === 'box') return {size:['length','width','height'].map(read)};
   const diameter = attributes.has('radius') ? 2 * read('radius') : read('diameter');
   if (shape === 'sphere') return {size:[diameter,diameter,diameter]};
-  const axis = attributes.has('axis') ? /^"([XYZ])"$/.exec(attributes.get('axis').value)?.[1] : 'Z';
+  const axis = attributes.has('axis') ? /^(?:"|')?([XYZ])(?:"|')?$/.exec(attributes.get('axis').value.trim())?.[1] : 'Z';
   if (!axis) return {error:'圆柱或圆锥的轴向 axis 必须是字符串 "X"、"Y" 或 "Z"。'};
   const size = axes.map(direction => direction === axis ? read('height') : diameter);
   return {size,axis};
