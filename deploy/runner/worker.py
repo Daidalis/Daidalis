@@ -241,8 +241,10 @@ def professional(request):
             argv=['ngspice','-b','-r','daidalis_result.raw',main]
     elif tool == 'openscad':
         argv=['openscad']
+        defines=[]
         for name,value in parameters.items():
-            argv += ['-D',name+'='+json.dumps(value)]
+            defines += ['-D',name+'='+json.dumps(value)]
+        argv += defines
         argv += ['-o','daidalis_geometry.stl' if operation=='simulate' else 'daidalis_geometry.csg',main]
     else:
         model=request.get('modelName','')
@@ -288,6 +290,11 @@ def professional(request):
     elif tool=='openscad':
         output=WORK/('daidalis_geometry.stl' if operation=='simulate' else 'daidalis_geometry.csg')
         success=success and output.is_file() and output.stat().st_size>10 and 'ERROR:' not in diagnostics
+        if success and operation=='simulate':
+            preview=run(['xvfb-run','-a','openscad','--imgsize=1280,800',*defines,'-o','daidalis_preview.png',main],min(request.get('timeoutMs',600000)/1000,600))
+            diagnostics+=preview['stdout']+preview['stderr']
+            png=WORK/'daidalis_preview.png'
+            success=success and preview['code']==0 and png.is_file() and png.read_bytes()[:8]==b'\x89PNG\r\n\x1a\n' and 'ERROR:' not in preview['stderr']
     else:
         success=success and 'completed successfully' in diagnostics and 'Error:' not in diagnostics
         if operation=='simulate':success=success and (WORK/'daidalis_result_res.csv').is_file()
@@ -298,7 +305,7 @@ def professional(request):
              'isolation':ISOLATION}
     (WORK/'compiler.log').write_text(diagnostics)
     (WORK/'execution-receipt.json').write_text(json.dumps(receipt))
-    files=collect(['compiler.log','execution-receipt.json','daidalis_result.csv','daidalis_result_res.csv','daidalis_geometry.stl','daidalis_geometry.csg'])
+    files=collect(['compiler.log','execution-receipt.json','daidalis_result.csv','daidalis_result_res.csv','daidalis_geometry.stl','daidalis_geometry.csg','daidalis_preview.png'])
     geometry=None
     if tool=='openscad' and operation=='simulate' and success:
         points=[tuple(map(float,p)) for p in re.findall(r'vertex\s+([-+\deE.]+)\s+([-+\deE.]+)\s+([-+\deE.]+)',(WORK/'daidalis_geometry.stl').read_text())]
