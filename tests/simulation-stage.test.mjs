@@ -182,6 +182,8 @@ test('provenance and workbench status distinguish replay, run and structure-only
  const run=simulationStatus({siblings:{fmus:['m/b.fmu','m/a.fmu']},path:'m/a.sysml'});
  assert.deepEqual([run.state,run.fmu],['run','m/a.fmu']);
  assert.equal(simulationStatus({siblings:{fmus:['m/b.fmu','m/c.fmu']},path:'m/a.sysml'}).state,'structure');
+ assert.equal(simulationStatus({siblings:{fmus:['m/b.fmu','m/named.fmu']},path:'m/a.sysml',source:'metadata ToolExecution { uri = "file:///work/m/named.fmu"; }'}).fmu,'m/named.fmu');
+ assert.equal(simulationStatus({manifest:{provenance:'fmu-run'},siblings:{fmus:['m/a.fmu']},path:'m/a.sysml'}).fmu,'m/a.fmu');
  assert.match(simulationStatus({siblings:{fmus:[],csvs:[]},path:'m/a.sysml'}).message,/仅结构，无轨迹/);
 });
 

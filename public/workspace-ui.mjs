@@ -100,7 +100,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
         try{destination=await api(route+'/resolve?path='+encodeURIComponent(tab.path));}
         catch(error){if(error.status!==404&&error.statusCode!==404)throw error;}
         if(id!==projectId||!tabs.includes(tab))return;
-        if(destination?.kind==='professional'){await onProfessionalJob(destination.jobId);return;}
+        if(destination?.kind==='professional'&&!/\.stl$/i.test(tab.path||'')){await onProfessionalJob(destination.jobId);return;}
         if(destination?.kind==='simulation'){
           if(destination.projectId&&destination.projectId!==id)throw Error('结果不属于当前项目');
           if(typeof destination.jobId!=='string'||!destination.jobId)throw Error('仿真结果缺少作业关联');

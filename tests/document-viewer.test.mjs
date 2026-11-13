@@ -306,7 +306,7 @@ test('a late system root remains searchable and can be rendered without the unre
 });
 
 test('viewer accepts file mime and JSON formats while bounding untrusted graph size',async () => {
-  assert.equal(documentKind({mime:'text/markdown'}),'markdown');assert.equal(documentKind({path:'m.sysml'}),'sysml');
+  assert.equal(documentKind({mime:'text/markdown'}),'markdown');assert.equal(documentKind({path:'m.sysml'}),'sysml');assert.equal(documentKind({path:'part.stl',type:'stl'}),'stl');assert.match(renderDocumentViewer({file:{path:'part.stl',type:'stl',encoding:'base64',content:''}}),/data-stl-preview/);
   assert.match(renderDocumentViewer({file:{name:'manifest.json',content:'{"a":1}'}}),/文件字段/);
   assert.match(renderDocumentViewer({file:{name:'manifest.json',content:'{"a":1}'},tab:'source'}),/data-source-line="3"/);
   const graph = normalizeSemanticGraph({nodes:Array.from({length:1300},(_,i) => ({id:'n' + i,label:'Part ' + i,metaclass:'PartUsage'})),edges:[]});

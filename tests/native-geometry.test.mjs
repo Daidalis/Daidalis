@@ -5,6 +5,7 @@ test('native STL preview derives actual geometry and rejects malformed output',(
  const bytes=new TextEncoder().encode('solid x\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 100 0 0\nvertex 0 100 340.5\nendloop\nendfacet\nendsolid x');
  const model=parseStl(bytes);assert.equal(model.triangleCount,1);assert.deepEqual(model.bounds.dimensions,[100,100,340.5]);
  assert.throws(()=>parseStl(new TextEncoder().encode('vertex 0 0 0')),/完整/);
+ assert.equal(parseStl(new TextEncoder().encode('vertex 1 -7.5e-07 2\nvertex 0 0 1\nvertex 3 4 5')).triangleCount,1);
  assert.throws(()=>parseStl(new TextEncoder().encode('vertex 1e99 0 0\nvertex 0 1 0\nvertex 0 0 1')),/无效/);
 });
 test('binary STL length and finite coordinates are checked',()=>{

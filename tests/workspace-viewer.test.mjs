@@ -53,6 +53,7 @@ test('file presentation is bounded, content hashed and never turns HTML, SVG or 
   assert.equal((await f.viewer.read({projectId,path:'unsafe.html'})).mime,'text/plain');
   assert.equal((await f.viewer.read({projectId,path:'plot.svg'})).mime,'text/plain');
   await f.put('huge.md',Buffer.alloc(1500001,65));await assert.rejects(f.viewer.read({projectId,path:'huge.md'}),e=>e.status===413);
+  await f.put('mesh.stl',Buffer.alloc(1500001,65));const mesh=await f.viewer.read({projectId,path:'mesh.stl'});assert.equal(mesh.type,'stl');assert.equal(mesh.previewable,true);assert.equal(mesh.encoding,'base64');assert.equal(Buffer.from(mesh.content,'base64').length,1500001);
   await f.put('binary.txt',Buffer.from([1,0,3]));assert.equal((await f.viewer.read({projectId,path:'binary.txt'})).previewable,false);
   await f.put('invalid.txt',Buffer.from([0xff,0xfe]));await assert.rejects(f.viewer.read({projectId,path:'invalid.txt'}),/UTF-8/);
 });

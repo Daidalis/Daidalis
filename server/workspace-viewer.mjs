@@ -11,7 +11,7 @@ import {legacyInternalDirectory} from '../shared/legacy-names.mjs';
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const fail = (message, status = 400) => Object.assign(new Error(message), {status});
 const MAX_EDIT = 500000;
-const MAX_TEXT = 1500000, MAX_IMAGE = 5000000, MAX_ENTRIES = 500;
+const MAX_TEXT = 1500000, MAX_IMAGE = 5000000, MAX_MESH = 20000000, MAX_ENTRIES = 500;
 const SKIP_SCAN = new Set(['.git', 'node_modules', '.venv', 'venv', '__pycache__', 'build', 'dist', 'target', '.cache', '.local']);
 const MIME = {'.md':'text/markdown', '.markdown':'text/markdown', '.sysml':'text/plain', '.kerml':'text/plain', '.json':'application/json', '.geojson':'application/geo+json', '.jsonl':'application/x-ndjson', '.ndjson':'application/x-ndjson', '.csv':'text/csv', '.tsv':'text/tab-separated-values', '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/gif', '.webp':'image/webp'};
 const IMAGE = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
@@ -31,6 +31,7 @@ function safeRelative(value = '.') {
 function kind(name) {
   const ext = path.extname(name).toLowerCase();
   if (IMAGE.has(ext)) return 'image';
+  if (ext === '.stl') return 'stl';
   if (['.md','.markdown'].includes(ext)) return 'markdown';
   if (['.sysml','.kerml'].includes(ext)) return 'sysml';
   if (['.json','.geojson','.jsonl','.ndjson'].includes(ext)) return 'json';
@@ -217,13 +218,14 @@ export function createWorkspaceViewer({store, modelBackend, nos3, professionalMo
       return {kind:'simulation',jobId:match[1],path:safe,...(selected?{caseId:selected.id}:{})};
     },
     async read({projectId, path:relative} = {}) {
-      const name=path.basename(String(relative||'')),registered=(store.data?.artifacts||[]).find(a=>a.projectId===projectId&&a.path===relative),declared=String(registered?.type||''),declaredType=/^(?:text\/)?markdown$/i.test(declared)?'markdown':declared==='application/json'||declared==='json'?'json':declared==='text/csv'||declared==='csv'?'csv':null,type=(!path.extname(name)&&declaredType)||kind(name),item=await bytesFor(projectId,relative,type==='image'?MAX_IMAGE:MAX_TEXT);
+      const name=path.basename(String(relative||'')),registered=(store.data?.artifacts||[]).find(a=>a.projectId===projectId&&a.path===relative),declared=String(registered?.type||''),declaredType=/^(?:text\/)?markdown$/i.test(declared)?'markdown':declared==='application/json'||declared==='json'?'json':declared==='text/csv'||declared==='csv'?'csv':null,type=(!path.extname(name)&&declaredType)||kind(name),item=await bytesFor(projectId,relative,type==='image'?MAX_IMAGE:type==='stl'?MAX_MESH:MAX_TEXT);
       await nativeJobEvidence(projectId,item.path,item.sha256);
       const {buffer,...file} = item, ext = path.extname(file.name).toLowerCase();
       if (type === 'image') {
         if (!imageMatches(buffer,ext)) throw fail('Image signature does not match its file type');
         return {projectId,...file,type,mime:MIME[ext],encoding:'base64',content:buffer.toString('base64'),previewable:true};
       }
+      if (type === 'stl') return {projectId,...file,type:'stl',mime:'model/stl',encoding:'base64',content:buffer.toString('base64'),previewable:true};
       if (type === 'binary' || buffer.includes(0)) return {projectId,...file,type:'binary',mime:'application/octet-stream',encoding:null,content:null,previewable:false};
       let content;
       try { content = new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(buffer); } catch { throw fail('Text preview requires UTF-8'); }
