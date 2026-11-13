@@ -32,6 +32,7 @@ services:
       DAIDALIS_NATIVE_AGENTS: enabled
       DAIDALIS_EXECUTION_MODE: shared-container
       DAIDALIS_DESKTOP_SOCKET: /desktop-control/desktop.sock
+      DAIDALIS_MAX_TOOL_TURNS: "${DAIDALIS_MAX_TOOL_TURNS:-128}"
     volumes:
       - state:/data
       - projects:/projects

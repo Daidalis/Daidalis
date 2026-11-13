@@ -82,11 +82,11 @@ Changing connection settings does not extend an already pending request.
 An application deadline stays active through response-body reading, including
 when the provider sends response headers before finishing its JSON body.
 
-Source and Docker startup both default to 64 model iterations per execution
+Source and Docker startup both default to 128 model iterations per execution
 segment. Docker's existing `DAIDALIS_MAX_TOOL_TURNS` variable (2–200) selects the
 deployment default; it counts model iterations, not individual tool calls.
 Existing explicit environment or project overrides remain effective. To adopt
-the new deployment default, remove an old override or change it to 64, then
+the new deployment default, remove an old override or change it to 128, then
 recreate the container after updating its environment.
 **项目设置 → Agent 运行预算** can override it using `resources.maxRunTurns`
 (2–200) and configure `resources.maxRunContinuations` (default 1, range 0–3).
@@ -94,7 +94,7 @@ These settings apply to ordinary API Agent runs. Each continuation resumes the
 saved SDK history after recorded tool results; it does not replay the original
 task. Coordinator result-summary runs retain their separate automatic budget.
 
-The default cumulative allowance is **128 model interactions** (64 × 2), with
+The default cumulative allowance is **256 model interactions** (128 × 2), with
 an upper configurable bound of 800 (200 × 4). Automatic segments and queued user
 steering share that allowance; neither starts a new budget. API retries count
 as attempts within one interaction, and their elapsed time consumes execution
@@ -406,7 +406,7 @@ source snapshots and hashed execution evidence.
 
 OpenModelica compilation uses one compiler worker; numerical library thread counts
 are limited to avoid oversubscribing the container's process budget. The Docker
-Agent budget defaults to 64 model turns, configurable with `DAIDALIS_MAX_TOOL_TURNS`
+Agent budget defaults to 128 model turns, configurable with `DAIDALIS_MAX_TOOL_TURNS`
 (2–200) in the runtime environment file. Budget exhaustion preserves the session,
 reports the most recent tool failure, and allows a later user message to continue.
 
