@@ -23,7 +23,7 @@ esac
 python3 - <<'PY'
 from pathlib import Path
 for source in Path('/etc/apt/sources.list.d').glob('debian.sources'):
-    source.write_text(source.read_text().replace('https://deb.debian.org/', 'http://mirrors.aliyun.com/').replace('http://deb.debian.org/', 'http://mirrors.aliyun.com/').replace('https://mirrors.aliyun.com/', 'http://mirrors.aliyun.com/'))
+    source.write_text(source.read_text().replace('http://deb.debian.org/', 'https://deb.debian.org/'))
 PY
 apt-get -o Dir::Etc::sourcelist=sources.list.d/debian.sources -o Dir::Etc::sourceparts=- -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
 python3 /opt/fetch-packages.py python3-venv
