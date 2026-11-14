@@ -29,7 +29,7 @@ export function toolResultPresentation(activity={}, {artifacts=[]}={}) {
   const actions=[];
   if(['get_engineering_state','record_engineering_object','capture_configuration','propose_engineering_change','record_engineering_evidence'].includes(tool)&&!result.error)actions.push({action:'open-engineering-records',label:'查看工程记录'});
   if(['submit_professional_job','get_professional_job','wait_professional_job','cancel_professional_job'].includes(tool)){const id=result.jobId||result.id||activity.args?.jobId;if(/^professional_[a-f0-9]{32}$/.test(id||''))actions.push({action:'view-professional-job',id,label:'查看求解结果'});}
-  if(['read_professional_model','save_professional_model'].includes(tool)){const path=result.path||activity.args?.path;if(typeof path==='string'&&/(?:\.(mo|sysml|cir|scad)|\.stf\.json)$/i.test(path))actions.push({action:'edit-native-model',path,label:'打开原生模型'});}
+  if(['read_professional_model','save_professional_model'].includes(tool)){const path=result.path||activity.args?.path;if(typeof path==='string'&&/(?:\.(mo|sysml|cir|scad)|\.stf\.json)$/i.test(path))actions.push({action:'edit-native-model',path,label:'打开文件'});}
   if(jobs.has(tool)){
     const id=result.jobId||result.id||result.job?.id||activity.args?.jobId;
     if(/^nos3_[a-f0-9]{32}$/.test(id||''))actions.push({action:'view-nos3-job',id,label:'查看仿真'});

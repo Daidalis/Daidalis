@@ -334,6 +334,19 @@ export function layoutSemanticGraph(nodes, edges, {columnWidth = 304} = {}) {
   return {nodes:positioned,width:Math.max(560,...positioned.map(node => node.x + node.width + 40)),height:Math.max(360,...positioned.map(node => node.y + node.height + 34))};
 }
 
+/** Read-only structure sketch for a collapsed sidebar card. No pan, selection, or outline. */
+export function renderStructureThumbnail(graph){
+ const nodes=(graph?.nodes||[]).filter(node=>node&&node.kind!=='package'&&node.kind!=='note').slice(0,10);
+ if(!nodes.length)return '';
+ const ids=new Set(nodes.map(node=>node.id));
+ const edges=(graph?.edges||[]).filter(edge=>ids.has(edge.source)&&ids.has(edge.target)).slice(0,16);
+ const layout=layoutSemanticGraph(nodes.map(node=>({...node,width:148,height:36})),edges,{columnWidth:176});
+ const position=new Map(layout.nodes.map(node=>[node.id,node]));
+ const lines=edges.map(edge=>{const source=position.get(edge.source),target=position.get(edge.target);if(!source||!target)return '';return `<line x1="${source.x+source.width/2}" y1="${source.y+source.height/2}" x2="${target.x+target.width/2}" y2="${target.y+target.height/2}"></line>`;}).join('');
+ const cards=layout.nodes.map(node=>`<g transform="translate(${node.x} ${node.y})"><rect width="${node.width}" height="${node.height}" rx="6"></rect><text x="8" y="23">${esc(String(node.label||'').slice(0,18))}</text></g>`).join('');
+ return `<svg class="pm-structure-thumb" viewBox="0 0 ${layout.width} ${layout.height}" role="img" aria-label="结构图缩略">${lines}${cards}</svg>`;
+}
+
 export function layoutCombinedSemanticGraph(nodes, edges) {
   const byId = new Map(nodes.map(node => [node.id,node])), ownerByPort = new Map(), ports = new Map();
   for (const node of nodes) if (node.kind === 'port') {

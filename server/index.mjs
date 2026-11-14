@@ -141,6 +141,7 @@ export async function createStudioServer(options={}) {
   function protect(req){
     const port=server.address()?.port,host=req.headers.host;
     const allowed=new Set([`127.0.0.1:${port}`,`localhost:${port}`,`[::1]:${port}`]);
+    for(const item of String(process.env.DAIDALIS_EXTRA_HOSTS||'').split(',')){const hostName=item.trim();if(/^(?:\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-fA-F:]+\]|[A-Za-z0-9.-]+):\d{1,5}$/.test(hostName))allowed.add(hostName);}
     if(!allowed.has(host))throw new HttpError(403,'Invalid Host header');
     const origin=req.headers.origin;
     if(origin){let u;try{u=new URL(origin);}catch{throw new HttpError(403,'Invalid Origin');}if(u.protocol!=='http:'||!allowed.has(u.host)||u.pathname!=='/'||u.username||u.password)throw new HttpError(403,'Cross-origin requests are blocked');}

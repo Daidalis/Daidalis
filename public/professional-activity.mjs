@@ -23,3 +23,58 @@ export function describeProfessionalActivity(activity={}) {
  const verificationLabel=checks.length?`判据 ${passed}/${checks.length} 通过${failed?' · '+failed+' 项未通过':''}${unknown?' · '+unknown+' 项未判定':''}`:result.verification?.status==='not-requested'?'未设置判据':result.verification?.status==='failed'?'判据未通过':result.ready===false||['queued','running'].includes(result.status)?'':'尚无判据结果';
  return {title:title+modelSuffix,detail:[path,toolLabel].filter(Boolean).join(' · '),executionLabel,verificationLabel,modelPath:path,jobId:result.jobId||result.id||activity.args?.jobId||null,toolLabel,checks:{total:checks.length,passed,failed,unknown},attention:activity.status==='failed'||Boolean(result.error)||result.executionSucceeded===false||criterionFailed||['failed','cancelled','interrupted'].includes(result.status)};
 }
+const writeTools=new Set(['Write','Edit','write_file','save_professional_model','codex.fileChange']);
+const jobToolsForSlots=new Set(['submit_professional_job','get_professional_job','wait_professional_job']);
+function toolLeaf(activity){return String(activity?.tool||'').split('__').at(-1);}
+function activityPath(activity){
+ const result=object(activity?.result);
+ return String(result.model?.path||(typeof result.model==='string'?result.model:'')||result.path||activity?.args?.path||activity?.args?.file_path||'');
+}
+function slotKind(path){if(/\.scad$/i.test(path))return 'shape';if(/\.(sysml|mo)$/i.test(path))return 'source';return '';}
+function jobLive(activity,result){return ['queued','running','started'].includes(result.status)||['queued','running','started'].includes(activity.status);}
+/** Three sidebar slots from persisted tool records. A later write replaces only its own slot. */
+export function modelingSnapshots(activities=[]){
+ const slots={source:null,shape:null,simulation:null};
+ for(const activity of activities){
+  const name=toolLeaf(activity),path=activityPath(activity),result=object(activity.result);
+  if(writeTools.has(name)&&activity.status==='completed'){
+   const kind=slotKind(path);
+   if(kind==='source')slots.source={kind,path,stage:'written',jobId:null};
+   else if(kind==='shape')slots.shape={kind,path,stage:'pending',jobId:null};
+   continue;
+  }
+  if(!jobToolsForSlots.has(name))continue;
+  const jobId=result.jobId||result.id||activity.args?.jobId||null;
+  const operation=result.operation||activity.args?.operation;
+  if(/\.scad$/i.test(path)||operation==='render'||result.tool?.id==='openscad'){
+   const ready=result.integrity?.verified===true&&activity.status==='completed'&&!jobLive(activity,result);
+   slots.shape={kind:'shape',path,jobId,stage:jobLive(activity,result)?'running':ready?'ready':result.status==='failed'||activity.status==='failed'?'failed':'pending'};
+  }else if(operation==='simulate'||/\.(mo|sysml)$/i.test(path)&&operation!=='check'){
+   const ready=!jobLive(activity,result)&&result.integrity?.verified===true&&Array.isArray(result.table?.rows)&&result.table.rows.length>0;
+   slots.simulation={kind:'simulation',path,jobId,stage:jobLive(activity,result)?'running':ready?'ready':result.status==='failed'||activity.status==='failed'?'failed':'pending'};
+  }
+ }
+ return slots;
+}
+/** One persisted event refreshes one sidebar slot. Log lines do not redraw a card. */
+export function modelingEventTarget(event={}){
+ const type=String(event.type||''),data=event.data&&typeof event.data==='object'?event.data:{};
+ if(type==='professional.log'||type==='professional.environment.log')return null;
+ const path=String(data.path||data.modelPath||data.args?.path||data.args?.file_path||'');
+ if(type==='professional.model.saved'||type==='tool.completed'&&writeTools.has(String(data.tool||'').split('__').at(-1))){
+  if(/\.scad$/i.test(path))return {slot:'shape',path,stage:'running',jobId:data.jobId||null};
+  if(/\.(sysml|mo)$/i.test(path))return {slot:'source',path,stage:'written',sha256:data.sha256||null};
+  return null;
+ }
+ if(type==='professional.queued'||type==='professional.running'){
+  if(/\.scad$/i.test(path))return {slot:'shape',path,stage:'running',jobId:data.jobId||null};
+  if(/\.(mo|sysml)$/i.test(path))return {slot:'simulation',path,stage:'running',jobId:data.jobId||null};
+  return null;
+ }
+ if(type==='professional.completed'||type==='professional.failed'){
+  const stage=type.endsWith('failed')?'failed':'completed';
+  if(/\.scad$/i.test(path))return {slot:'shape',path,stage,jobId:data.jobId||null};
+  if(/\.(mo|sysml)$/i.test(path))return {slot:'simulation',path,stage,jobId:data.jobId||null};
+ }
+ return null;
+}

@@ -29,12 +29,12 @@ test('signal names bind only to identically named model elements',()=>{
 });
 
 test('recorded evidence is labeled and is not presented as this run',()=>{
- assert.equal(recordedBanner('fmu-run'),'留存证据 · 非本次运行');
+ assert.equal(recordedBanner('fmu-run'),'');
  assert.equal(recordedBanner('example'),'示例数据');
  const table={columns:['time','x'],rows:[[0,1],[1,0.37]],rowCount:2};
- const recorded=renderSimulationStage({recorded:true,provenance:'fmu-run',table,source,checks:[{variable:'x',passed:true}],receipt:{trajectoryMatchesVerdict:true}});
+ const recorded=renderSimulationStage({recorded:true,provenance:'fmu-run',note:'留存证据',table,source,checks:[{variable:'x',passed:true}],receipt:{trajectoryMatchesVerdict:true}});
  assert.match(recorded,/data-recorded-provenance="fmu-run"/);
- assert.match(recorded,/留存证据 · 非本次运行/);
+ assert.doesNotMatch(recorded,/留存证据|非本次运行|pm-recorded/);
  assert.match(recorded,/与 analysis 返回值一致/);
  assert.match(recorded,/通过/);
  const example=renderSimulationStage({recorded:true,provenance:'example',note:'不是已核对的 FMI 轨迹',table,source});
