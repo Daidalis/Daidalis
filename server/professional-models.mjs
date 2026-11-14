@@ -16,6 +16,16 @@ const languageOf=relative=>relative.endsWith('.stf.json')?'nos3-stf':relative.en
 const toolFor=(language,operation)=>({modelica:'openmodelica',spice:'ngspice',openscad:'openscad','nos3-stf':'nos3-stf',sysml:operation==='simulate'?'sysml-fmi':'sysml-wasm'}[language]);
 const SYML_FMI='sysml-fmi';
 function fail(message,code='INVALID_INPUT'){const error=new Error(message);error.code=code;error.statusCode=code==='REVISION_CONFLICT'?409:400;return error;}
+/** Run the usage that assigns the subject when the request names an analysis def. A def only declares `subject car`. */
+export function resolveBoundAnalysisUsage(source,modelName){
+  if(typeof source!=='string'||typeof modelName!=='string')return modelName;
+  const leaf=modelName.split('::').at(-1);
+  if(!/^[A-Za-z_]\w*$/.test(leaf||'')||!new RegExp(`\\banalysis\\s+def\\s+${leaf}\\b`).test(source))return modelName;
+  const bound=[...source.matchAll(new RegExp(`\\banalysis\\s+(?!def\\b)([A-Za-z_]\\w*)\\s*:\\s*(?:[A-Za-z_]\\w*::)*${leaf}\\b`,'g'))].filter(match=>/\bsubject\s+[A-Za-z_]\w*\s*=/.test(source.slice(match.index,match.index+1200)));
+  if(bound.length!==1)return modelName;
+  const pkg=/\bpackage\s+([A-Za-z_]\w*)/.exec(source)?.[1];
+  return [pkg,bound[0][1]].filter(Boolean).join('::');
+}
 function modelPath(value){
   if(typeof value!=='string'||!value||value.includes('\\')||value.split('/').some(s=>s==='..'||s==='.'||s.startsWith('.'))||! /(?:\.(?:mo|sysml|cir|scad|c|h)|\.stf\.json)$/i.test(value))throw fail('Use a project-relative native model or source path without hidden or traversal segments');
   return value;
@@ -285,7 +295,8 @@ export async function createProfessionalModelsService({dataDir,store,runner,sysm
       }
       const checks=normalizeChecks(args.checks);
       const alignment=fmi?await siblingAlignment(args.projectId,main.path,sourceFiles[0]?.content):null;
-      return enqueue({alignment,projectId:args.projectId,main,sourceFiles,operation,modelName:args.modelName,parameters:normalizeParameters(args.parameters),fmu,
+      const modelName=main.language==='sysml'?resolveBoundAnalysisUsage(sourceFiles[0]?.content,args.modelName):args.modelName;
+      return enqueue({alignment,projectId:args.projectId,main,sourceFiles,operation,modelName,parameters:normalizeParameters(args.parameters),fmu,
         simulation:main.language==='modelica'?normalizeSimulation(args.simulation):fmi?normalizeFmiSimulation(args.simulation):main.language==='nos3-stf'?{mode:'native-recipe',durationSeconds:operation==='simulate'?96:null}:{mode:'native-source'},
         signals:normalizeSignals(args.signals,main.language,checks),checks,timeoutMs:Math.min(Math.max(Number.isFinite(args.timeoutMs)?args.timeoutMs:maxJobMs,100),maxJobMs)},ctx);
     },

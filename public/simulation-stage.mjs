@@ -164,7 +164,8 @@ export function recordedProvenance(value){
 }
 export function recordedBanner(provenance){
  const kind=recordedProvenance(provenance);
- return kind==='fmu-run'?'留存证据 · 非本次运行':kind==='agent-authored'?'示意数据 · 非仿真结果':'示例数据';
+ if(kind==='fmu-run')return '';
+ return kind==='agent-authored'?'示意数据 · 非仿真结果':'示例数据';
 }
 
 /** Signal columns that no model element or manifest alias claims. Time is never a signal. */
@@ -297,7 +298,15 @@ export function stageInput(ui={}){
  return null;
 }
 
-export function renderSimulationStage(input){
+/** One signal curve for the collapsed simulation card. Empty when the table is not readable. */
+export function renderTrajectoryThumbnail(table){
+ if(!table?.rows?.length)return '';
+ const summary=signalSummaries(table),signal=summary.signals.find(item=>item.spark?.length>=2);
+ if(!signal)return '';
+ return `<div class="pm-trajectory-thumb" data-pm-trajectory-thumb>${sparkline(signal.spark)}<span>${esc(signal.name)}</span></div>`;
+}
+
+export function renderSimulationStage(input, options={}){
  if(!input?.table?.rows?.length)return '';
  const summary=signalSummaries(input.table,{checks:input.checks,receipt:input.receipt});
  const structure=structureFromSource(input.source);
@@ -306,7 +315,8 @@ export function renderSimulationStage(input){
  const elements=structure.elements.concat(elementsFromGraph(input.graph));
  const columns=summary.signals.map(signal=>signal.name);
  const bindings=matchSignals(columns,elements,input.bindings);
- const banner=input.recorded?`<p class="pm-recorded" data-recorded-provenance="${esc(input.provenance)}">${esc(recordedBanner(input.provenance))}${input.provenance==='fmu-run'&&input.note?` · ${esc(input.note)}`:''}</p>`:'';
+ const recordedLabel=input.recorded?recordedBanner(input.provenance):'';
+ const banner=recordedLabel?`<p class="pm-recorded" data-recorded-provenance="${esc(input.provenance)}">${esc(recordedLabel)}</p>`:'';
  const units=signalUnits(input.units);
  const unmatched=unmatchedColumns(columns,elements,input.bindings);
  const unmatchedNote=columns.length&&unmatched.length?`<p class="pm-unmatched" data-unmatched-columns="${esc(unmatched.join(','))}">${bindings.length?'':'没有信号列与模型元素同名；'}${unmatched.length} 个信号列未绑定到模型元素：${esc(unmatched.join('、'))}。可在 .recorded.json 的 bindings 中补充，如 {"${esc(unmatched[0])}":"元素名"}。</p>`:'';
@@ -321,7 +331,8 @@ export function renderSimulationStage(input){
  const shown=(featured.length?featured:summary.signals).slice(0,4);
  const hidden=summary.signals.filter(signal=>!shown.includes(signal));
  const last=Math.max(0,summary.rows.length-1);
- return `<section class="pm-stage" data-pm-stage>${banner}${unmatchedNote}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${shown.length?`<div class="pm-signal-grid">${shown.map(card).join('')}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}${hidden.length?`<details class="pm-signal-more"><summary>展开全部 · ${summary.signals.length} 个信号</summary><div class="pm-signal-grid">${hidden.map(card).join('')}</div></details>`:''}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings,columns)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div></section>`;
+ const visuals=options.scope==='timeline'?'':`<div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings,columns)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div>`;
+ return `<section class="pm-stage" data-pm-stage${input.recorded?` data-recorded-provenance="${esc(input.provenance)}"`:''}>${banner}${unmatchedNote}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${shown.length?`<div class="pm-signal-grid">${shown.map(card).join('')}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}${hidden.length?`<details class="pm-signal-more"><summary>展开全部 · ${summary.signals.length} 个信号</summary><div class="pm-signal-grid">${hidden.map(card).join('')}</div></details>`:''}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div>${visuals}</section>`;
 }
 
 function columnValue(summary,name,index){

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {describeProfessionalActivity} from '../public/professional-activity.mjs';
+import {describeProfessionalActivity,modelingEventTarget,modelingSnapshots} from '../public/professional-activity.mjs';
 import {visibleRunWork} from '../shared/run-presentation.mjs';
 test('native Modelica card names the actual model/backend and separates execution from failed criteria',()=>{
  const activity={tool:'mcp__daidalis__wait_professional_job',status:'completed',result:{jobId:'professional_'+'a'.repeat(32),status:'completed',executionSucceeded:true,operation:'simulate',model:{path:'engineering/models/STFDataDelivery.mo'},tool:{id:'openmodelica',name:'OpenModelica',version:'1.27.1'},passed:false,verification:{status:'failed',checks:[{passed:true},{passed:true},{passed:false}]}}},before=JSON.stringify(activity),view=describeProfessionalActivity(activity);
@@ -29,6 +29,32 @@ test('native GIS and 42 activity cards separate job state from engineering accep
  const orbit=describeProfessionalActivity({tool:'wait_orbit42_job',status:'completed',result:{jobId:'orbit42_'+'b'.repeat(32),status:'completed',integrity:{verified:true},frame:'42 N (Earth-centered)'}});
  assert.equal(orbit.title,'42 轨道仿真');assert.match(orbit.detail,/42 N/);assert.doesNotMatch(JSON.stringify(orbit),/需求通过|工程批准|ECI/);
  const failed=describeProfessionalActivity({tool:'submit_geospatial_job',status:'failed',result:{error:'GDAL unavailable'}});assert.equal(failed.executionLabel,'调用失败');assert.equal(failed.attention,true);
+});
+
+test('sidebar slots keep the latest source, shape, and simulation independently',()=>{
+ const activities=[
+  {tool:'read_file',status:'completed',args:{path:'sedan/ElectricSedan.sysml'}},
+  {tool:'Write',status:'completed',args:{path:'sedan/ElectricSedan.sysml'}},
+  {tool:'save_professional_model',status:'completed',result:{path:'sedan/ElectricSedan.mo'}},
+  {tool:'Write',status:'completed',args:{path:'sedan/Body.scad'}},
+  {tool:'wait_professional_job',status:'running',args:{operation:'simulate',path:'sedan/ElectricSedan.mo'},result:{status:'running',jobId:'sim-1',operation:'simulate',model:{path:'sedan/ElectricSedan.mo'}}},
+ ];
+ const slots=modelingSnapshots(activities);
+ assert.equal(slots.source.path,'sedan/ElectricSedan.mo');
+ assert.equal(slots.shape.path,'sedan/Body.scad');
+ assert.equal(slots.shape.stage,'pending');
+ assert.equal(slots.simulation.stage,'running');
+ assert.equal(slots.simulation.jobId,'sim-1');
+});
+
+test('a save event and a finished job each refresh one slot',()=>{
+ const saved=modelingEventTarget({type:'professional.model.saved',data:{path:'sedan/ElectricSedan.sysml',sha256:'abc'}});
+ const shape=modelingEventTarget({type:'professional.completed',data:{jobId:'job-shape',modelPath:'sedan/Body.scad',status:'completed'}});
+ const log=modelingEventTarget({type:'professional.log',data:{jobId:'job-shape'}});
+ assert.deepEqual(saved,{slot:'source',path:'sedan/ElectricSedan.sysml',stage:'written',sha256:'abc'});
+ assert.equal(shape.slot,'shape');
+ assert.equal(shape.jobId,'job-shape');
+ assert.equal(log,null);
 });
 
 test('tampered native evidence is marked for attention in chat, including nested wait receipts',()=>{

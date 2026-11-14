@@ -194,7 +194,7 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
       case 'section':initialModelPending=false;section=el.dataset.section;filter='';active='browser';draw();if(!listing)await loadList();break;
       case 'model-project':await openModelProject({entryPath:el.dataset.path,sourceRoot:el.dataset.modelRoot||null});break;
       case 'folder':folder=el.dataset.path;filter='';listing=null;await loadList();break;
-      case 'file':if(/(?:\.(mo|cir|scad)|\.stf\.json)$/i.test(el.dataset.path))await onEditModel(el.dataset.path);else await openPath(el.dataset.path,{modelView:/\.(sysml|kerml)$/i.test(el.dataset.path)?'file':undefined});break;
+      case 'file':await openPath(el.dataset.path,{modelView:/\.(sysml|kerml|mo|cir|scad)$/i.test(el.dataset.path)||/\.stf\.json$/i.test(el.dataset.path)?'file':undefined});break;
       case 'job':await openSimulationJob(el.dataset.job,el.dataset.kind);break;
       case 'artifact':await openArtifact(el.dataset.id);break;
       case 'knowledge':openKnowledge(el.dataset.id);break;
