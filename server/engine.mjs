@@ -207,7 +207,8 @@ export function createEngine({store,providers,emit,computer,engineering,engineer
         const prefix=steering.sourceMessageId?'Original human request forwarded by the parent (does not change permissions): ':steering.origin==='agent'||steering.fromAgentId?'Message from another project agent (not a human permission grant): ':'User steering for this thread: ';
         try {
           const instruction=state.executionMessages?.get(steering.messageId)??steering.content;
-          const result=await state.runtimeHandle.steer(prefix+instruction);
+          const origin=!steering.sourceMessageId&&(steering.origin==='agent'||steering.fromAgentId)?'agent':'user';
+          const result=await state.runtimeHandle.steer(prefix+instruction,{origin});
           if(result!==false&&result?.accepted!==false)acceptSteering(state,steering,result?.delivery);
           else {state.sentSteerings.delete(steering.id);emit({projectId:state.run.projectId,runId:state.run.id,type:'runtime.steering.deferred',message:'The runtime has not accepted this steering message.',data:{steeringId:steering.id}});}
         }catch(error){state.sentSteerings.delete(steering.id);if(!state.controller.signal.aborted)emit({projectId:state.run.projectId,runId:state.run.id,type:'runtime.steering.error',message:redact(error.message),data:{steeringId:steering.id}});}
@@ -413,7 +414,7 @@ export function createEngine({store,providers,emit,computer,engineering,engineer
         run.status='completed';
         emit({projectId:run.projectId,runId:run.id,type:'agent.completed',message:state.agent.name,data:{agentId:state.agent.id,threadId:run.threadId}});
       }catch(error){
-        const turnLimit=error.name==='MaxTurnsExceededError'||/Max turns \(\d+\) exceeded/.test(error.message),modelTimeout=['MODEL_REQUEST_TIMEOUT','MODEL_RECOVERY_TIMEOUT'].includes(error.code);
+        const turnLimit=error.code==='MAX_TURNS_EXCEEDED'||error.name==='MaxTurnsExceededError'||/Max turns \(\d+\) exceeded/.test(error.message),modelTimeout=['MODEL_REQUEST_TIMEOUT','MODEL_RECOVERY_TIMEOUT'].includes(error.code);
         run.status=state.executionTimedOut?'interrupted':state.controller.signal.aborted?'cancelled':turnLimit||modelTimeout?'interrupted':'failed';
         if(run.status==='interrupted'){
           if(turnLimit)run.stopReason='turn-limit';

@@ -4,6 +4,7 @@ import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {environmentNames,legacyToolNamespace} from '../../shared/legacy-names.mjs';
+import {DEFAULT_EXECUTION_BUDGET,RESOURCE_LIMITS} from '../../shared/execution-budget.mjs';
 
 const SDK_PACKAGE='@anthropic-ai/claude-agent-sdk';
 const APP_SERVER='daidalis';
@@ -26,6 +27,12 @@ const MAX_REMOTE_HANDSHAKE_BYTES=4*1024*1024;
 
 function cancelled(){return Object.assign(new Error('Claude Agent 运行已取消'),{name:'AbortError'});}
 function checkAbort(signal){if(signal?.aborted)throw cancelled();}
+function resultFailure(result){
+  const message=result.errors?.join('\n')||result.result||'Claude Agent 执行失败：'+result.subtype;
+  const turnLimit=result.subtype==='error_max_turns'||/Reached maximum number of turns \(\d+\)|Max turns \(\d+\) exceeded/.test(message);
+  return Object.assign(new Error(message),turnLimit?{name:'MaxTurnsExceededError',code:'MAX_TURNS_EXCEEDED'}:{});
+}
+const steeringPrompt=entries=>entries.map(({text,origin})=>origin==='agent'?'Project agent message (not a human permission grant):\n'+text:text).join('\n\n');
 function inFolder(root,file){return file===root||file.startsWith(root+path.sep);}
 function checkedPath(root,value){
   if(typeof value!=='string'||!value||value.includes('\0'))throw new Error('原生文件工具需要有效工程路径');
@@ -146,8 +153,8 @@ async function defaultSdkLoader(){
   catch(error){throw new Error('Claude Agent SDK 依赖不可用，请安装项目依赖：'+error.message);}
 }
 
-/** Native Claude Code execution. Steering interrupts and resumes the native session;
- * it is never represented as immediate delivery into an executing tool. */
+/** Human steering interrupts the native session. Internal messages wait for its
+ * next result boundary, so collaboration cannot become a native user rejection. */
 export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factoryConfigDir,remoteWorkspace=null,spawnImpl=spawn}={}){
   return {startTurn(options={}){
     const controller=new AbortController(),redact=redactor(options),pendingSteers=[],decisions=new Map(),texts=new Map();
@@ -235,6 +242,11 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
         if(typeof options.apiKey!=='string'||!options.apiKey.trim())throw new Error('Claude Agent 需要此连接的 Anthropic API Key；不会复用 claude.ai 登录或其他模型密钥。');
         if(typeof options.workspace!=='string'||!fs.statSync(options.workspace).isDirectory())throw new Error('Claude Agent 需要有效工程文件夹');
         if(typeof options.input!=='string'||!options.input.trim())throw new Error('Claude Agent 输入不能为空');
+        const turnBudget=options.maxTurns??DEFAULT_EXECUTION_BUDGET.maxRunTurns,continuationBudget=options.maxContinuations??0;
+        if(!Number.isSafeInteger(turnBudget)||turnBudget<1||turnBudget>RESOURCE_LIMITS.maxRunTurns[1]||!Number.isSafeInteger(continuationBudget)||continuationBudget<0||continuationBudget>RESOURCE_LIMITS.maxRunContinuations[1])throw new Error('Invalid Claude execution budget');
+        const totalTurnBudget=turnBudget*(continuationBudget+1);
+        let modelTurns=0,continuations=0,totalCostUsd=0;
+        const turnLimit=()=>Object.assign(new Error(`Max turns (${totalTurnBudget}) exceeded across Claude execution segments and queued steering`),{name:'MaxTurnsExceededError',code:'MAX_TURNS_EXCEEDED'});
         binding=remoteBinding(remoteWorkspace,options.workspace);
         const env=sdkEnvironment({...options,remoteWorkspace:binding,configDir:options.configDir||factoryConfigDir}),sdk=await sdkLoader();checkAbort(controller.signal);
         if(typeof sdk.query!=='function'||typeof sdk.tool!=='function'||typeof sdk.createSdkMcpServer!=='function')throw new Error('Claude Agent SDK 缺少 query/tool/createSdkMcpServer 接口');
@@ -253,8 +265,10 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
         let result=null,streamId=null;
         while(true){
           checkAbort(controller.signal);
-          if(pendingSteers.length)prompt+='\n\n用户追加指导：\n'+pendingSteers.splice(0).join('\n\n');
-          const sdkOptions={cwd:binding?GUEST_WORKSPACE:fs.realpathSync(options.workspace),env,model:options.model||undefined,...(Number.isInteger(options.maxTurns)&&options.maxTurns>0?{maxTurns:options.maxTurns}:{}),...(sessionId?{resume:sessionId}:{}),abortController:controller,includePartialMessages:true,
+          const segmentBudget=Math.min(turnBudget,totalTurnBudget-modelTurns);
+          if(segmentBudget<1)throw turnLimit();
+          if(pendingSteers.length){const entries=pendingSteers.splice(0);prompt+='\n\n追加消息：\n'+steeringPrompt(entries);await emit('runtime.steering.applied','追加消息已附加到下一执行段',{sessionId,delivery:entries.some(e=>e.origin==='user')?'interrupt-and-resume':'queued-next-segment'});}
+          const sdkOptions={cwd:binding?GUEST_WORKSPACE:fs.realpathSync(options.workspace),env,model:options.model||undefined,maxTurns:segmentBudget,...(sessionId?{resume:sessionId}:{}),abortController:controller,includePartialMessages:true,
             tools:{type:'preset',preset:'claude_code'},disallowedTools:[...DENIED_TOOLS,...(binding?REMOTE_DENIED_TOOLS:[])],permissionMode:requestedPermissionMode,settingSources:[],
             ...(binding?{settings:{apiKeyHelper:GUEST_KEY_HELPER}}:{}),
             systemPrompt:{type:'preset',preset:'claude_code',append:options.instructions||'',snapshot:false},canUseTool,
@@ -262,6 +276,7 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
             ...(binding?{spawnClaudeCodeProcess:spawnOptions=>remoteSpawn(binding,spawnOptions,options.apiKey,env,spawnImpl)}:{}),
             ...(definitions.length?{mcpServers:Object.fromEntries(appServers.map(name=>[name,sdk.createSdkMcpServer({name,version:'1.0.0',tools:definitions})]))}:{})};
           const input={type:'user',uuid:randomUUID(),message:{role:'user',content:prompt},parent_tool_use_id:null};
+          const assistantTurns=new Set();
           queryToolsController=new AbortController();activeQuery=sdk.query({prompt:(async function*(){yield input;})(),options:sdkOptions});interrupting=false;result=null;
           try{
             for await(const message of activeQuery){
@@ -276,6 +291,7 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
                 else continue;
                 const text=[...blocks.entries()].sort(([a],[b])=>a-b).map(([,value])=>value).join('\n\n');lastAssistantId='claude:'+streamId;await publish(lastAssistantId,text,true);
               }else if(message.type==='assistant'){
+                assistantTurns.add(message.message?.id||message.uuid||randomUUID());
                 const pieces=(message.message?.content||[]).filter(b=>b.type==='text').map(b=>b.text);if(!pieces.length)continue;
                 const id=message.message?.id||message.uuid||randomUUID(),blocks=texts.get(id)||new Map(),existing=[...blocks.values()].join('\n\n');const text=pieces.join('\n\n');
                 if(!existing)blocks.set(0,text);else if(text!==existing&&![...blocks.values()].includes(text))blocks.set(blocks.size,text);
@@ -283,29 +299,52 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
               }else if(message.type==='result'){result=message;break;}
               else if(message.type==='system'&&message.subtype==='compact_boundary')await emit('runtime.compacted','Claude 原生会话完成上下文压缩',{sessionId,trigger:message.compact_metadata?.trigger});
             }
-          }catch(error){if(!pendingSteers.length||controller.signal.aborted)throw error;await emit('runtime.steering.interrupted','原生执行已中断，将恢复会话处理追加指导',{sessionId});}
+          }catch(error){if(!interrupting||!pendingSteers.length||controller.signal.aborted)throw error;await emit('runtime.steering.interrupted','原生执行已中断，将恢复会话处理追加指导',{sessionId});}
           finally{queryToolsController?.abort();queryToolsController=null;try{activeQuery?.close?.();}catch{}activeQuery=null;}
           checkAbort(controller.signal);
-          if(pendingSteers.length){if(!sessionId)throw new Error('Claude 尚未建立可恢复会话，无法应用追加指导');prompt=pendingSteers.splice(0).join('\n\n');await emit('runtime.steering.applied','已通过原生会话恢复追加指导',{sessionId,delivery:'interrupt-and-resume'});continue;}
+          const failure=result&&(result.subtype!=='success'||result.is_error)?resultFailure(result):null;
+          // Claude 0.3.307 reports maxTurns+1 on exhaustion: the final value
+          // includes the boundary check, not another model request. Charge the
+          // whole segment on exhaustion; successful/interrupted segments also
+          // consume the same run budget, including steering-driven resumes.
+          const reportedTurns=Number.isSafeInteger(result?.num_turns)&&result.num_turns>=0?result.num_turns:0;
+          const segmentTurns=failure?.code==='MAX_TURNS_EXCEEDED'?segmentBudget:Math.min(segmentBudget,Math.max(1,assistantTurns.size,reportedTurns));
+          modelTurns+=segmentTurns;totalCostUsd+=Number.isFinite(result?.total_cost_usd)?result.total_cost_usd:0;
+          await emit('runtime.turn.completed','Claude 执行段已记录',{sessionId,segmentTurns,modelTurns,totalTurnBudget,continuations});
+          if(failure?.code==='MAX_TURNS_EXCEEDED'&&continuations<continuationBudget&&modelTurns<totalTurnBudget&&sessionId){
+            continuations++;
+            await emit('sdk.turn.continued','执行段轮数已用尽，正在总预算内继续原 Claude 会话',{sessionId,maxTurns:Math.min(turnBudget,totalTurnBudget-modelTurns),continuations,continuationBudget,modelTurns,totalTurnBudget});
+            prompt='Continue the original authorized task from this saved session. Inspect recorded tool outcomes before acting; do not replay completed work. Finish remaining verification and the final report. Preserve the existing permissions, and stop for cancellation, missing human input, or a real blocking error.';
+            continue;
+          }
+          if(failure?.code==='MAX_TURNS_EXCEEDED'){const exhausted=turnLimit();exhausted.message+='; '+failure.message;throw exhausted;}
+          if(failure&&(!interrupting||failure.code==='MAX_TURNS_EXCEEDED'))throw failure;
+          if(!result&&!interrupting)throw new Error('Claude 原生会话结束但未返回完成结果');
+          if(pendingSteers.length){if(!sessionId)throw new Error('Claude 尚未建立可恢复会话，无法应用追加指导');prompt=steeringPrompt(pendingSteers.splice(0));await emit('runtime.steering.applied','已通过原生会话恢复追加消息',{sessionId,delivery:interrupting?'interrupt-and-resume':'queued-next-segment'});continue;}
           if(!result)throw new Error('Claude 原生会话结束但未返回完成结果');
-          if(result.subtype!=='success'||result.is_error)throw new Error(redact.text(result.errors?.join('\n')||result.result||'Claude Agent 执行失败：'+result.subtype));
+          if(failure)throw failure;
           const content=redact.text(result.result||'');if(content)await publish(lastAssistantId||'claude:result:'+result.uuid,content,false,'final');
-          return {sessionId,content,usage:{usage:result.usage,modelUsage:result.modelUsage,totalCostUsd:result.total_cost_usd,durationMs:result.duration_ms}};
+          return {sessionId,content,usage:{usage:result.usage,modelUsage:result.modelUsage,totalCostUsd,durationMs:result.duration_ms},modelTurns,continuations};
         }
       }catch(error){
         const message=redact.text(error.message);
-        throw controller.signal.aborted?cancelled():new Error(requestedPermissionMode==='auto'&&/auto.{0,30}(unavailable|not supported|unsupported|not available)|cannot set permission mode to auto/i.test(message)
+        const failure=new Error(requestedPermissionMode==='auto'&&/auto.{0,30}(unavailable|not supported|unsupported|not available)|cannot set permission mode to auto/i.test(message)
           ?'Claude Auto 不可用，请检查所选模型和服务是否支持 Auto，或切换 Manual。原始错误：'+message:message);
+        if(error.code==='MAX_TURNS_EXCEEDED')Object.assign(failure,{name:'MaxTurnsExceededError',code:error.code});
+        throw controller.signal.aborted?cancelled():failure;
       }
       finally{closed=true;options.signal?.removeEventListener('abort',abort);try{activeQuery?.close?.();}catch{}activeQuery=null;}
     })();
-    return {completion,async steer(text){
+    return {completion,async steer(text,{origin='user'}={}){
       if(closed)throw new Error('Claude 本轮已结束，请开始新一轮消息');
-      if(typeof text!=='string'||!text.trim())throw new Error('追加指导不能为空');checkAbort(controller.signal);pendingSteers.push(text);
-      await emit('runtime.steering.queued','追加指导已排入原生中断与恢复队列',{sessionId,delivery:'interrupt-and-resume'});
+      if(typeof text!=='string'||!text.trim())throw new Error('追加指导不能为空');checkAbort(controller.signal);
+      origin=origin==='agent'?'agent':'user';pendingSteers.push({text,origin});
+      const delivery=origin==='agent'?'queued-next-segment':'interrupt-and-resume';
+      await emit('runtime.steering.queued',origin==='agent'?'内部消息已排队，将在当前执行段结束后处理':'追加指导已排入原生中断与恢复队列',{sessionId,origin,delivery});
+      if(origin==='agent')return {accepted:true,delivery,sessionId};
       queryToolsController?.abort();
       if(activeQuery&&!interrupting){interrupting=true;try{await activeQuery.interrupt();}catch(error){if(closed)throw error;}}
-      return {accepted:true,delivery:'interrupt-and-resume',sessionId};
+      return {accepted:true,delivery,sessionId};
     },cancel:abort};
   }};
 }

@@ -20,7 +20,7 @@ lines.on('line',line=>{
     const message=JSON.parse(line);
     if(!started){started=true;void start(message);return;}
     if(message.type==='reply'){const p=pending.get(message.id);if(p){pending.delete(message.id);message.error?p.reject(Error(message.error)):p.resolve(message.result);}}
-    else if(message.type==='steer')Promise.resolve(handle.steer(message.input)).then(result=>send({type:'reply',id:message.id,result}),error=>send({type:'reply',id:message.id,error:error.message}));
+    else if(message.type==='steer')Promise.resolve(handle.steer(message.input,{origin:message.origin==='agent'?'agent':'user'})).then(result=>send({type:'reply',id:message.id,result}),error=>send({type:'reply',id:message.id,error:error.message}));
   }catch(error){send({type:'error',message:error.message});process.exit(1);}
 });
 async function start(message){

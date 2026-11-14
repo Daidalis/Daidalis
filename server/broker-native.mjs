@@ -17,7 +17,7 @@ export function createBrokerNativeRuntime({runtime,gateway,socketPath=process.en
     const finish=(error,result)=>{if(done)return;done=true;clearTimeout(timer);controller.abort();grant.revoke();options.signal?.removeEventListener('abort',cancel);active.delete(socket);socket.destroy();for(const c of calls.values())c.reject(error||Error('Native turn ended'));calls.clear();error?reject(error):resolve(result);};
     const cancel=()=>finish(Object.assign(Error('Native broker task cancelled'),{name:'AbortError'}));
     socket.on('connect',()=>{
-      const safe={};for(const key of ['model','sessionId','input','history','instructions','tools','permissionMode','maxTurns'])if(options[key]!==undefined)safe[key]=options[key];
+      const safe={};for(const key of ['model','sessionId','input','history','instructions','tools','permissionMode','maxTurns','maxContinuations'])if(options[key]!==undefined)safe[key]=options[key];
       if(safe.instructions)safe.instructions=safe.instructions.replace('Project folder: '+workspace,'Project folder: /work')+'\nNative tools run in /work. Daidalis tool file paths are project-relative.';
       send({kind:'native',runtime,project,options:{...safe,apiKey:grant.token,baseUrl:grant.baseUrl}});
     });
@@ -39,6 +39,6 @@ export function createBrokerNativeRuntime({runtime,gateway,socketPath=process.en
     socket.on('error',error=>finish(error));socket.on('close',()=>{if(!done)finish(Error('Native broker connection closed'));});
     timer=setTimeout(()=>finish(Error('Native task timed out')),3600000);timer.unref?.();
     options.signal?.addEventListener('abort',cancel,{once:true});if(options.signal?.aborted)cancel();
-    return {completion,cancel:async()=>cancel(),steer:input=>new Promise((resolve,reject)=>{if(done)return reject(Error('Native turn ended'));const id=randomUUID();calls.set(id,{resolve,reject});send({type:'steer',id,input});})};
+    return {completion,cancel:async()=>cancel(),steer:(input,{origin='user'}={})=>new Promise((resolve,reject)=>{if(done)return reject(Error('Native turn ended'));const id=randomUUID();calls.set(id,{resolve,reject});send({type:'steer',id,input,origin:origin==='agent'?'agent':'user'});})};
   },async close(){for(const socket of active)socket.destroy();active.clear();}};
 }

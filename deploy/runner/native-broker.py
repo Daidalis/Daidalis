@@ -3,6 +3,12 @@ import hashlib,json,os,select,socket,socketserver,subprocess,threading,time,uuid
 from pathlib import Path
 from name_compat import native_home_volume
 
+def validate_native_options(options):
+    allowed={'model','sessionId','input','history','instructions','tools','permissionMode','maxTurns','maxContinuations','apiKey','baseUrl'}
+    if not isinstance(options,dict) or set(options)-allowed or options.get('baseUrl')!='http://127.0.0.1:18765/v1':raise ValueError('Invalid native options')
+    if not isinstance(options.get('apiKey'),str) or len(options['apiKey'])!=64 or any(c not in '0123456789abcdef' for c in options['apiKey']):raise ValueError('Expected scoped proxy token')
+    if 'maxContinuations' in options and (type(options['maxContinuations']) is not int or not 0<=options['maxContinuations']<=3):raise ValueError('Invalid native continuation budget')
+
 class NativeHandler(socketserver.StreamRequestHandler):
     def handle(self):
         broker=self.server.broker;name='daidalis-task-'+uuid.uuid4().hex;process=None;acquired=False
@@ -22,9 +28,7 @@ class NativeHandler(socketserver.StreamRequestHandler):
                 if request['runtime']=='mcp' and type(options.get('network',False)) is not bool:raise ValueError('Invalid MCP network setting')
             else:
                 if request['runtime'] not in ('codex-app-server','claude-agent-sdk'):raise ValueError('Invalid native runtime')
-                allowed={'model','sessionId','input','history','instructions','tools','permissionMode','maxTurns','apiKey','baseUrl'}
-                if set(options)-allowed or options.get('baseUrl')!='http://127.0.0.1:18765/v1':raise ValueError('Invalid native options')
-                if not isinstance(options.get('apiKey'),str) or len(options['apiKey'])!=64 or any(c not in '0123456789abcdef' for c in options['apiKey']):raise ValueError('Expected scoped proxy token')
+                validate_native_options(options)
             slots=broker.service_slots if service else broker.native_slots
             if not slots.acquire(blocking=False):raise RuntimeError('Session concurrency limit reached')
             acquired=True
