@@ -20,7 +20,7 @@ test('SysML FMI workbench exposes an analysis name, pinned FMU selection and sim
  assert.equal(inferModelName(sedan),'ElectricSedan::launch');
  assert.equal(resolveBoundAnalysisUsage(sedan,'ElectricSedan::LaunchAnalysis'),'ElectricSedan::launch');
  assert.equal(resolveBoundAnalysisUsage(sedan,'ElectricSedan::launch'),'ElectricSedan::launch');
- const html=renderProfessionalWorkbench({path:'models/Decay.sysml',draft:source,modelName:'Decay::Check',fmuPath:'models/Decay.fmu'});
+ const html=renderProfessionalWorkbench({path:'models/Decay.sysml',draft:source,modelName:'Decay::Check',fmuPath:'models/Decay.fmu',expanded:'simulation'});
  assert.match(html,/name="modelName" value="Decay::Check"/);
  assert.match(html,/name="fmuPath"[^>]*value="models\/Decay\.fmu"/);
  assert.match(html,/value="simulate"[^>]*>运行 FMI 仿真/);
@@ -33,8 +33,13 @@ test('an unfinished simulation card does not draw a curve, and SysML solids stay
  const running=renderProfessionalWorkbench({path:'models/A.mo',draft:'model A end A;',currentJob:{id:'job-1',status:'running',operation:'simulate',model:{path:'models/A.mo'}},result:{integrity:{verified:true},table:{columns:['time','speed'],rows:[[0,0],[1,2]]}}});
  assert.match(running,/仿真进行中/);assert.doesNotMatch(running,/pm-trajectory-thumb|pm-spark/);assert.doesNotMatch(running,/workbench-focus/);
  const html=renderProfessionalWorkbench({path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
+ const source=html.split('data-pm-card="source"')[1].split('data-pm-card="shape"')[0];
  const shape=html.split('data-pm-card="shape"')[1].split('data-pm-card="simulation"')[0];
- assert.match(html,/data-pm-card="source"[\s\S]*battery/);assert.match(html,/pm-structure-thumb/);assert.doesNotMatch(shape,/battery|pm-structure-thumb/);assert.match(shape,/外形尚未生成/);
+ assert.match(source,/pm-structure-thumb/);assert.doesNotMatch(source,/battery|data-pm-physical/);assert.doesNotMatch(shape,/battery|pm-structure-thumb/);assert.match(shape,/几何尚未生成/);
+ const opened=renderProfessionalWorkbench({expanded:'source',path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
+ assert.match(opened,/data-pm-card="source"[\s\S]*battery/);
+ const closedSim=renderProfessionalWorkbench({path:'models/A.mo',draft:'model A end A;',modelName:'A'});
+ assert.doesNotMatch(closedSim.split('data-pm-card="simulation"')[1],/仿真设置|运行仿真/);
  const preview=renderProfessionalWorkbench({shapePreviewUrl:'blob:http://local/preview',shapeStage:'ready'});
  const previewShape=preview.split('data-pm-card="shape"')[1].split('data-pm-card="simulation"')[0];
  assert.match(previewShape,/data-expanded="false"/);assert.match(previewShape,/class="pm-shape-thumb"/);assert.doesNotMatch(preview,/alt="OpenSCAD 预览"/);
