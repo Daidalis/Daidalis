@@ -177,10 +177,12 @@ export function unmatchedColumns(columns=[],elements=[],aliases={}){
  * What the workbench can offer for a SysML file. `replay` needs a manifest, `run` needs a
  * pinned FMU, and `structure` means nothing can animate this model yet.
  */
-export function simulationStatus({manifest=null,siblings=null,path=''}={}){
+export function simulationStatus({manifest=null,siblings=null,path='',source=''}={}){
  const fmus=Array.isArray(siblings?.fmus)?siblings.fmus:[];
  const stem=String(path||'').split('/').at(-1).replace(/\.sysml$/i,'');
- const fmu=fmus.find(item=>item.split('/').at(-1).replace(/\.fmu$/i,'')===stem)||(fmus.length===1?fmus[0]:'');
+ const named=[...String(source||'').matchAll(/\buri\s*=\s*"([^"]+\.fmu)"/gi)].map(match=>match[1].split(/[/\\]/).at(-1));
+ const byName=name=>fmus.find(item=>item.split('/').at(-1)===name);
+ const fmu=named.map(byName).find(Boolean)||fmus.find(item=>item.split('/').at(-1).replace(/\.fmu$/i,'')===stem)||(fmus.length===1?fmus[0]:'');
  if(manifest)return {state:'replay',fmu,message:recordedProvenance(manifest.provenance)==='fmu-run'?'已有 FMU 仿真轨迹，可回放。':'已有轨迹，但不是仿真结果，仅作示意回放。'};
  if(fmu)return {state:'run',fmu,message:`发现 ${fmu}，可运行 FMI 仿真并生成可回放轨迹。`};
  return {state:'structure',fmu:'',message:'仅结构，无轨迹：SysML 不会自行运行。需要同名变量的 .mo 导出 .fmu 后再仿真。'};
@@ -308,14 +310,18 @@ export function renderSimulationStage(input){
  const units=signalUnits(input.units);
  const unmatched=unmatchedColumns(columns,elements,input.bindings);
  const unmatchedNote=columns.length&&unmatched.length?`<p class="pm-unmatched" data-unmatched-columns="${esc(unmatched.join(','))}">${bindings.length?'':'没有信号列与模型元素同名；'}${unmatched.length} 个信号列未绑定到模型元素：${esc(unmatched.join('、'))}。可在 .recorded.json 的 bindings 中补充，如 {"${esc(unmatched[0])}":"元素名"}。</p>`:'';
- const cards=summary.signals.map(signal=>{
+ const card=signal=>{
   const status=signal.checks.length?signal.checks.map(check=>check.passed===true?'通过':check.passed===false?'未通过':'未判定').join('、'):'';
   const unit=units[signal.name]||'';
   const figure=(value,live)=>`<dd>${live?`<span data-signal-now="${esc(signal.name)}">${esc(formatSample(value))}</span>`:esc(formatSample(value))}${unit?`<span class="pm-signal-unit">${esc(unit)}</span>`:''}</dd>`;
   return `<article class="pm-signal-card" data-signal="${esc(signal.name)}"><header><strong>${esc(signal.name)}</strong>${unit?`<span class="pm-signal-unit">${esc(unit)}</span>`:''}${status?`<span class="pm-signal-status" data-status="${esc(status)}">${esc(status)}</span>`:''}</header>${sparkline(signal.spark)}<dl><div><dt>当前</dt>${figure(signal.last,true)}</div><div><dt>终值</dt>${figure(signal.last)}</div><div><dt>最小</dt>${figure(signal.min)}</div><div><dt>最大</dt>${figure(signal.max)}</div><div><dt>变化</dt>${figure(signal.delta)}</div></dl>${signal.verdict?`<p class="pm-verdict">${esc(signal.verdict)}</p>`:''}</article>`;
- }).join('');
+ };
+ const named=summary.signals.filter(signal=>!signal.name.startsWith('_'));
+ const featured=[...named.filter(signal=>signal.checks.length),...named.filter(signal=>!signal.checks.length)];
+ const shown=(featured.length?featured:summary.signals).slice(0,4);
+ const hidden=summary.signals.filter(signal=>!shown.includes(signal));
  const last=Math.max(0,summary.rows.length-1);
- return `<section class="pm-stage" data-pm-stage>${banner}${unmatchedNote}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${cards?`<div class="pm-signal-grid">${cards}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings,columns)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div></section>`;
+ return `<section class="pm-stage" data-pm-stage>${banner}${unmatchedNote}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${shown.length?`<div class="pm-signal-grid">${shown.map(card).join('')}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}${hidden.length?`<details class="pm-signal-more"><summary>展开全部 · ${summary.signals.length} 个信号</summary><div class="pm-signal-grid">${hidden.map(card).join('')}</div></details>`:''}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div><div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings,columns)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div></section>`;
 }
 
 function columnValue(summary,name,index){

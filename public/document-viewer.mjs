@@ -2,6 +2,7 @@ import {Marked, Renderer} from './vendor/marked/marked.esm.js';
 import {isGeoJSON,renderGeoJSONMap} from './geojson-viewer.mjs';
 import {buildPhysicalModel} from './physical-model.mjs';
 import {mountPhysicalPreview} from './physical-preview-3d.mjs';
+import {mountNativeGeometry} from './native-geometry.mjs';
 import {modelNavigation,modelNavigationPath,openModelNavigation,parentModelNavigation,scopeModelGraph,budgetModelGraph} from './model-navigation.mjs';
 import {projectModelStructure} from './model-structure.mjs';
 
@@ -83,6 +84,7 @@ export function renderMarkdown(content, {path = '', resolveImage} = {}) {
 export function documentKind(file = {}) {
   const path = file.path || file.name || '', mime = file.mime || file.mimeType || file.type || '';
   if (file.type === 'image' || /^image\//i.test(mime) || /\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(path)) return 'image';
+  if (file.type === 'stl' || /\.stl$/i.test(path)) return 'stl';
   if (file.previewable === false || file.encoding === 'base64' || file.type === 'binary') return 'unsupported';
   if (/\.(sysml|kerml)$/i.test(path)) return 'sysml';
   if (/\.(md|markdown)$/i.test(path) || /markdown/i.test(mime)) return 'markdown';
@@ -658,7 +660,7 @@ export function renderDocumentViewer({file = {},model,verification,tab,filter = 
   const modelTabs = [['diagram','模型图']];
   if (/\.sysml$/i.test(file.path || file.name)) modelTabs.push(['preview3d','实物预览']);
   modelTabs.push(['outline','大纲'],['source','源码'],['diagnostics','诊断'],['constraints','约束']);
-  const tabs = isModel ? modelTabs : kind === 'markdown' ? [['preview','阅读'],['source','源码']] : isMap ? [['map','地图'],['preview','数据'],['source','原始数据']] : isData ? [['preview','数据'],['source','原始数据']] : [['preview','内容']];
+  const tabs = isModel ? modelTabs : kind === 'stl' ? [['preview','网格']] : kind === 'markdown' ? [['preview','阅读'],['source','源码']] : isMap ? [['map','地图'],['preview','数据'],['source','原始数据']] : isData ? [['preview','数据'],['source','原始数据']] : [['preview','内容']];
   const effectiveTab = tabs.some(([key]) => key === selectedTab) ? selectedTab : tabs[0][0];
   const isDiagram = isModel && effectiveTab === 'diagram';
   const isPhysical = isModel && effectiveTab === 'preview3d';
@@ -671,6 +673,7 @@ export function renderDocumentViewer({file = {},model,verification,tab,filter = 
     const imageURL = projectRasterURL(file.path || file.name,resolveImage);
     body = imageURL ? `<div class="document-raster-view"><img src="${attr(imageURL)}" alt="${attr(file.name || basename(file.path) || '工程图片')}" class="document-raster-image"><span>${esc(file.name || basename(file.path))}</span></div>` : '<div class="document-empty">暂时无法预览此图片。请检查文件是否存在或选择受支持的图片格式。</div>';
   }
+  else if (kind === 'stl') body = '<div class="document-stl" data-stl-preview></div>';
   else if (kind === 'unsupported') body = '<div class="document-empty">此文件格式暂不支持应用内预览。请在文件列表中选择文档、SysML 模型或图片。</div>';
   else if (isModel && effectiveTab === 'diagram') body = renderDiagramNotices(model,graph) + renderDiagram(graph,filter,navigation,metadata);
   else if (isModel && effectiveTab === 'outline') body = renderOutline(graph,navigation.query);
@@ -694,7 +697,7 @@ export function renderDocumentViewer({file = {},model,verification,tab,filter = 
 export function mountDocumentViewer(container, options = {}) {
   if (!container || typeof container.addEventListener !== 'function') throw new TypeError('Document viewer container required');
   let current = {...options,dataState:{...options.dataState},navigation:{...options.navigation}}, parsedFile = null, parsedData = null, destroyed = false, drag = null, viewBox, initialBox, cleanupCanvas, defaultViewport = true;
-  let spatialPreview = null, physical = null;
+  let spatialPreview = null, physical = null, meshPreview = null;
   let graphState,cachedGraph;
   const getGraph = () => {
     const state=[current.model,current.file,current.navigation,current.modelContext,current.filter,current.tab];
@@ -718,6 +721,8 @@ export function mountDocumentViewer(container, options = {}) {
     cleanupCanvas = null;
     spatialPreview?.destroy();
     spatialPreview = null;
+    meshPreview?.destroy();
+    meshPreview = null;
     if(parsedFile!==current.file){parsedFile=current.file;parsedData=['json','jsonl','csv'].includes(documentKind(current.file))?parseDataDocument(current.file):null;}
     physical = current.tab === 'preview3d' ? buildPhysicalModel(getGraph(),current.file?.content || '') : null;
     container.innerHTML = renderDocumentViewer({...current,parsedData,physicalModel:physical,semanticGraph:getGraph()});
@@ -725,6 +730,10 @@ export function mountDocumentViewer(container, options = {}) {
     const host = container.querySelector('[data-physical-preview]');
     if (host) {
       spatialPreview = mountPhysicalPreview(host,{parts:physical.parts,onSelect:selectPart});
+    }
+    const stlHost = container.querySelector('[data-stl-preview]');
+    if (stlHost && current.file?.encoding === 'base64' && current.file.content) {
+      meshPreview = mountNativeGeometry(stlHost,{bytes:Uint8Array.from(atob(current.file.content),char=>char.charCodeAt(0)),name:current.file.name||basename(current.file.path)||'STL'});
     }
   };
   const selectTab = tab => { if (destroyed) return;current.tab = tab;draw();current.onTabChange?.(tab); };
@@ -877,5 +886,5 @@ export function mountDocumentViewer(container, options = {}) {
     setBox({x:contentW < box.width ? minX - (box.width - contentW) / 2 : minX - pad,y:contentH < box.height ? minY - (box.height - contentH) / 2 : minY - pad,w:box.width,h:box.height});
   };
   container.addEventListener('click',onClick);container.addEventListener('input',onInput);container.addEventListener('change',onInput);container.addEventListener('keydown',onKey);container.addEventListener('pointerover',onDataHover);draw();if(current.sourceLine)sourceLine(current.sourceLine);
-  return {selectTab,fit,frameLabels,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
+  return {selectTab,fit,frameLabels,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();meshPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
 }
