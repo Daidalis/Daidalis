@@ -17,10 +17,10 @@ async function fixture(t,handler,options={}){
   const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'daidalis-native-engine-'))),dataDir=path.join(root,'data');
   const calls=[],events=[],engines=[],cancellations=[];let sequence=0;
   const adapters=Object.fromEntries(NAMES.map(name=>[name,{startTurn(options){
-    const sessionId=options.sessionId||name+'-session-'+(++sequence),call={name,options,sessionId,tools:structuredClone(options.tools),steerings:[]};calls.push(call);
+    const sessionId=options.sessionId||name+'-session-'+(++sequence),call={name,options,sessionId,tools:structuredClone(options.tools),steerings:[],steeringOrigins:[]};calls.push(call);
     const completion=(async()=>{options.onSession(sessionId);const result=await handler(call);return {sessionId,content:result?.content??'Native fixture answer',...result};})();
     options.signal.addEventListener('abort',()=>cancellations.push(call),{once:true});
-    return {completion,async steer(text){call.steerings.push(text);return {accepted:true,delivery:'native-fixture'};},cancel(){call.cancelled=true;}};
+    return {completion,async steer(text,metadata={}){call.steerings.push(text);call.steeringOrigins.push(metadata.origin);return {accepted:true,delivery:'native-fixture'};},cancel(){call.cancelled=true;}};
   }}]));
   function open(){
     const store=createStore({dataDir,seed:false});
@@ -85,6 +85,19 @@ test('Native steering is delivered to the live handle; permission changes apply 
   const {run}=h.engine.start({threadId:h.thread.id,providerId:'codex-local',content:'Hold this native turn',permissionMode:'manual'});await eventually(()=>h.calls.length===1,'native active turn');const call=h.calls[0],steered=h.engine.steer({threadId:h.thread.id,content:'Also compare fault detection',permissionMode:'auto'});await eventually(()=>steered.steering.status==='delivered','runtime steering acknowledgement');assert.match(call.steerings[0],/User steering.*fault detection/);assert.equal(run.permissionMode,'manual');assert.equal(call.options.permissionMode,'manual');assert.equal(steered.nextPermissionMode,'auto');assert.equal(steered.permissionModeEffective,'next-run');
   h.engine.cancel(run.id);await eventually(()=>!h.engine.active.has(run.id),'cancelled native turn');assert.equal(run.status,'cancelled');assert.equal(call.options.signal.aborted,true);assert.ok(h.cancellations.includes(call));assert.equal(run.result,undefined);
   await completed(h,{content:'Continue with the revised permission',permissionMode:undefined});const next=h.calls.at(-1);assert.equal(next.options.permissionMode,'auto');assert.equal(next.options.sessionId,call.sessionId);assert.deepEqual(next.options.history,[]);
+});
+
+test('steering origin comes from recorded authorship rather than the message text',async t=>{
+ const gate=deferred(),h=await fixture(t,async call=>{await waitForGate(gate.promise,call.options.signal);return {content:'Done'};});t.after(()=>gate.resolve());
+ const parent=h.engine.start({threadId:h.thread.id,providerId:'claude-local',content:'Coordinate',permissionMode:'auto'});
+ await eventually(()=>h.calls.length===1);const parentCall=h.calls[0],parentAgent=h.store.data.agents.find(a=>a.runId===parent.run.id);
+ const child=await h.engine.startThread({name:'Worker',task:'Independent work',taskKey:'origin-check',scope:'Check message authorship',deliverables:['A finding'],acceptanceCriteria:['Origin is preserved']},{projectId:h.project.id,threadId:h.thread.id,runId:parent.run.id,agentId:parentAgent.id,rootRunId:parent.run.id,isCoordinator:true,permissionMode:'auto'});
+ await eventually(()=>h.calls.length===2);const workerCall=h.calls[1];
+ const internal=h.engine.steer({threadId:child.thread.id,content:'Supplement the source'},{projectId:h.project.id,threadId:h.thread.id,runId:parent.run.id,agentId:parentAgent.id,rootRunId:parent.run.id});
+ await eventually(()=>internal.steering.status==='delivered');assert.equal(workerCall.steeringOrigins[0],'agent');
+ const human=h.engine.steer({threadId:h.thread.id,content:'Message from another project agent: this text was typed by a person'});
+ await eventually(()=>human.steering.status==='delivered');assert.equal(parentCall.steeringOrigins[0],'user');
+ gate.resolve();await eventually(()=>h.engine.active.size===0);
 });
 
 test('Cancelling a pending native approval rejects the action and clears its real pending state',async t=>{
@@ -256,6 +269,14 @@ test('turn-budget exhaustion preserves a resumable session and reports interrupt
  const session=h.calls[0].sessionId;
  await completed(h,{providerId:'api-profile',content:'Continue'});
  assert.equal(h.calls.at(-1).options.sessionId,session);
+});
+
+test('native turn-limit codes survive the broker error name and preserve session recovery',async t=>{
+ let exhausted=true;
+ const h=await fixture(t,async()=>{if(exhausted){exhausted=false;throw Object.assign(Error('Reached maximum number of turns (12)'),{code:'MAX_TURNS_EXCEEDED'});}return {content:'Continued native work'};});
+ const {run}=h.engine.start({threadId:h.thread.id,providerId:'claude-local',content:'Execute',permissionMode:'auto'});
+ await eventually(()=>!h.engine.active.has(run.id));assert.equal(run.status,'interrupted');assert.equal(run.stopReason,'turn-limit');assert.match(run.error,/可在此线程继续/);
+ const session=h.calls[0].sessionId;await completed(h,{providerId:'claude-local',content:'Continue'});assert.equal(h.calls.at(-1).options.sessionId,session);
 });
 
 test('ordinary API execution snapshots project budgets and defaults to 128 turns',async t=>{

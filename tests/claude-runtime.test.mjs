@@ -212,6 +212,182 @@ test('Auto pre-hook approves only registered application MCP provenance and pres
 
 test('steering performs a real native interrupt then resumes the same session, not a fake immediate insertion',async t=>{const folder=await workspace(t);let wake,ready;const started=new Promise(r=>ready=r);const h=harness(function(q,c,index){const gen=(async function*(){yield {type:'system',subtype:'init',session_id:SID};if(index===0){ready();await new Promise(r=>wake=r);yield {type:'result',subtype:'error_during_execution',errors:['interrupted'],session_id:SID};}else{yield assistant('追加指导后的答复','msg-steered');yield success('追加指导后的答复');}})();gen.onInterrupt=()=>wake?.();return gen;});const turn=h.runtime.startTurn({...h.options,workspace:folder});await started;const receipt=await turn.steer('改为检查方案B');assert.equal(receipt.delivery,'interrupt-and-resume');assert.equal((await turn.completion).content,'追加指导后的答复');assert.equal(h.captures.interrupts,1);assert.equal(h.captures.queries.length,2);assert.equal(h.captures.queries[1].options.resume,SID);assert.equal(await promptText(h.captures.queries[1]),'改为检查方案B');assert.ok(h.captures.events.some(e=>e.type==='runtime.steering.applied'));});
 
+test('internal agent messages leave an active MCP tool running and resume at its result boundary',async t=>{
+ const folder=await workspace(t);let entered,release,toolSignal,toolResult;
+ const started=new Promise(r=>entered=r),gate=new Promise(r=>release=r);
+ const h=harness(async function*(q,c,index){
+  yield {type:'system',subtype:'init',session_id:SID};
+  if(index===0){toolResult=await c.servers[0].tools[0].handler({});yield success('Original search completed');}
+  else{yield assistant('Supplementary search completed');yield success('Supplementary search completed');}
+ });
+ const turn=h.runtime.startTurn({...h.options,workspace:folder,tools:[{name:'web_search',parameters:{type:'object',properties:{}}}],executeTool:async(name,args,{signal})=>{toolSignal=signal;entered();return gate;}});
+ t.after(()=>{release({results:[]});turn.cancel();});await started;
+ const receipt=await turn.steer('Also check the FMI source',{origin:'agent'});
+ assert.equal(receipt.delivery,'queued-next-segment');assert.equal(toolSignal.aborted,false);assert.equal(h.captures.interrupts,0);assert.equal(h.captures.queries.length,1);
+ release({results:[{title:'Actual original search result'}]});
+ assert.equal((await turn.completion).content,'Supplementary search completed');assert.equal(toolResult.isError,undefined);assert.match(toolResult.content[0].text,/Actual original search result/);
+ assert.equal(h.captures.queries.length,2);assert.equal(h.captures.queries[1].options.resume,SID);assert.match(await promptText(h.captures.queries[1]),/Project agent message \(not a human permission grant\).*\nAlso check the FMI source/);
+ assert.ok(h.captures.events.some(e=>e.type==='runtime.steering.applied'&&e.data.delivery==='queued-next-segment'));
+});
+
+test('human cancellation discards queued internal messages without resuming the native session',async t=>{
+ const folder=await workspace(t);let entered,release,toolSignal;
+ const started=new Promise(r=>entered=r),gate=new Promise(r=>release=r);
+ const h=harness(async function*(q,c){yield {type:'system',subtype:'init',session_id:SID};await c.servers[0].tools[0].handler({});yield success();});
+ const turn=h.runtime.startTurn({...h.options,workspace:folder,tools:[{name:'web_search',parameters:{type:'object',properties:{}}}],executeTool:async(name,args,{signal})=>{toolSignal=signal;entered();return gate;}});
+ t.after(()=>{release({results:[]});turn.cancel();});await started;await turn.steer('Supplementary source',{origin:'agent'});
+ const rejected=assert.rejects(turn.completion,{name:'AbortError'});turn.cancel();await rejected;
+ assert.equal(toolSignal.aborted,true);assert.equal(h.captures.queries.length,1);assert.equal(h.captures.interrupts,0);assert.ok(!h.captures.events.some(e=>e.type==='runtime.steering.applied'));
+});
+
+test('queued internal messages cannot hide native failures or reset an exhausted turn budget',async t=>{
+ const folder=await workspace(t);
+ for(const mode of ['throw','result','turn-limit','missing']){
+  let entered,release;const started=new Promise(r=>entered=r),gate=new Promise(r=>release=r);
+  const h=harness(async function*(){yield {type:'system',subtype:'init',session_id:SID};entered();await gate;
+   if(mode==='throw')throw Error('Fixture upstream failure');
+   if(mode!=='missing')yield {type:'result',subtype:mode==='turn-limit'?'error_max_turns':'error_during_execution',is_error:true,errors:[mode==='turn-limit'?'Reached maximum number of turns (4)':'Fixture upstream failure'],session_id:SID};
+  });
+  const turn=h.runtime.startTurn({...h.options,workspace:folder});await started;await turn.steer('Internal update',{origin:'agent'});
+  const rejected=assert.rejects(turn.completion,error=>{if(mode==='turn-limit'){assert.equal(error.code,'MAX_TURNS_EXCEEDED');assert.equal(error.name,'MaxTurnsExceededError');}else assert.match(error.message,mode==='missing'?/未返回完成结果/:/Fixture upstream failure/);return true;});release();await rejected;
+  assert.equal(h.captures.queries.length,1);assert.equal(h.captures.interrupts,0);
+ }
+});
+
+test('Claude turn-limit subtype and legacy text produce a redacted stable error code',async t=>{
+ const folder=await workspace(t);
+ for(const result of [
+  {subtype:'error_max_turns',errors:['Fixture turn limit fixture-key-not-a-real-secret']},
+  {subtype:'error_during_execution',errors:['Reached maximum number of turns (4) fixture-key-not-a-real-secret']}
+ ]){
+  const h=harness(async function*(){yield {type:'result',is_error:true,session_id:SID,...result};});
+  await assert.rejects(h.runtime.startTurn({...h.options,workspace:folder}).completion,error=>{assert.equal(error.code,'MAX_TURNS_EXCEEDED');assert.equal(error.name,'MaxTurnsExceededError');assert.ok(!error.message.includes(h.options.apiKey));return true;});
+ }
+});
+
+const exhaustedResult=limit=>({type:'result',subtype:'error_max_turns',is_error:true,session_id:SID,num_turns:limit+1,errors:[`Reached maximum number of turns (${limit})`]});
+test('Claude continues an exhausted segment in the same saved session within the total turn budget',async t=>{
+ const folder=await workspace(t),h=harness(async function*(q,c,index){yield {type:'system',subtype:'init',session_id:SID};yield index===0?exhaustedResult(2):{...success('Final report completed'),num_turns:1};});
+ const result=await h.runtime.startTurn({...h.options,workspace:folder,maxTurns:2,maxContinuations:1}).completion;
+ assert.equal(result.content,'Final report completed');assert.equal(result.modelTurns,3);assert.equal(result.continuations,1);
+ assert.equal(h.captures.queries.length,2);assert.equal(h.captures.queries[1].options.resume,SID);assert.equal(h.captures.queries[1].options.maxTurns,2);
+ const continuedPrompt=await promptText(h.captures.queries[1]);assert.doesNotMatch(continuedPrompt,/本地确定性测试/);assert.match(continuedPrompt,/do not replay completed work/);
+ assert.equal(h.captures.queries[1].options.abortController,h.captures.queries[0].options.abortController);assert.equal(h.captures.queries[1].options.permissionMode,h.captures.queries[0].options.permissionMode);
+ assert.deepEqual(h.captures.events.filter(e=>e.type==='runtime.turn.completed').map(e=>e.data.modelTurns),[2,3]);
+ assert.equal(h.captures.events.find(e=>e.type==='sdk.turn.continued').data.continuations,1);
+});
+
+test('Claude cannot resume beyond the configured continuation count or cumulative turn budget',async t=>{
+ const folder=await workspace(t);
+ for(const maxContinuations of [0,1,3]){
+  const h=harness(async function*(){yield {type:'system',subtype:'init',session_id:SID};yield exhaustedResult(2);});
+  await assert.rejects(h.runtime.startTurn({...h.options,workspace:folder,maxTurns:2,maxContinuations}).completion,e=>e.code==='MAX_TURNS_EXCEEDED'&&e.message.includes(`Max turns (${2*(maxContinuations+1)})`));
+  assert.equal(h.captures.queries.length,maxContinuations+1);assert.equal(h.captures.events.filter(e=>e.type==='sdk.turn.continued').length,maxContinuations);
+ }
+});
+
+test('queued internal messages consume remaining Claude budget rather than resetting it',async t=>{
+ const folder=await workspace(t);let ready,release;const entered=new Promise(r=>ready=r),gate=new Promise(r=>release=r);
+ const h=harness(async function*(q,c,index){yield {type:'system',subtype:'init',session_id:SID};if(index===0){ready();await gate;yield {...success(),num_turns:3};}else yield exhaustedResult(1);});
+ const turn=h.runtime.startTurn({...h.options,workspace:folder,maxTurns:3,maxContinuations:0});await entered;await turn.steer('Internal update',{origin:'agent'});
+ const rejected=assert.rejects(turn.completion,e=>e.code==='MAX_TURNS_EXCEEDED');release();await rejected;
+ assert.equal(h.captures.queries.length,1);assert.equal(h.captures.interrupts,0);
+});
+
+test('successful steering segments reduce the remaining Claude segment size',async t=>{
+ const folder=await workspace(t);let ready,release;const entered=new Promise(r=>ready=r),gate=new Promise(r=>release=r);
+ let turn;const h=harness(async function*(q,c,index){yield {type:'system',subtype:'init',session_id:SID};if(index===0){ready();await gate;yield {...success(),num_turns:1};}else if(index===1){await turn.steer('Second internal update',{origin:'agent'});yield {...success(),num_turns:2};}else yield {...success('Supplements processed'),num_turns:1};});
+ turn=h.runtime.startTurn({...h.options,workspace:folder,maxTurns:2,maxContinuations:1});await entered;await turn.steer('Internal update',{origin:'agent'});release();
+ const result=await turn.completion;assert.equal(result.modelTurns,4);assert.equal(result.continuations,0);assert.deepEqual(h.captures.queries.map(q=>q.options.maxTurns),[2,2,1]);
+});
+
+test('a Claude budget continuation delivers pending internal messages without interruption',async t=>{
+ const folder=await workspace(t);let ready,release;const entered=new Promise(r=>ready=r),gate=new Promise(r=>release=r);
+ const h=harness(async function*(q,c,index){yield {type:'system',subtype:'init',session_id:SID};if(index===0){ready();await gate;yield exhaustedResult(2);}else yield {...success(),num_turns:1};});
+ const turn=h.runtime.startTurn({...h.options,workspace:folder,maxTurns:2,maxContinuations:1});await entered;await turn.steer('PENDING_INTERNAL_RECEIPT',{origin:'agent'});release();await turn.completion;
+ assert.match(await promptText(h.captures.queries[1]),/Project agent message.*\nPENDING_INTERNAL_RECEIPT/);assert.equal(h.captures.interrupts,0);assert.ok(h.captures.events.some(e=>e.type==='runtime.steering.applied'&&e.data.delivery==='queued-next-segment'));
+});
+
+test('a real upstream error is never retried as a Claude budget continuation',async t=>{
+ const folder=await workspace(t),h=harness(async function*(){yield {type:'system',subtype:'init',session_id:SID};yield {type:'result',subtype:'error_during_execution',is_error:true,errors:['Upstream unavailable'],num_turns:1};});
+ await assert.rejects(h.runtime.startTurn({...h.options,workspace:folder,maxTurns:2,maxContinuations:1}).completion,/Upstream unavailable/);assert.equal(h.captures.queries.length,1);
+});
+
+test('cancellation at the Claude continuation boundary starts no new query',async t=>{
+ const folder=await workspace(t),controller=new AbortController(),h=harness(async function*(){yield {type:'system',subtype:'init',session_id:SID};yield exhaustedResult(2);});
+ await assert.rejects(h.runtime.startTurn({...h.options,workspace:folder,maxTurns:2,maxContinuations:1,signal:controller.signal,onEvent:event=>{h.captures.events.push(event);if(event.type==='sdk.turn.continued')controller.abort();}}).completion,{name:'AbortError'});
+ assert.equal(h.captures.queries.length,1);
+});
+
+test('invalid Claude budgets fail before loading or executing native queries',async t=>{
+ const folder=await workspace(t),h=harness(simple);
+ for(const budget of [{maxTurns:0},{maxTurns:Infinity},{maxTurns:201},{maxContinuations:4},{maxContinuations:-1},{maxContinuations:true}])await assert.rejects(h.runtime.startTurn({...h.options,workspace:folder,...budget}).completion,/Invalid Claude execution budget/);
+ assert.equal(h.captures.queries.length,0);
+});
+
+test('real Claude resumes after a native turn limit without replaying completed tools',{timeout:90000},async t=>{
+ const folder=await workspace(t),bodies=[],queries=[],events=[],steps=[],sessions=[];
+ const server=http.createServer(async(req,res)=>{
+  let raw='';for await(const chunk of req)raw+=chunk;
+  if(req.url.includes('count_tokens')){res.writeHead(200,{'content-type':'application/json'});res.end('{"input_tokens":100}');return;}
+  if(!req.url.startsWith('/v1/messages')){res.writeHead(404);res.end();return;}
+  const body=JSON.parse(raw);bodies.push(body);const round=bodies.length;
+  const content=round<=2?{type:'tool_use',id:'continued-step-'+round,name:'mcp__daidalis__record_step',input:{step:round}}:{type:'text',text:'FINAL_REPORT_COMPLETE'};
+  const message={id:'msg_continued_'+round,type:'message',role:'assistant',model:body.model,content:[content],stop_reason:content.type==='tool_use'?'tool_use':'end_turn',stop_sequence:null,usage:{input_tokens:100,output_tokens:20}};
+  if(!body.stream){res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify(message));return;}
+  res.writeHead(200,{'content-type':'text/event-stream'});
+  const send=(type,data={})=>res.write('event: '+type+'\ndata: '+JSON.stringify({type,...data})+'\n\n');
+  send('message_start',{message:{...message,content:[],stop_reason:null}});send('content_block_start',{index:0,content_block:content.type==='tool_use'?{...content,input:{}}:{type:'text',text:''}});
+  send('content_block_delta',{index:0,delta:content.type==='tool_use'?{type:'input_json_delta',partial_json:JSON.stringify(content.input)}:{type:'text_delta',text:content.text}});
+  send('content_block_stop',{index:0});send('message_delta',{delta:{stop_reason:message.stop_reason,stop_sequence:null},usage:{output_tokens:20}});send('message_stop');res.end();
+ });
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const runtime=createClaudeRuntime({configDir:path.join(await fs.realpath(folder),'native-config'),sdkLoader:async()=>({...installedSdk,z,query:q=>{queries.push(q.options);return installedSdk.query(q);}})});
+ const turn=runtime.startTurn({workspace:folder,apiKey:'local-regression-key',baseUrl:'http://127.0.0.1:'+server.address().port,model:'claude-sonnet-4-5-20250929',permissionMode:'manual',maxTurns:2,maxContinuations:1,input:'Record the two local steps, then provide the final report.',
+  tools:[{name:'record_step',description:'Append one uniquely numbered receipt',parameters:{type:'object',properties:{step:{type:'integer'}},required:['step']}}],
+  executeTool:async(_name,{step})=>{steps.push(step);await fs.appendFile(path.join(folder,'steps.txt'),step+'\n');return {recorded:step};},onEvent:e=>events.push(e),onSession:id=>sessions.push(id)});
+ const timer=setTimeout(()=>turn.cancel(),75000);
+ try{
+  const result=await turn.completion;assert.equal(result.content,'FINAL_REPORT_COMPLETE');assert.equal(result.continuations,1);assert.equal(result.modelTurns,3);
+  assert.deepEqual(steps,[1,2]);assert.equal(await fs.readFile(path.join(folder,'steps.txt'),'utf8'),'1\n2\n');assert.equal(bodies.length,3);assert.equal(queries.length,2);
+  assert.equal(queries[1].resume,sessions[0]);assert.equal(new Set(sessions).size,1);assert.match(JSON.stringify(bodies[2].messages),/recorded/);assert.match(JSON.stringify(bodies[2].messages),/do not replay completed work/);
+  assert.equal(events.filter(e=>e.type==='sdk.turn.continued').length,1);
+ }finally{clearTimeout(timer);turn.cancel();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});
+
+test('real native SDK completes a slow tool and writes after queued internal steering', {timeout:160000},async t=>{
+ const folder=await workspace(t),bodies=[],events=[];let entered,release,toolSignal,approvals=0;
+ const started=new Promise(resolve=>entered=resolve),gate=new Promise(resolve=>release=resolve);
+ const server=http.createServer(async(req,res)=>{
+  let raw='';for await(const chunk of req)raw+=chunk;
+  if(req.url.includes('count_tokens')){res.writeHead(200,{'content-type':'application/json'});res.end('{"input_tokens":100}');return;}
+  if(!req.url.startsWith('/v1/messages')){res.writeHead(404);res.end();return;}
+  const body=JSON.parse(raw);bodies.push(body);const round=bodies.length;
+  const call=round===1?{name:'mcp__daidalis__web_search',args:{}}:round===3?{name:'Write',args:{file_path:path.join(folder,'after-steering.txt'),content:'ORIGINAL_TOOL_AND_INTERNAL_MESSAGE_COMPLETED\n'}}:null;
+  const text=round===2?'Original search finished.':'Internal steering completed.';
+  res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache'});
+  const send=(event,data)=>res.write('event: '+event+'\ndata: '+JSON.stringify(data)+'\n\n');
+  send('message_start',{type:'message_start',message:{id:'msg_internal_fixture_'+round,type:'message',role:'assistant',content:[],model:'claude-sonnet-4-5-20250929',stop_reason:null,stop_sequence:null,usage:{input_tokens:100,output_tokens:0}}});
+  send('content_block_start',{type:'content_block_start',index:0,content_block:call?{type:'tool_use',id:'internal-tool-'+round,name:call.name,input:{}}:{type:'text',text:''}});
+  send('content_block_delta',{type:'content_block_delta',index:0,delta:call?{type:'input_json_delta',partial_json:JSON.stringify(call.args)}:{type:'text_delta',text}});
+  send('content_block_stop',{type:'content_block_stop',index:0});send('message_delta',{type:'message_delta',delta:{stop_reason:call?'tool_use':'end_turn',stop_sequence:null},usage:{output_tokens:20}});send('message_stop',{type:'message_stop'});res.end();
+ });
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const turn=createClaudeRuntime({configDir:path.join(await fs.realpath(folder),'native-config')}).startTurn({workspace:folder,apiKey:'sk-ant-local-fixture-not-real',baseUrl:'http://127.0.0.1:'+server.address().port,model:'claude-sonnet-4-5-20250929',permissionMode:'manual',maxTurns:12,input:'Complete the local search fixture.',
+  tools:[{name:'web_search',description:'Local slow search fixture',parameters:{type:'object',properties:{}}}],executeTool:async(name,args,{signal})=>{toolSignal=signal;entered();await gate;return {results:[{title:'Original tool result retained'}]};},
+  requestApproval:async({tool,args})=>{assert.equal(tool,'Write');assert.equal(args.file_path,path.join(folder,'after-steering.txt'));approvals++;return true;},onEvent:event=>events.push(event)});
+ const timer=setTimeout(()=>turn.cancel(),140000);
+ try{
+  await Promise.race([started,turn.completion.then(()=>{throw Error('Native query ended before the slow tool');})]);
+  const receipt=await turn.steer('Save the supplementary receipt',{origin:'agent'});assert.equal(receipt.delivery,'queued-next-segment');assert.equal(toolSignal.aborted,false);release();
+  const result=await turn.completion;assert.equal(result.content,'Internal steering completed.');assert.equal(bodies.length,4);assert.equal(approvals,1);
+  assert.equal(await fs.readFile(path.join(folder,'after-steering.txt'),'utf8'),'ORIGINAL_TOOL_AND_INTERNAL_MESSAGE_COMPLETED\n');
+  const resumed=JSON.stringify(bodies[2].messages);assert.match(resumed,/Original tool result retained/);assert.match(resumed,/Project agent message/);assert.match(resumed,/Save the supplementary receipt/);
+  assert.doesNotMatch(JSON.stringify(bodies),/The user doesn't want to proceed|Request interrupted by user/);
+  assert.ok(events.some(event=>event.type==='runtime.steering.applied'&&event.data.delivery==='queued-next-segment'));
+ }finally{clearTimeout(timer);release();turn.cancel();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+});
+
 test('cancel closes native query and rejects completion; aborted approval cannot execute',async t=>{const folder=await workspace(t);let wake,ready;const started=new Promise(r=>ready=r);const h=harness(function(){const gen=(async function*(){ready();await new Promise(r=>wake=r);yield success();})();gen.onClose=()=>wake?.();return gen;});const turn=h.runtime.startTurn({...h.options,workspace:folder});await started;turn.cancel();await assert.rejects(turn.completion,{name:'AbortError'});assert.ok(h.captures.closed);const controller=new AbortController();controller.abort();await assert.rejects(h.runtime.startTurn({...h.options,workspace:folder,signal:controller.signal}).completion,{name:'AbortError'});});
 
 test('native result errors and missing result fail; selected credential is redacted from public text',async t=>{const folder=await workspace(t);for(const stream of [async function*(){yield {type:'result',subtype:'error_during_execution',errors:['invalid fixture-key-not-a-real-secret'],session_id:SID};},async function*(){yield assistant('没有结果');}]){const h=harness(stream);await assert.rejects(h.runtime.startTurn({...h.options,workspace:folder}).completion,error=>!error.message.includes('fixture-key-not-a-real-secret'));}const h=harness(async function*(){yield assistant('fixture-key-not-a-real-secret');yield success('fixture-key-not-a-real-secret');});const r=await h.runtime.startTurn({...h.options,workspace:folder}).completion;assert.equal(r.content,'[REDACTED]');assert.ok(h.captures.messages.every(m=>!m.text.includes('fixture-key-not-a-real-secret')));});
