@@ -35,14 +35,21 @@ test('an unfinished simulation card does not draw a curve, and SysML solids stay
  const html=renderProfessionalWorkbench({path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
  const source=html.split('data-pm-card="source"')[1].split('data-pm-card="shape"')[0];
  const shape=html.split('data-pm-card="shape"')[1].split('data-pm-card="simulation"')[0];
- assert.match(source,/pm-structure-thumb/);assert.doesNotMatch(source,/battery|data-pm-physical/);assert.doesNotMatch(shape,/battery|pm-structure-thumb/);assert.match(shape,/几何尚未生成/);
+ assert.doesNotMatch(source,/pm-structure-thumb|data-pm-structure|document-tabs/);assert.doesNotMatch(source,/battery|data-pm-physical/);assert.doesNotMatch(shape,/battery|pm-structure-thumb/);assert.match(shape,/几何尚未生成/);
  const opened=renderProfessionalWorkbench({expanded:'source',path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
- assert.match(opened,/data-pm-card="source"[\s\S]*battery/);
+ const openedSource=opened.split('data-pm-card="source"')[1].split('data-pm-card="shape"')[0];
+ assert.match(openedSource,/data-source-view="code"/);assert.match(openedSource,/data-source-view="diagram"/);assert.match(openedSource,/模型图/);assert.match(openedSource,/实物预览/);assert.match(openedSource,/大纲/);assert.match(openedSource,/诊断/);assert.match(openedSource,/约束/);assert.doesNotMatch(openedSource,/data-source-view="preview"/);assert.match(openedSource,/原生模型源码/);assert.doesNotMatch(openedSource,/battery|data-pm-physical|data-pm-structure/);
+ const previewTab=renderProfessionalWorkbench({expanded:'source',sourceView:'diagram',path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
+ const previewSource=previewTab.split('data-pm-card="source"')[1].split('data-pm-card="shape"')[0];
+ assert.match(previewSource,/data-pm-structure/);assert.match(previewSource,/data-source-view="preview3d"/);assert.doesNotMatch(previewSource,/textarea|class="document-tabs"/);
  const closedSim=renderProfessionalWorkbench({path:'models/A.mo',draft:'model A end A;',modelName:'A'});
  assert.doesNotMatch(closedSim.split('data-pm-card="simulation"')[1],/仿真设置|运行仿真/);
  const preview=renderProfessionalWorkbench({shapePreviewUrl:'blob:http://local/preview',shapeStage:'ready'});
  const previewShape=preview.split('data-pm-card="shape"')[1].split('data-pm-card="simulation"')[0];
  assert.match(previewShape,/data-expanded="false"/);assert.match(previewShape,/class="pm-shape-thumb"/);assert.doesNotMatch(preview,/alt="OpenSCAD 预览"/);
+ const openedShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready'});
+ const openedShapeBody=openedShape.split('data-pm-card="shape"')[1].split('data-pm-card="simulation"')[0];
+ assert.match(openedShapeBody,/data-pm-shape-geometry[\s\S]*pm-shape-thumb/);
 });
 
 test('live events refresh the matching card and do not enter workbench focus',async()=>{
