@@ -53,11 +53,11 @@ test('a verified job table renders cards without calling the result a recording'
  assert.match(html,/connect · 未绑定/);
 });
 
-test('parallel flow edges keep separate labels at a readable size',()=>{
- const source=readFileSync(new URL('../examples/physical-preview/electric-vehicle.sysml',import.meta.url),'utf8');
- const html=renderSimulationStage({table:{columns:['time','battery','inverter'],rows:[[0,78,0],[1,77,15]],rowCount:2},source,checks:[]});
+test('sedan flows stay readable and stacked edges keep separate lanes',()=>{
+ const source=readFileSync(new URL('../examples/electric-sedan/Sedan.sysml',import.meta.url),'utf8');
+ const html=renderSimulationStage({table:{columns:['time','battery','inverter'],rows:[[0,80,5.76],[1,79.8,57.6]],rowCount:2},source,checks:[]});
  const labels=[...html.matchAll(/<text data-flow-label="\d+" data-flow-lane="(\d+)" x="([\d.]+)" y="([\d.]+)">/g)].map(match=>[match[1],match[2],match[3]]);
- assert.equal(labels.length,4);
+ assert.equal(labels.length,2);
  assert.equal(new Set(labels.map(item=>item.slice(1).join(','))).size,labels.length);
  const size=html.match(/<svg class="pm-flow" viewBox="0 0 (\d+) (\d+)" width="(\d+)" height="(\d+)"/);
  assert.equal(size[1],size[3]);
@@ -66,6 +66,9 @@ test('parallel flow edges keep separate labels at a readable size',()=>{
  const flow=html.match(/data-flow-kind="flow"[^>]*d="M [\d.]+ (\d+) V (\d+)" marker-end="url\(#pm-flow-arrow\)"/);
  assert.ok(flow);
  assert.ok(Number(flow[2])-Number(flow[1])>24);
+ const stacked='part battery {} part inverter {} connect battery.output to inverter.input; flow power from battery.output to inverter.input;';
+ const lanes=[...renderSimulationStage({table:{columns:['time','battery'],rows:[[0,80],[1,79]],rowCount:2},source:stacked,checks:[]}).matchAll(/data-flow-lane="(\d+)"/g)].map(match=>match[1]);
+ assert.deepEqual(lanes,['0','1']);
 });
 
 test('recorded quantities keep their declared units',()=>{
