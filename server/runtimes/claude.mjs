@@ -116,13 +116,23 @@ function privateConfigDirectory(value){
 function sdkEnvironment(options){
   const remote=Boolean(options.remoteWorkspace),env={};
   if(remote)Object.assign(env,{PATH:'/usr/bin:/bin',HOME:GUEST_HOME,USER:'daidalis',LOGNAME:'daidalis',TMPDIR:'/tmp',LANG:'C.UTF-8',CLAUDE_CONFIG_DIR:GUEST_HOME+'/.claude'});
-  else{for(const name of ENV_ALLOW)if(typeof process.env[name]==='string'&&!options.secretEnvNames?.includes(name))env[name]=process.env[name];env.ANTHROPIC_API_KEY=options.apiKey;if(options.configDir)env.CLAUDE_CONFIG_DIR=privateConfigDirectory(options.configDir);}
+  else{for(const name of ENV_ALLOW)if(typeof process.env[name]==='string'&&!options.secretEnvNames?.includes(name))env[name]=process.env[name];env.ANTHROPIC_API_KEY=options.apiKey;if(options.configDir)env.CLAUDE_CONFIG_DIR=privateConfigDirectory(options.configDir);
+    // With settingSources:[] the CLI never loads its settings file, so deployment-level
+    // gateway values must cross as env variables: ANTHROPIC_MODEL and, when the provider
+    // record carries no baseUrl, the checkout .env's ANTHROPIC_BASE_URL.
+    if(typeof process.env.ANTHROPIC_MODEL==='string'&&process.env.ANTHROPIC_MODEL.trim()&&!options.secretEnvNames?.includes('ANTHROPIC_MODEL'))env.ANTHROPIC_MODEL=process.env.ANTHROPIC_MODEL.trim();
+    if(!options.baseUrl&&typeof process.env.ANTHROPIC_BASE_URL==='string'&&process.env.ANTHROPIC_BASE_URL.trim()&&!options.secretEnvNames?.includes('ANTHROPIC_BASE_URL')){
+      const gateway=new URL(process.env.ANTHROPIC_BASE_URL.trim());
+      if(!['https:','http:'].includes(gateway.protocol)||gateway.username||gateway.password)throw new Error('ANTHROPIC_BASE_URL must be a plain http(s) URL without credentials');
+      env.ANTHROPIC_BASE_URL=process.env.ANTHROPIC_BASE_URL.trim();
+    }}
   if(options.baseUrl){const url=new URL(options.baseUrl);if(!['https:','http:'].includes(url.protocol)||url.username||url.password||remote&&(url.search||url.hash))throw new Error('Claude Agent Base URL 必须是无内嵌凭证的 HTTP(S) 地址；隔离环境不接受查询参数或片段');env.ANTHROPIC_BASE_URL=url.href.replace(/\/v1\/?$/,'').replace(/\/$/,'');}
   env.CLAUDE_AGENT_SDK_CLIENT_APP='daidalis/0.5';
   env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1';
   // Gateways serving non-Claude models may not implement deferred tool references.
   // Keep permission hooks unchanged, but send tool schemas up front locally.
-  if(!remote&&options.baseUrl&&new URL(options.baseUrl).hostname!=='api.anthropic.com')env.ENABLE_TOOL_SEARCH='false';
+  const effectiveBase=env.ANTHROPIC_BASE_URL||options.baseUrl;
+  if(!remote&&effectiveBase&&new URL(effectiveBase).hostname!=='api.anthropic.com')env.ENABLE_TOOL_SEARCH='false';
   return env;
 }
 async function withAbort(operation,signal){
@@ -192,12 +202,14 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
       const approved=options.requestApproval?await withAbort(options.requestApproval({tool:name,args,signal}),signal):false;
       return approved?{behavior:'allow',updatedInput:args}:{behavior:'deny',message:'用户未批准此原生工具操作。'};
     }
+    const toolInputs=new Map();
     const canUseTool=async(name,args,ctx={})=>{
       try{const saved=ctx.toolUseID&&decisions.get(ctx.toolUseID);return saved||await decide(name,args,ctx);}
       catch(error){return {behavior:'deny',message:redact.text(error.message)};}
     };
     const preTool=async(input,toolUseID,ctx={})=>{
       const name=input.tool_name,args=input.tool_input||{},id=toolUseID||input.tool_use_id;
+      if(id)toolInputs.set(id,args);
       if(appTool(name,input.mcp_server))return hookDecision('allow','工程工具使用 Daidalis 执行层的权限检查');
       try{
         await emit('tool.started',name,{tool:name,args,callId:id,native:true});
@@ -232,9 +244,12 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
         });
     }
     const postTool=async(input,toolUseID)=>{
-      const name=input.tool_name,id=toolUseID||input.tool_use_id;if(id)decisions.delete(id);
+      const name=input.tool_name,id=toolUseID||input.tool_use_id,args=id?toolInputs.get(id):undefined;
+      if(id){decisions.delete(id);toolInputs.delete(id);}
       if(appTool(name,input.mcp_server))return {};
-      await emit('tool.completed',name,{tool:name,callId:id,native:true,result:input.hook_event_name==='PostToolUseFailure'?{error:input.error,cancelled:Boolean(input.is_interrupt)}:input.tool_response});return {};
+      const failed=input.hook_event_name==='PostToolUseFailure';
+      const written=typeof args?.file_path==='string'?args.file_path:typeof args?.path==='string'?args.path:'';
+      await emit('tool.completed',name,{tool:name,callId:id,native:true,...(written&&!failed?{path:written}:{}),result:failed?{error:input.error,cancelled:Boolean(input.is_interrupt)}:input.tool_response});return {};
     };
     const completion=(async()=>{
       try{
@@ -268,7 +283,9 @@ export function createClaudeRuntime({sdkLoader=defaultSdkLoader,configDir:factor
           const segmentBudget=Math.min(turnBudget,totalTurnBudget-modelTurns);
           if(segmentBudget<1)throw turnLimit();
           if(pendingSteers.length){const entries=pendingSteers.splice(0);prompt+='\n\n追加消息：\n'+steeringPrompt(entries);await emit('runtime.steering.applied','追加消息已附加到下一执行段',{sessionId,delivery:entries.some(e=>e.origin==='user')?'interrupt-and-resume':'queued-next-segment'});}
-          const sdkOptions={cwd:binding?GUEST_WORKSPACE:fs.realpathSync(options.workspace),env,model:options.model||undefined,maxTurns:segmentBudget,...(sessionId?{resume:sessionId}:{}),abortController:controller,includePartialMessages:true,
+          const sdkOptions={cwd:binding?GUEST_WORKSPACE:fs.realpathSync(options.workspace),env,model:options.model||undefined,effort:typeof options.effort==='string'&&['low','medium','high','xhigh','max'].includes(options.effort)?options.effort:undefined,maxTurns:segmentBudget,...(sessionId?{resume:sessionId}:{}),abortController:controller,includePartialMessages:true,
+            // A newer host CLI (DAIDALIS_CLAUDE_CLI_PATH) can replace the SDK's bundled executable, e.g. for gateways the bundled CLI cannot authenticate against.
+            ...(binding?{}:process.env.DAIDALIS_CLAUDE_CLI_PATH?{cliPath:process.env.DAIDALIS_CLAUDE_CLI_PATH}:{}),
             tools:{type:'preset',preset:'claude_code'},disallowedTools:[...DENIED_TOOLS,...(binding?REMOTE_DENIED_TOOLS:[])],permissionMode:requestedPermissionMode,settingSources:[],
             ...(binding?{settings:{apiKeyHelper:GUEST_KEY_HELPER}}:{}),
             systemPrompt:{type:'preset',preset:'claude_code',append:options.instructions||'',snapshot:false},canUseTool,
