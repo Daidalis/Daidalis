@@ -87,6 +87,48 @@
       "t": 560
     },
     {
+      "kind": "activity",
+      "title": "保存外形 · 第 1 步：底盘与电驱",
+      "detail": "electric-sedan 外观 · 地板、电池包、逆变器、电机与前后副车架",
+      "executionLabel": "已保存",
+      "t": 610
+    },
+    {
+      "kind": "modeling",
+      "do": "appearance",
+      "path": "sedan/engineering/appearance-steps/step-01.appearance.sysml",
+      "t": 615,
+      "pauseMs": 9000
+    },
+    {
+      "kind": "activity",
+      "title": "保存外形 · 第 2 步：前左悬架与车轮",
+      "detail": "摆臂、支柱、弹簧、半轴、轮辋与轮胎",
+      "executionLabel": "已保存",
+      "t": 694
+    },
+    {
+      "kind": "modeling",
+      "do": "appearance",
+      "path": "sedan/engineering/appearance-steps/step-02.appearance.sysml",
+      "t": 699,
+      "pauseMs": 9000
+    },
+    {
+      "kind": "activity",
+      "title": "保存外形 · 第 3 步：前右悬架与车轮",
+      "detail": "与左侧对称的前悬架总成",
+      "executionLabel": "已保存",
+      "t": 806
+    },
+    {
+      "kind": "modeling",
+      "do": "appearance",
+      "path": "sedan/engineering/appearance-steps/step-03.appearance.sysml",
+      "t": 811,
+      "pauseMs": 9000
+    },
+    {
       "kind": "message",
       "role": "assistant",
       "content": "FMU 已成功导出，实际轨迹也已算出，但验收没有通过：后段车速仍高于巡航目标，控制器把驱动功率降到了零，因此“末段正功率巡航”判据失败。我会保留这次真实失败结果，不放宽判据或反复导出来掩盖它；接下来完成同一辆车的底盘、曲面外壳与彩色几何交付。\n",
@@ -94,16 +136,17 @@
     },
     {
       "kind": "activity",
-      "title": "保存模型 · ElectricSedan.appearance.sysml",
-      "detail": "沿装配顺序逐版保存：底盘与电驱、悬架、车身、玻璃与灯具",
+      "title": "保存外形 · 第 4 步：后部悬架与车轮",
+      "detail": "左右后悬架、半轴与车轮",
       "executionLabel": "已保存",
-      "t": 3330
+      "t": 4143
     },
     {
       "kind": "modeling",
       "do": "appearance",
-      "path": "sedan/ElectricSedan.appearance.sysml",
-      "t": 3335
+      "path": "sedan/engineering/appearance-steps/step-04.appearance.sysml",
+      "t": 4148,
+      "pauseMs": 9000
     },
     {
       "kind": "activity",
@@ -111,6 +154,20 @@
       "detail": "OpenSCAD，导出彩色 PNG 与 STL",
       "executionLabel": "作业结束",
       "t": 4170
+    },
+    {
+      "kind": "activity",
+      "title": "保存外形 · 完成：车身覆盖件",
+      "detail": "车身、玻璃舱盖、大灯尾灯与后视镜",
+      "executionLabel": "已保存",
+      "t": 4200
+    },
+    {
+      "kind": "modeling",
+      "do": "appearance",
+      "path": "sedan/ElectricSedan.appearance.sysml",
+      "t": 4205,
+      "pauseMs": 11000
     },
     {
       "kind": "message",

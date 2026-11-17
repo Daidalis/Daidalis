@@ -36,7 +36,18 @@ test('the recorded sedan demo timeline is honest about what it references',async
     }
   }
   // every referenced project file exists beside the timeline
-  for(const entry of replay.entries)if(entry.kind==='modeling'&&entry.path)await fs.access(path.join(exampleDir,path.basename(entry.path)));
+  const resolveExample=entryPath=>path.join(exampleDir,path.relative('sedan',entryPath));
+  for(const entry of replay.entries)if(entry.kind==='modeling'&&entry.path)await fs.access(resolveExample(entry.path));
+  // the appearance builds up through the archived real save sequence, in part-count order
+  const appearanceSteps=replay.entries.filter(entry=>entry.kind==='modeling'&&entry.do==='appearance');
+  assert.equal(appearanceSteps.length,5,'the shell assembles through five archived saves');
+  const partCounts=[];
+  for(const step of appearanceSteps){
+    const source=await fs.readFile(resolveExample(step.path),'utf8');
+    partCounts.push(source.split('\n').filter(line=>/^\s*part \w/.test(line)).length);
+  }
+  for(let index=1;index<partCounts.length;index++)assert.ok(partCounts[index]>partCounts[index-1],`appearance save ${index+1} grows the shell (${partCounts.join(' → ')})`);
+  assert.equal(partCounts.at(-1),Number((await fs.readFile(path.join(exampleDir,'ElectricSedan.appearance.sysml'),'utf8')).split('\n').filter(line=>/^\s*part \w/.test(line)).length),'the last step is the shipped final shell');
   // the retained artifacts the narrative claims are real
   const manifest=JSON.parse(await fs.readFile(path.join(exampleDir,'ElectricSedan.recorded.json'),'utf8'));
   assert.equal(manifest.provenance,'fmu-run');

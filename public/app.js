@@ -164,14 +164,15 @@ function replaySchedule(entry){
  state.replay.pending=entry;
  const r=state.replay,data=r.data||{},entries=data.entries||[];
  let delay;
- if(Number.isFinite(entry?.t)){
+ if(Number.isFinite(entry?.pauseMs))delay=entry.pauseMs;
+ else if(Number.isFinite(entry?.t)){
   const index=entries.indexOf(entry);
   const previous=index>0&&Number.isFinite(entries[index-1]?.t)?entries[index-1].t:0;
   const span=Number.isFinite(data.durationSeconds)&&data.durationSeconds>0?data.durationSeconds:1;
   const playback=Number.isFinite(data.playbackSeconds)&&data.playbackSeconds>0?data.playbackSeconds:80;
   delay=(entry.t-previous)*(playback/span)*1000;
- }else delay=Number.isFinite(entry?.pauseMs)?entry.pauseMs:(entry?.kind==='message'?(entry.role==='user'?1400:2200):entry?.kind==='modeling'?800:1500);
- state.replay.timer=setTimeout(()=>replayAdvance(),Math.min(9000,Math.max(500,delay/r.speed)));
+ }else delay=entry?.kind==='message'?(entry.role==='user'?1400:2200):entry?.kind==='modeling'?800:1500;
+ state.replay.timer=setTimeout(()=>replayAdvance(),Math.min(12000,Math.max(500,delay/r.speed)));
 }
 function replayAdvance(){
   const r=state.replay;if(!r?.active||!r.data)return;

@@ -8,7 +8,9 @@ import {normalizeLegacyEnvironment} from '../shared/legacy-names.mjs';
 const candidates=[fileURLToPath(new URL('../.env',import.meta.url)),fileURLToPath(new URL('../../.env',import.meta.url))];
 const file=candidates.find(location=>{try{return fs.statSync(location).isFile();}catch{return false;}});
 try {
-  if(file)process.loadEnvFile(file);
+  // process.loadEnvFile ships with Node 21.7+; on older runtimes the gateway
+  // variables must be exported manually, and the missing API is not fatal.
+  if(file&&typeof process.loadEnvFile==='function')process.loadEnvFile(file);
 } catch(error) {
   if(error.code!=='ENOENT')throw new Error('Unable to load the local .env file: '+error.code);
 }
