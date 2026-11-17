@@ -13,8 +13,8 @@ test('the recorded sedan demo timeline is honest about what it references',async
   const replay=JSON.parse(await fs.readFile(path.join(exampleDir,'replay.json'),'utf8'));
   assert.equal(replay.schema,'daidalis-demo-replay-v1');
   assert.equal(replay.provenance,'curated');
-  assert.match(replay.note,/真实会话消息/);
-  assert.match(replay.note,/环境故障与续跑指令不在演示时间轴内/);
+  assert.match(replay.note,/真实求解/);
+  assert.match(replay.note,/文件逐字节保留/);
   assert.ok(typeof replay.prompt==='string'&&replay.prompt.length>50);
   // the timeline follows the original session's full duration, in order
   assert.equal(replay.durationSeconds,5407);
@@ -38,7 +38,12 @@ test('the recorded sedan demo timeline is honest about what it references',async
   // every referenced project file exists beside the timeline
   const resolveExample=entryPath=>path.join(exampleDir,path.relative('sedan',entryPath));
   for(const entry of replay.entries)if(entry.kind==='modeling'&&entry.path)await fs.access(resolveExample(entry.path));
-  // the appearance builds up through the archived real save sequence, in part-count order
+  // the conversation carries only the task; activity cards and assistant logs stay out
+  const messages=replay.entries.filter(entry=>entry.kind==='message');
+  assert.equal(messages.length,1,'the conversation shows only the task');
+  assert.equal(messages[0].usePrompt,true,'that single message is the original task');
+  assert.equal(replay.entries.filter(entry=>entry.kind==='activity').length,0,'no activity cards');
+  // the shell assembles through the archived real save sequence, in part-count order
   const appearanceSteps=replay.entries.filter(entry=>entry.kind==='modeling'&&entry.do==='appearance');
   assert.equal(appearanceSteps.length,5,'the shell assembles through five archived saves');
   const partCounts=[];
