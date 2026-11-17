@@ -151,7 +151,7 @@ function replayEntryView(entry){
 function replayRows(){const entries=state.replay.data.entries||[];return entries.slice(0,state.replay.cursor).map(replayEntryView).join('');}
 function replayClock(seconds){const s=Math.max(0,Math.round(Number(seconds)||0));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
 function replayBar(){const entries=state.replay.data.entries||[],current=entries[Math.max(0,state.replay.cursor-1)];return `<div class="replay-bar" role="toolbar" aria-label="回放控制"><button type="button" class="button compact" data-action="replay-toggle">${state.replay.playing?'暂停':'播放'}</button><label class="replay-range"><input type="range" data-replay-seek min="0" max="${entries.length}" value="${state.replay.cursor}" aria-label="回放进度"><output>${state.replay.cursor}/${entries.length}</output></label><span class="replay-clock">${replayClock(current?.t||0)} / ${replayClock(state.replay.data.durationSeconds||0)}</span><select data-replay-speed aria-label="回放速度">${[1,2].map(s=>`<option value="${s}"${state.replay.speed===s?' selected':''}>${s}×</option>`).join('')}</select><button type="button" class="button compact" data-action="replay-exit">退出回放</button></div>`;}
-function replayEmptyHint(){return replayAvailable()&&!state.replay.active?'<div class="conversation-empty"><h1>'+esc(project()?.name||'项目')+'</h1><p>输入框已带入当时的任务文本，直接发送即可按原会话时间轴回放完成过程。</p></div>':'';}
+function replayEmptyHint(){return '';}
 function replayApplyEntry(entry){
   if(!entry||entry.kind!=='modeling')return;
   if(entry.do==='open')void professionalUI.openPath(entry.path).catch(()=>{});

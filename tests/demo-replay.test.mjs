@@ -13,16 +13,16 @@ test('the recorded sedan demo timeline is honest about what it references',async
   const replay=JSON.parse(await fs.readFile(path.join(exampleDir,'replay.json'),'utf8'));
   assert.equal(replay.schema,'daidalis-demo-replay-v1');
   assert.equal(replay.provenance,'curated');
-  assert.match(replay.note,/真实求解/);
-  assert.match(replay.note,/文件逐字节保留/);
+  assert.match(replay.note,/真实会话消息/);
+  assert.match(replay.note,/环境故障与续跑指令不在演示时间轴内/);
   assert.ok(typeof replay.prompt==='string'&&replay.prompt.length>50);
   // the timeline follows the original session's full duration, in order
   assert.equal(replay.durationSeconds,5407);
   let previousT=0;
   for(const entry of replay.entries){assert.ok(Number.isFinite(entry.t)&&entry.t>=previousT,'entry t is ordered');previousT=entry.t;}
-  assert.ok(previousT<=replay.durationSeconds,'the timeline stays within the session duration');
+  assert.equal(previousT,replay.durationSeconds,'the last entry closes the session timeline');
   const kinds=new Set(replay.entries.map(entry=>entry.kind));
-  assert.deepEqual([...kinds].sort(),['message','modeling']);
+  assert.deepEqual([...kinds].sort(),['activity','message','modeling']);
   for(const [index,entry] of replay.entries.entries()){
     assert.ok(['message','activity','modeling'].includes(entry.kind),`entry ${index} has a known kind`);
     if(entry.kind==='modeling')assert.ok(entry.do&&['open','appearance','recorded','event'].includes(entry.do),`entry ${index} has a known modeling action`);
@@ -38,12 +38,7 @@ test('the recorded sedan demo timeline is honest about what it references',async
   // every referenced project file exists beside the timeline
   const resolveExample=entryPath=>path.join(exampleDir,path.relative('sedan',entryPath));
   for(const entry of replay.entries)if(entry.kind==='modeling'&&entry.path)await fs.access(resolveExample(entry.path));
-  // the conversation carries only the task; activity cards and assistant logs stay out
-  const messages=replay.entries.filter(entry=>entry.kind==='message');
-  assert.equal(messages.length,1,'the conversation shows only the task');
-  assert.equal(messages[0].usePrompt,true,'that single message is the original task');
-  assert.equal(replay.entries.filter(entry=>entry.kind==='activity').length,0,'no activity cards');
-  // the shell assembles through the archived real save sequence, in part-count order
+  // the appearance builds up through the archived real save sequence, in part-count order
   const appearanceSteps=replay.entries.filter(entry=>entry.kind==='modeling'&&entry.do==='appearance');
   assert.equal(appearanceSteps.length,5,'the shell assembles through five archived saves');
   const partCounts=[];
@@ -61,6 +56,10 @@ test('the recorded sedan demo timeline is honest about what it references',async
   const passed=manifest.checks.filter(check=>check.passed===true).length,failed=manifest.checks.filter(check=>check.passed===false).length;
   assert.equal(passed+failed,manifest.checks.length);
   assert.ok(failed>0,'the cruise criterion failure is retained, not hidden');
+  // the timeline states the same verdict counts the manifest records
+  const verdictEntries=replay.entries.filter(entry=>entry.kind==='activity'&&/判据/.test(entry.verificationLabel||''));
+  assert.ok(verdictEntries.length>=1,'the timeline states the criterion outcome');
+  for(const verdictEntry of verdictEntries)assert.match(verdictEntry.verificationLabel,new RegExp(`判据 ${passed}/${passed+failed} 通过`));
 });
 
 test('a fresh store seeds only the demo replay project with byte-identical retained files',async t=>{
