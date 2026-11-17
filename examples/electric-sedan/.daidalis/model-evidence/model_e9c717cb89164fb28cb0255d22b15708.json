@@ -1,0 +1,1399 @@
+{
+  "schema": "daidalis-model-evidence-v1",
+  "id": "model_e9c717cb89164fb28cb0255d22b15708",
+  "projectId": "project_88e5a4d2-03b2-404a-956b-7bb7ccee4df1",
+  "createdAt": "2026-11-16T18:23:22.911Z",
+  "version": "0.10.10",
+  "findings": [],
+  "valid": true,
+  "scope": "sysml-v2-syntax-and-supported-semantic-rules",
+  "data": {
+    "graph": {
+      "edges": [
+        {
+          "composite": false,
+          "kind": "composition",
+          "source": "b26ee25d-5fd8-5b6d-a92a-2c2a99f944da",
+          "target": "899231d0-2a7d-537a-a5ad-0cd15481cc66"
+        },
+        {
+          "kind": "membership",
+          "source": "b26ee25d-5fd8-5b6d-a92a-2c2a99f944da",
+          "target": "f6d355ee-211c-5c15-ae4e-36340d2759e0"
+        },
+        {
+          "composite": false,
+          "kind": "composition",
+          "source": "ad9e36e7-d47f-5e21-9699-86308cc8d3d7",
+          "target": "5508b437-1b59-586b-bce9-d6a2f2cc6972"
+        },
+        {
+          "kind": "membership",
+          "source": "ad9e36e7-d47f-5e21-9699-86308cc8d3d7",
+          "target": "ce0f3d75-a168-5ade-8560-ea877c5fd437"
+        },
+        {
+          "composite": false,
+          "kind": "composition",
+          "source": "cb5833e3-a21c-5645-a7ac-0d816a24b26e",
+          "target": "394fdbfc-da76-55a6-bec5-7bc0711d1ecd"
+        },
+        {
+          "composite": false,
+          "kind": "composition",
+          "source": "5ba7f488-6eba-5f33-a1e0-7c96b9436a28",
+          "target": "512d954d-0460-5668-b334-c2e41db5d0c7"
+        },
+        {
+          "composite": false,
+          "kind": "composition",
+          "source": "5ba7f488-6eba-5f33-a1e0-7c96b9436a28",
+          "target": "baa54b6f-8ab6-513f-9aae-45b9edc62276"
+        },
+        {
+          "composite": false,
+          "kind": "composition",
+          "source": "2acb58bd-bf98-569a-973c-0d2d9e853ec6",
+          "target": "735aa370-5105-5635-b0ba-bc1c7d8cc1f9"
+        },
+        {
+          "kind": "composition",
+          "source": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+          "target": "7eed7c1b-e869-521b-a69e-d1e23b503334"
+        },
+        {
+          "kind": "composition",
+          "source": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+          "target": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a"
+        },
+        {
+          "kind": "composition",
+          "source": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+          "target": "4f72106c-ccac-5e25-bd97-f05d2663fd15"
+        },
+        {
+          "kind": "composition",
+          "source": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+          "target": "8e1ca69e-91e2-53ab-bdfe-cdbddf54f2af"
+        },
+        {
+          "kind": "composition",
+          "source": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+          "target": "fca90b21-09e4-59ce-95c6-2fa8017dae3d"
+        },
+        {
+          "kind": "composition",
+          "source": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+          "target": "b467d707-4d6e-5b23-b9e7-9504efc084b0"
+        },
+        {
+          "kind": "composition",
+          "source": "21342d14-0eac-5dbb-a0a9-21edb6b417a6",
+          "target": "e6645db6-f029-52fc-b217-302387b33d10"
+        },
+        {
+          "kind": "composition",
+          "source": "21342d14-0eac-5dbb-a0a9-21edb6b417a6",
+          "target": "72429cee-f820-59cc-b4ee-c523de22fac6"
+        },
+        {
+          "kind": "composition",
+          "source": "21342d14-0eac-5dbb-a0a9-21edb6b417a6",
+          "target": "be6bcaa5-f7ca-5be6-91ec-581a68d906bb"
+        },
+        {
+          "kind": "composition",
+          "source": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+          "target": "21342d14-0eac-5dbb-a0a9-21edb6b417a6"
+        },
+        {
+          "kind": "typing",
+          "source": "899231d0-2a7d-537a-a5ad-0cd15481cc66",
+          "target": "c544246a-fe77-5ff6-9d95-2990308fa78b"
+        },
+        {
+          "kind": "typing",
+          "source": "5508b437-1b59-586b-bce9-d6a2f2cc6972",
+          "target": "f803f8a5-c16b-5e04-be62-e4d8de8f77e0"
+        },
+        {
+          "kind": "typing",
+          "source": "394fdbfc-da76-55a6-bec5-7bc0711d1ecd",
+          "target": "b26ee25d-5fd8-5b6d-a92a-2c2a99f944da"
+        },
+        {
+          "kind": "typing",
+          "source": "512d954d-0460-5668-b334-c2e41db5d0c7",
+          "target": "f6d355ee-211c-5c15-ae4e-36340d2759e0"
+        },
+        {
+          "kind": "typing",
+          "source": "baa54b6f-8ab6-513f-9aae-45b9edc62276",
+          "target": "ad9e36e7-d47f-5e21-9699-86308cc8d3d7"
+        },
+        {
+          "kind": "typing",
+          "source": "735aa370-5105-5635-b0ba-bc1c7d8cc1f9",
+          "target": "ce0f3d75-a168-5ade-8560-ea877c5fd437"
+        },
+        {
+          "kind": "typing",
+          "source": "7eed7c1b-e869-521b-a69e-d1e23b503334",
+          "target": "cb5833e3-a21c-5645-a7ac-0d816a24b26e"
+        },
+        {
+          "kind": "typing",
+          "source": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a",
+          "target": "5ba7f488-6eba-5f33-a1e0-7c96b9436a28"
+        },
+        {
+          "kind": "typing",
+          "source": "4f72106c-ccac-5e25-bd97-f05d2663fd15",
+          "target": "2acb58bd-bf98-569a-973c-0d2d9e853ec6"
+        },
+        {
+          "kind": "typing",
+          "source": "633b0d61-c77a-5787-854e-db878aa17533",
+          "target": "fab993b2-8b3b-5349-80e0-d5c152a7d24d"
+        },
+        {
+          "kind": "typing",
+          "source": "b467d707-4d6e-5b23-b9e7-9504efc084b0",
+          "target": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2"
+        },
+        {
+          "kind": "typing",
+          "source": "175ed9dd-cffa-55a9-9963-1a461d7ea9b7",
+          "target": "72e4de3d-0a38-5b15-8ed7-288d71f9a748"
+        },
+        {
+          "kind": "note",
+          "source": "b01e8ba4-9aaf-5b3d-91fd-d9d52cba678d",
+          "target": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2"
+        }
+      ],
+      "nodes": [
+        {
+          "col": 9,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "kind": "package",
+          "label": "ElectricSedan",
+          "line": 1,
+          "metaclass": "Package",
+          "qname": "ElectricSedan",
+          "rows": [],
+          "stereo": "package"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "c544246a-fe77-5ff6-9d95-2990308fa78b",
+          "kind": "node",
+          "label": "ElectricalPower",
+          "line": 4,
+          "metaclass": "ItemDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::ElectricalPower",
+          "rows": [],
+          "stereo": "item def"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "f803f8a5-c16b-5e04-be62-e4d8de8f77e0",
+          "kind": "node",
+          "label": "ShaftTorque",
+          "line": 5,
+          "metaclass": "ItemDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::ShaftTorque",
+          "rows": [],
+          "stereo": "item def"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "b26ee25d-5fd8-5b6d-a92a-2c2a99f944da",
+          "kind": "node",
+          "label": "PowerPort",
+          "line": 6,
+          "metaclass": "PortDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::PowerPort",
+          "rows": [],
+          "stereo": "port def"
+        },
+        {
+          "col": 35,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "899231d0-2a7d-537a-a5ad-0cd15481cc66",
+          "kind": "node",
+          "label": "power : ElectricalPower",
+          "line": 6,
+          "metaclass": "ItemUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::PowerPort::power",
+          "rows": [],
+          "stereo": "item"
+        },
+        {
+          "id": "f6d355ee-211c-5c15-ae4e-36340d2759e0",
+          "kind": "node",
+          "label": "~PowerPort",
+          "metaclass": "ConjugatedPortDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::PowerPort::'~PowerPort'",
+          "rows": [],
+          "stereo": "conjugated port def"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "ad9e36e7-d47f-5e21-9699-86308cc8d3d7",
+          "kind": "node",
+          "label": "TorquePort",
+          "line": 7,
+          "metaclass": "PortDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::TorquePort",
+          "rows": [],
+          "stereo": "port def"
+        },
+        {
+          "col": 36,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "5508b437-1b59-586b-bce9-d6a2f2cc6972",
+          "kind": "node",
+          "label": "torque : ShaftTorque",
+          "line": 7,
+          "metaclass": "ItemUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::TorquePort::torque",
+          "rows": [],
+          "stereo": "item"
+        },
+        {
+          "id": "ce0f3d75-a168-5ade-8560-ea877c5fd437",
+          "kind": "node",
+          "label": "~TorquePort",
+          "metaclass": "ConjugatedPortDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::TorquePort::'~TorquePort'",
+          "rows": [],
+          "stereo": "conjugated port def"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "cb5833e3-a21c-5645-a7ac-0d816a24b26e",
+          "kind": "node",
+          "label": "Battery",
+          "line": 8,
+          "metaclass": "PartDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Battery",
+          "rows": [],
+          "stereo": "part def"
+        },
+        {
+          "col": 29,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "394fdbfc-da76-55a6-bec5-7bc0711d1ecd",
+          "kind": "node",
+          "label": "dc : PowerPort",
+          "line": 8,
+          "metaclass": "PortUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Battery::dc",
+          "rows": [],
+          "stereo": "port"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "5ba7f488-6eba-5f33-a1e0-7c96b9436a28",
+          "kind": "node",
+          "label": "Inverter",
+          "line": 9,
+          "metaclass": "PartDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Inverter",
+          "rows": [],
+          "stereo": "part def"
+        },
+        {
+          "col": 30,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "512d954d-0460-5668-b334-c2e41db5d0c7",
+          "kind": "node",
+          "label": "dc : ~PowerPort",
+          "line": 9,
+          "metaclass": "PortUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Inverter::dc",
+          "rows": [],
+          "stereo": "port"
+        },
+        {
+          "col": 52,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "baa54b6f-8ab6-513f-9aae-45b9edc62276",
+          "kind": "node",
+          "label": "shaft : TorquePort",
+          "line": 9,
+          "metaclass": "PortUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Inverter::shaft",
+          "rows": [],
+          "stereo": "port"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "2acb58bd-bf98-569a-973c-0d2d9e853ec6",
+          "kind": "node",
+          "label": "Motor",
+          "line": 10,
+          "metaclass": "PartDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Motor",
+          "rows": [],
+          "stereo": "part def"
+        },
+        {
+          "col": 27,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "735aa370-5105-5635-b0ba-bc1c7d8cc1f9",
+          "kind": "node",
+          "label": "shaft : ~TorquePort",
+          "line": 10,
+          "metaclass": "PortUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Motor::shaft",
+          "rows": [],
+          "stereo": "port"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+          "kind": "node",
+          "label": "Sedan",
+          "line": 11,
+          "metaclass": "PartDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Sedan",
+          "rows": [
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "c65a4749-4290-54ec-9f39-d37569910cfc",
+              "label": "mass : Real = 1750",
+              "line": 17,
+              "qname": "ElectricSedan::Sedan::mass",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "7a187dca-d13d-51d5-bfd6-46e330c26d7b",
+              "label": "capacity : Real = 216000000",
+              "line": 18,
+              "qname": "ElectricSedan::Sedan::capacity",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "926ab5c5-33a8-5cdc-862f-637c08dc2c3a",
+              "label": "etaInv : Real = 0.96",
+              "line": 19,
+              "qname": "ElectricSedan::Sedan::etaInv",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "181e5975-da94-5c41-8c98-2f528564541a",
+              "label": "etaMotor : Real = 0.92",
+              "line": 20,
+              "qname": "ElectricSedan::Sedan::etaMotor",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "8166c4d8-4cc9-5adb-8192-d31cb554dbf6",
+              "label": "forceLimit : Real = 4500",
+              "line": 21,
+              "qname": "ElectricSedan::Sedan::forceLimit",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "22631d43-344a-575d-8ff6-ddb6f9da24f8",
+              "label": "rolling : Real = 0.011",
+              "line": 22,
+              "qname": "ElectricSedan::Sedan::rolling",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "38d134c7-d34e-5b70-8f61-8cfece28e63d",
+              "label": "rho : Real = 1.225",
+              "line": 23,
+              "qname": "ElectricSedan::Sedan::rho",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "272da6c4-ecca-5d69-b146-7d9fd9513adb",
+              "label": "cdA : Real = 0.62",
+              "line": 24,
+              "qname": "ElectricSedan::Sedan::cdA",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "337814ac-61bf-5051-a297-58861adabf91",
+              "label": "g : Real = 9.81",
+              "line": 25,
+              "qname": "ElectricSedan::Sedan::g",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "71c45a6f-f8a4-561b-bb18-11370baea038",
+              "label": "cruiseSpeed : Real = 16",
+              "line": 26,
+              "qname": "ElectricSedan::Sedan::cruiseSpeed",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "41ec9ffa-0c85-5d8f-ae3e-6f3cc9c90fe0",
+              "label": "command : Real",
+              "line": 27,
+              "qname": "ElectricSedan::Sedan::command",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "f456ee78-d23a-5a1f-bd21-e8df63f735ea",
+              "label": "resistance : Real",
+              "line": 28,
+              "qname": "ElectricSedan::Sedan::resistance",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "5d8faba0-51e2-5188-9668-6bdef50bb527",
+              "label": "wheelForce : Real",
+              "line": 29,
+              "qname": "ElectricSedan::Sedan::wheelForce",
+              "section": "attributes"
+            },
+            {
+              "col": 19,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "adbe63ff-00df-5b33-ac1d-09f4cfcad0d2",
+              "label": "cruisePower : Real",
+              "line": 30,
+              "qname": "ElectricSedan::Sedan::cruisePower",
+              "section": "attributes"
+            }
+          ],
+          "stereo": "part def"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "7eed7c1b-e869-521b-a69e-d1e23b503334",
+          "kind": "node",
+          "label": "battery : Battery",
+          "line": 12,
+          "metaclass": "PartUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Sedan::battery",
+          "rows": [],
+          "stereo": "part"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a",
+          "kind": "node",
+          "label": "inverter : Inverter",
+          "line": 13,
+          "metaclass": "PartUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Sedan::inverter",
+          "rows": [],
+          "stereo": "part"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "4f72106c-ccac-5e25-bd97-f05d2663fd15",
+          "kind": "node",
+          "label": "motor : Motor",
+          "line": 14,
+          "metaclass": "PartUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Sedan::motor",
+          "rows": [],
+          "stereo": "part"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "8e1ca69e-91e2-53ab-bdfe-cdbddf54f2af",
+          "kind": "node",
+          "label": "batteryToInverter",
+          "line": 15,
+          "metaclass": "FlowUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Sedan::batteryToInverter",
+          "rows": [],
+          "stereo": "flow"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "fca90b21-09e4-59ce-95c6-2fa8017dae3d",
+          "kind": "node",
+          "label": "inverterToMotor",
+          "line": 16,
+          "metaclass": "FlowUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Sedan::inverterToMotor",
+          "rows": [],
+          "stereo": "flow"
+        },
+        {
+          "col": 10,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "633b0d61-c77a-5787-854e-db878aa17533",
+          "kind": "node",
+          "label": "sedan : Sedan",
+          "line": 32,
+          "metaclass": "PartUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::sedan",
+          "rows": [],
+          "stereo": "part"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+          "kind": "node",
+          "label": "Launch",
+          "line": 33,
+          "metaclass": "CalculationDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::Launch",
+          "rows": [
+            {
+              "col": 12,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "a7b68e68-057b-5fc0-aaa9-08144d0efa08",
+              "label": "in startTime : Real [1] = 0",
+              "line": 39,
+              "qname": "ElectricSedan::Launch::startTime",
+              "section": "parameters"
+            },
+            {
+              "col": 12,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "6fd8fa20-8805-5217-b9ef-8684864d4ce1",
+              "label": "in stopTime : Real [1] = 60",
+              "line": 40,
+              "qname": "ElectricSedan::Launch::stopTime",
+              "section": "parameters"
+            },
+            {
+              "col": 12,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "c55f557d-e891-5d96-bfc6-1c7181ece637",
+              "label": "in stepSize : Real [1] = 0.02",
+              "line": 41,
+              "qname": "ElectricSedan::Launch::stepSize",
+              "section": "parameters"
+            },
+            {
+              "col": 16,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "0f4d5afa-ace2-5170-8fdf-61da528d2225",
+              "label": "out battery : Real [1]",
+              "line": 42,
+              "qname": "ElectricSedan::Launch::battery",
+              "section": "parameters"
+            },
+            {
+              "col": 13,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "f723b870-9550-5538-bfaa-34d28cf99db5",
+              "label": "out inverter : Real [1]",
+              "line": 43,
+              "qname": "ElectricSedan::Launch::inverter",
+              "section": "parameters"
+            },
+            {
+              "col": 13,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "bcebb87c-7e8d-53ac-9c19-e3158323cd14",
+              "label": "out motor : Real [1]",
+              "line": 44,
+              "qname": "ElectricSedan::Launch::motor",
+              "section": "parameters"
+            }
+          ],
+          "stereo": "calculation def"
+        },
+        {
+          "col": 18,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+          "kind": "node",
+          "label": "LaunchAnalysis",
+          "line": 46,
+          "metaclass": "AnalysisCaseDefinition",
+          "nodeKind": "def",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::LaunchAnalysis",
+          "rows": [
+            {
+              "col": 17,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "430005cf-fdaf-5af7-ba71-a5f737e8d81c",
+              "label": "in vehicle : Sedan",
+              "line": 47,
+              "qname": "ElectricSedan::LaunchAnalysis::vehicle",
+              "section": "parameters"
+            },
+            {
+              "col": 13,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "b0d4377e-1c76-5e5e-aec0-fd2e8f67a519",
+              "label": "out finalSOC : Real [1]",
+              "line": 49,
+              "qname": "ElectricSedan::LaunchAnalysis::finalSOC",
+              "section": "parameters"
+            },
+            {
+              "col": 13,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "e2f82b13-d702-5b47-a908-c0da9e4c237f",
+              "label": "out finalPower : Real [1]",
+              "line": 50,
+              "qname": "ElectricSedan::LaunchAnalysis::finalPower",
+              "section": "parameters"
+            },
+            {
+              "col": 13,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "58f02e86-f3b8-51ee-a37a-1f9cf69ac766",
+              "label": "out finalSpeed : Real [1]",
+              "line": 51,
+              "qname": "ElectricSedan::LaunchAnalysis::finalSpeed",
+              "section": "parameters"
+            }
+          ],
+          "stereo": "analysis case def"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "b467d707-4d6e-5b23-b9e7-9504efc084b0",
+          "kind": "node",
+          "label": "launch : Launch",
+          "line": 48,
+          "metaclass": "CalculationUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::LaunchAnalysis::launch",
+          "rows": [],
+          "stereo": "calculation"
+        },
+        {
+          "col": 19,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "21342d14-0eac-5dbb-a0a9-21edb6b417a6",
+          "kind": "node",
+          "label": "launchEnvelope",
+          "line": 52,
+          "metaclass": "RequirementUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::LaunchAnalysis::launchEnvelope",
+          "rows": [],
+          "stereo": "requirement"
+        },
+        {
+          "col": 13,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "e6645db6-f029-52fc-b217-302387b33d10",
+          "kind": "node",
+          "label": "(constraint)",
+          "line": 53,
+          "metaclass": "ConstraintUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "rows": [],
+          "stereo": "constraint"
+        },
+        {
+          "col": 13,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "72429cee-f820-59cc-b4ee-c523de22fac6",
+          "kind": "node",
+          "label": "(constraint)",
+          "line": 54,
+          "metaclass": "ConstraintUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "rows": [],
+          "stereo": "constraint"
+        },
+        {
+          "col": 13,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "be6bcaa5-f7ca-5be6-91ec-581a68d906bb",
+          "kind": "node",
+          "label": "(constraint)",
+          "line": 55,
+          "metaclass": "ConstraintUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "rows": [],
+          "stereo": "constraint"
+        },
+        {
+          "col": 14,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "175ed9dd-cffa-55a9-9963-1a461d7ea9b7",
+          "kind": "node",
+          "label": "launchCase : LaunchAnalysis",
+          "line": 58,
+          "metaclass": "AnalysisCaseUsage",
+          "nodeKind": "usage",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "qname": "ElectricSedan::launchCase",
+          "rows": [
+            {
+              "col": 52,
+              "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+              "id": "857d2b51-deb6-5843-b290-2097fdfe08e8",
+              "label": "in vehicle",
+              "line": 58,
+              "qname": "ElectricSedan::launchCase::vehicle",
+              "section": "parameters"
+            }
+          ],
+          "stereo": "analysis case"
+        },
+        {
+          "col": 9,
+          "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "id": "b01e8ba4-9aaf-5b3d-91fd-d9d52cba678d",
+          "kind": "note",
+          "label": "Plain Real outputs: battery SOC fraction; inverter W electrical output; motor m/s vehicle speed. Concept assumptions, not measurements.",
+          "line": 34,
+          "metaclass": "Documentation",
+          "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+          "rows": [],
+          "stereo": "doc"
+        }
+      ],
+      "view": "tree",
+      "interconnection": {
+        "edges": [
+          {
+            "col": 14,
+            "directed": true,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "8e1ca69e-91e2-53ab-bdfe-cdbddf54f2af",
+            "kind": "flow",
+            "label": "batteryToInverter : ElectricalPower",
+            "line": 15,
+            "metaclass": "FlowUsage",
+            "qname": "ElectricSedan::Sedan::batteryToInverter",
+            "source": "7eed7c1b-e869-521b-a69e-d1e23b503334~394fdbfc-da76-55a6-bec5-7bc0711d1ecd",
+            "sourcePath": "battery.dc.power",
+            "target": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a~512d954d-0460-5668-b334-c2e41db5d0c7",
+            "targetPath": "inverter.dc.power"
+          },
+          {
+            "col": 14,
+            "directed": true,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "fca90b21-09e4-59ce-95c6-2fa8017dae3d",
+            "kind": "flow",
+            "label": "inverterToMotor : ShaftTorque",
+            "line": 16,
+            "metaclass": "FlowUsage",
+            "qname": "ElectricSedan::Sedan::inverterToMotor",
+            "source": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a~baa54b6f-8ab6-513f-9aae-45b9edc62276",
+            "sourcePath": "inverter.shaft.torque",
+            "target": "4f72106c-ccac-5e25-bd97-f05d2663fd15~735aa370-5105-5635-b0ba-bc1c7d8cc1f9",
+            "targetPath": "motor.shaft.torque"
+          },
+          {
+            "kind": "note",
+            "source": "b01e8ba4-9aaf-5b3d-91fd-d9d52cba678d",
+            "target": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2"
+          }
+        ],
+        "nodes": [
+          {
+            "col": 9,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "kind": "package",
+            "label": "ElectricSedan",
+            "line": 1,
+            "metaclass": "Package",
+            "qname": "ElectricSedan",
+            "rows": [],
+            "stereo": "package"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "b26ee25d-5fd8-5b6d-a92a-2c2a99f944da",
+            "kind": "block",
+            "label": "PowerPort",
+            "line": 6,
+            "metaclass": "PortDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::PowerPort",
+            "rows": [],
+            "stereo": "port def"
+          },
+          {
+            "col": 35,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "899231d0-2a7d-537a-a5ad-0cd15481cc66",
+            "kind": "block",
+            "label": "power : ElectricalPower",
+            "line": 6,
+            "metaclass": "ItemUsage",
+            "nodeKind": "usage",
+            "parent": "b26ee25d-5fd8-5b6d-a92a-2c2a99f944da",
+            "qname": "ElectricSedan::PowerPort::power",
+            "rows": [],
+            "stereo": "item"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "ad9e36e7-d47f-5e21-9699-86308cc8d3d7",
+            "kind": "block",
+            "label": "TorquePort",
+            "line": 7,
+            "metaclass": "PortDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::TorquePort",
+            "rows": [],
+            "stereo": "port def"
+          },
+          {
+            "col": 36,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "5508b437-1b59-586b-bce9-d6a2f2cc6972",
+            "kind": "block",
+            "label": "torque : ShaftTorque",
+            "line": 7,
+            "metaclass": "ItemUsage",
+            "nodeKind": "usage",
+            "parent": "ad9e36e7-d47f-5e21-9699-86308cc8d3d7",
+            "qname": "ElectricSedan::TorquePort::torque",
+            "rows": [],
+            "stereo": "item"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "cb5833e3-a21c-5645-a7ac-0d816a24b26e",
+            "kind": "block",
+            "label": "Battery",
+            "line": 8,
+            "metaclass": "PartDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::Battery",
+            "rows": [],
+            "stereo": "part def"
+          },
+          {
+            "col": 29,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "394fdbfc-da76-55a6-bec5-7bc0711d1ecd",
+            "kind": "port",
+            "label": "dc : PowerPort",
+            "line": 8,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "cb5833e3-a21c-5645-a7ac-0d816a24b26e",
+            "qname": "ElectricSedan::Battery::dc",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "5ba7f488-6eba-5f33-a1e0-7c96b9436a28",
+            "kind": "block",
+            "label": "Inverter",
+            "line": 9,
+            "metaclass": "PartDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::Inverter",
+            "rows": [],
+            "stereo": "part def"
+          },
+          {
+            "col": 30,
+            "conjugated": true,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "512d954d-0460-5668-b334-c2e41db5d0c7",
+            "kind": "port",
+            "label": "dc : ~PowerPort",
+            "line": 9,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "5ba7f488-6eba-5f33-a1e0-7c96b9436a28",
+            "qname": "ElectricSedan::Inverter::dc",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 52,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "baa54b6f-8ab6-513f-9aae-45b9edc62276",
+            "kind": "port",
+            "label": "shaft : TorquePort",
+            "line": 9,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "5ba7f488-6eba-5f33-a1e0-7c96b9436a28",
+            "qname": "ElectricSedan::Inverter::shaft",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "2acb58bd-bf98-569a-973c-0d2d9e853ec6",
+            "kind": "block",
+            "label": "Motor",
+            "line": 10,
+            "metaclass": "PartDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::Motor",
+            "rows": [],
+            "stereo": "part def"
+          },
+          {
+            "col": 27,
+            "conjugated": true,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "735aa370-5105-5635-b0ba-bc1c7d8cc1f9",
+            "kind": "port",
+            "label": "shaft : ~TorquePort",
+            "line": 10,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "2acb58bd-bf98-569a-973c-0d2d9e853ec6",
+            "qname": "ElectricSedan::Motor::shaft",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+            "kind": "block",
+            "label": "Sedan",
+            "line": 11,
+            "metaclass": "PartDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::Sedan",
+            "rows": [],
+            "stereo": "part def"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "7eed7c1b-e869-521b-a69e-d1e23b503334",
+            "kind": "block",
+            "label": "battery : Battery",
+            "line": 12,
+            "metaclass": "PartUsage",
+            "nodeKind": "usage",
+            "parent": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+            "qname": "ElectricSedan::Sedan::battery",
+            "rows": [],
+            "stereo": "part"
+          },
+          {
+            "col": 29,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "7eed7c1b-e869-521b-a69e-d1e23b503334~394fdbfc-da76-55a6-bec5-7bc0711d1ecd",
+            "kind": "port",
+            "label": "dc : PowerPort",
+            "line": 8,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "7eed7c1b-e869-521b-a69e-d1e23b503334",
+            "qname": "ElectricSedan::Battery::dc",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a",
+            "kind": "block",
+            "label": "inverter : Inverter",
+            "line": 13,
+            "metaclass": "PartUsage",
+            "nodeKind": "usage",
+            "parent": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+            "qname": "ElectricSedan::Sedan::inverter",
+            "rows": [],
+            "stereo": "part"
+          },
+          {
+            "col": 30,
+            "conjugated": true,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a~512d954d-0460-5668-b334-c2e41db5d0c7",
+            "kind": "port",
+            "label": "dc : ~PowerPort",
+            "line": 9,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a",
+            "qname": "ElectricSedan::Inverter::dc",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 52,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a~baa54b6f-8ab6-513f-9aae-45b9edc62276",
+            "kind": "port",
+            "label": "shaft : TorquePort",
+            "line": 9,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "f408c995-5a36-5d4a-8cdc-9cebf3df0e0a",
+            "qname": "ElectricSedan::Inverter::shaft",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "4f72106c-ccac-5e25-bd97-f05d2663fd15",
+            "kind": "block",
+            "label": "motor : Motor",
+            "line": 14,
+            "metaclass": "PartUsage",
+            "nodeKind": "usage",
+            "parent": "fab993b2-8b3b-5349-80e0-d5c152a7d24d",
+            "qname": "ElectricSedan::Sedan::motor",
+            "rows": [],
+            "stereo": "part"
+          },
+          {
+            "col": 27,
+            "conjugated": true,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "4f72106c-ccac-5e25-bd97-f05d2663fd15~735aa370-5105-5635-b0ba-bc1c7d8cc1f9",
+            "kind": "port",
+            "label": "shaft : ~TorquePort",
+            "line": 10,
+            "metaclass": "PortUsage",
+            "nodeKind": "usage",
+            "parent": "4f72106c-ccac-5e25-bd97-f05d2663fd15",
+            "qname": "ElectricSedan::Motor::shaft",
+            "rows": [],
+            "stereo": "port"
+          },
+          {
+            "col": 10,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "633b0d61-c77a-5787-854e-db878aa17533",
+            "kind": "block",
+            "label": "sedan : Sedan",
+            "line": 32,
+            "metaclass": "PartUsage",
+            "nodeKind": "usage",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::sedan",
+            "rows": [],
+            "stereo": "part"
+          },
+          {
+            "col": 14,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+            "kind": "block",
+            "label": "Launch",
+            "line": 33,
+            "metaclass": "CalculationDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::Launch",
+            "rows": [],
+            "stereo": "calculation def"
+          },
+          {
+            "col": 12,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "a7b68e68-057b-5fc0-aaa9-08144d0efa08",
+            "kind": "block",
+            "label": "startTime : Real [1]",
+            "line": 39,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+            "qname": "ElectricSedan::Launch::startTime",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 12,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "6fd8fa20-8805-5217-b9ef-8684864d4ce1",
+            "kind": "block",
+            "label": "stopTime : Real [1]",
+            "line": 40,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+            "qname": "ElectricSedan::Launch::stopTime",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 12,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "c55f557d-e891-5d96-bfc6-1c7181ece637",
+            "kind": "block",
+            "label": "stepSize : Real [1]",
+            "line": 41,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+            "qname": "ElectricSedan::Launch::stepSize",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 16,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "0f4d5afa-ace2-5170-8fdf-61da528d2225",
+            "kind": "block",
+            "label": "battery : Real [1]",
+            "line": 42,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+            "qname": "ElectricSedan::Launch::battery",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 13,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "f723b870-9550-5538-bfaa-34d28cf99db5",
+            "kind": "block",
+            "label": "inverter : Real [1]",
+            "line": 43,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+            "qname": "ElectricSedan::Launch::inverter",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 13,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "bcebb87c-7e8d-53ac-9c19-e3158323cd14",
+            "kind": "block",
+            "label": "motor : Real [1]",
+            "line": 44,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "9a72ab0d-3db3-5c04-8e25-45ed9c7bc0f2",
+            "qname": "ElectricSedan::Launch::motor",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 18,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+            "kind": "block",
+            "label": "LaunchAnalysis",
+            "line": 46,
+            "metaclass": "AnalysisCaseDefinition",
+            "nodeKind": "def",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "qname": "ElectricSedan::LaunchAnalysis",
+            "rows": [],
+            "stereo": "analysis case def"
+          },
+          {
+            "col": 17,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "430005cf-fdaf-5af7-ba71-a5f737e8d81c",
+            "kind": "block",
+            "label": "vehicle : Sedan",
+            "line": 47,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+            "qname": "ElectricSedan::LaunchAnalysis::vehicle",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 13,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "b0d4377e-1c76-5e5e-aec0-fd2e8f67a519",
+            "kind": "block",
+            "label": "finalSOC : Real [1]",
+            "line": 49,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+            "qname": "ElectricSedan::LaunchAnalysis::finalSOC",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 13,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "e2f82b13-d702-5b47-a908-c0da9e4c237f",
+            "kind": "block",
+            "label": "finalPower : Real [1]",
+            "line": 50,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+            "qname": "ElectricSedan::LaunchAnalysis::finalPower",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 13,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "58f02e86-f3b8-51ee-a37a-1f9cf69ac766",
+            "kind": "block",
+            "label": "finalSpeed : Real [1]",
+            "line": 51,
+            "metaclass": "ReferenceUsage",
+            "nodeKind": "ref",
+            "parent": "72e4de3d-0a38-5b15-8ed7-288d71f9a748",
+            "qname": "ElectricSedan::LaunchAnalysis::finalSpeed",
+            "rows": [],
+            "stereo": "reference"
+          },
+          {
+            "col": 9,
+            "file": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+            "id": "b01e8ba4-9aaf-5b3d-91fd-d9d52cba678d",
+            "kind": "note",
+            "label": "Plain Real outputs: battery SOC fraction; inverter W electrical output; motor m/s vehicle speed. Concept assumptions, not measurements.",
+            "line": 34,
+            "metaclass": "Documentation",
+            "parent": "61547b35-be86-50b7-ab47-659e917e4fdb",
+            "rows": [],
+            "stereo": "doc"
+          }
+        ],
+        "view": "interconnection"
+      }
+    },
+    "elementCount": 423
+  },
+  "backend": {
+    "id": "sysml-wasm",
+    "name": "Open-MBEE SysML v2",
+    "available": true,
+    "status": "ready",
+    "version": "0.10.10",
+    "commit": "339ef0e",
+    "repository": "https://github.com/Open-MBEE/sysml-toolkit",
+    "license": "Apache-2.0 AND EPL-2.0 (bundled OMG standard library)",
+    "archiveSha256": "93d6ef0a2140fceabc3115cd95d629146bc004c3959bfa23d715cce8b06cc13c",
+    "manifestSha256": "cb3e789540e704b33648514f55726ea005dd3e3582bc9ac4563d420020d6ae44",
+    "standardLibrary": "bundled OMG SysML v2 / KerML, EPL-2.0",
+    "isolated": true
+  },
+  "model": {
+    "path": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+    "sha256": "bb4871e6c64f17db9448656d383fae67e5f779c2a73172b3e25ac95c66401a6a",
+    "sourceSet": {
+      "root": null,
+      "files": [
+        {
+          "path": "engineering/professional/professional_78281f0d396b41a0833d8898af3ed291/sources/0-ElectricSedan.sysml",
+          "sha256": "bb4871e6c64f17db9448656d383fae67e5f779c2a73172b3e25ac95c66401a6a",
+          "bytes": 2710
+        }
+      ],
+      "totalBytes": 2710,
+      "sha256": "402795a7a761a08e6cd0e10e64a5277178d7034090a163e3d0c64eb4829d54ff"
+    }
+  },
+  "limitations": [
+    "Checks use the Open-MBEE toolkit supported syntax, resolution and semantic rule inventory; this is not complete OMG conformance certification.",
+    "The semantic kernel does not execute SysML behaviors or NOS3 simulation. Continuous FMI execution is a separate professional job: OpenSysML evaluates the SysML analysis verdict, FMPy supplies the plotted FMU trajectory, and neither establishes physical correctness.",
+    "Unresolved referential findings fail the Daidalis acceptance gate even when the upstream toolkit labels them warnings."
+  ],
+  "operation": "validate"
+}

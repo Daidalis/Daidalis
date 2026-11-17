@@ -194,21 +194,23 @@ test('source axis gives rotational solids their world-axis dimensions', () => {
 });
 
 test('electric sedan appearance keeps the recorded body bounds and wheel positions', () => {
-  const {parts,issues} = preview(readFileSync(local('examples/electric-sedan/Sedan.appearance.sysml'), 'utf8'));
-  assert.equal(issues.length, 15);
+  const {parts,issues} = preview(readFileSync(local('examples/electric-sedan/ElectricSedan.appearance.sysml'), 'utf8'));
+  assert.deepEqual(issues, []);
+  assert.equal(parts.length, 57);
+  assert.equal(parts.filter(part => part.shape === 'loft' && part.sections?.some(section => section.width !== undefined)).length, 16, 'the shell reads as rectangular-section lofts');
   const bounds = [0,1,2].map(i => [
     Math.min(...parts.map(p => p.position[i] - p.size[i] / 2)),
     Math.max(...parts.map(p => p.position[i] + p.size[i] / 2)),
   ]);
-  assert.deepEqual(bounds, [[-2365,2365],[-1070,1070],[0,1487.5]]);
+  assert.deepEqual(bounds, [[-2300,2300],[-1090,1090],[0,1465]]);
   for (const name of ['battery','inverter','motor']) assert.ok(parts.some(part => part.label === name), name);
-  const tires = parts.filter(part => part.label.endsWith('Tire'));
+  const tires = parts.filter(part => /Tire$/i.test(part.label));
   assert.deepEqual(Object.fromEntries(tires.map(part => [part.label,part.position])), {
-    frontLeftTire:[1400,825,330], frontRightTire:[1400,-825,330],
-    rearLeftTire:[-1400,825,330], rearRightTire:[-1400,-825,330],
+    frontLeftTire:[1350,780,325], frontRightTire:[1350,-780,325],
+    rearLeftTire:[-1350,780,325], rearRightTire:[-1350,-780,325],
   });
   for (const tire of tires) {
     assert.equal(tire.axis, 'Y');
-    assert.deepEqual(tire.size, [660,220,660]);
+    assert.deepEqual(tire.size, [650,215,650]);
   }
 });

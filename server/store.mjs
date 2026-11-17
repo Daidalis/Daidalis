@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import {fileURLToPath} from 'node:url';
 import { randomUUID } from 'node:crypto';
 import {DEFAULT_EXECUTION_BUDGET} from '../shared/execution-budget.mjs';
 
@@ -8,6 +9,24 @@ export const now = () => new Date().toISOString();
 export const id = (prefix = 'id') => `${prefix}_${randomUUID()}`;
 export const DEFAULT_RESOURCES = Object.freeze({maxConcurrentAgents:4,maxTasksPerRun:16,maxAutoResumes:2,maxAutoTurns:4,maxAutoRunMs:300000,maxAutoContinuations:24,maxRunContinuations:DEFAULT_EXECUTION_BUDGET.maxRunContinuations,commandTimeoutMs:DEFAULT_EXECUTION_BUDGET.commandTimeoutMs});
 const collections = ['projects','threads','messages','runs','agents','artifacts','approvals','events','providers','knowledge','evaluations','steerings'];
+/** Seed the recorded sedan demo: a curated narrative plus byte-identical retained artifacts.
+ *  The replay only reveals files already in the project folder; it never calls a live Agent or a solver. */
+function seedDemoReplayProject(store) {
+  const sourceDir=fileURLToPath(new URL('../examples/electric-sedan',import.meta.url));
+  let entries;try{entries=fs.readdirSync(sourceDir,{withFileTypes:true});}catch{return;}
+  const files=entries.filter(entry=>entry.isFile()).map(entry=>entry.name);
+  if(!files.includes('replay.json')||!files.includes('ElectricSedan.sysml'))return;
+  const p=store.createProject({name:'示例',description:'留存运行示例：叙事为整理后的说明，模型、轨迹与判据来自一次真实求解的留存产物。',instructions:''});
+  store.patch('projects',p.id,{kind:'demo-replay'});
+  const folder=store.workspace(p.id),sedan=path.join(folder,'sedan');
+  fs.mkdirSync(sedan,{recursive:true});
+  for(const entry of entries){
+    const from=path.join(sourceDir,entry.name),to=path.join(sedan,entry.name);
+    if(entry.isDirectory()){try{fs.cpSync(from,to,{recursive:true});}catch{/* skip directories that cannot be copied */}continue;}
+    try{fs.copyFileSync(from,to);}catch{/* skip files that cannot be copied */}
+    if(entry.name==='replay.json')try{fs.copyFileSync(from,path.join(folder,'replay.json'));}catch{}
+  }
+}
 const contains=(parent,child)=>child===parent||child.startsWith(parent+path.sep);
 function existingDirectory(value){if(typeof value!=='string'||!value||value.includes('\0')||value.length>4096||!path.isAbsolute(value))throw new Error('项目文件夹必须是已存在目录的绝对路径。');let folder;try{folder=fs.realpathSync(value);if(!fs.statSync(folder).isDirectory())throw Error();}catch{throw new Error('项目文件夹不存在或不是目录，请先创建或选择工程文件夹。');}return folder;}
 export function createStore({dataDir, workspacesDir = path.join(dataDir, 'workspaces'), root, protectedPaths = [], seed = true, addDefaultCodexProvider = true, getDefaultPermissionMode = () => 'manual'}) {
@@ -121,10 +140,6 @@ export function createStore({dataDir, workspacesDir = path.join(dataDir, 'worksp
   for(const provider of data.providers)if(provider.type==='codex-cli'){provider.type='codex-app-server';if(provider.id==='codex-local')provider.name='Codex · 本机 Agent';}
   if(addDefaultCodexProvider&&!data.providers.some(x=>x.id==='codex-local'))data.providers.push({id:'codex-local',name:'Codex · 本机 Agent',type:'codex-app-server',baseUrl:'',model:'',keyEnv:''});
   if(!data.providers.some(x=>x.id==='claude-local'))data.providers.push({id:'claude-local',name:'Claude Code · Agent SDK',type:'claude-agent',baseUrl:'',model:'',keyEnv:'ANTHROPIC_API_KEY'});
-  if(seed && !data.projects.length) {
-    const p=store.createProject({name:'离线示例 · 系统工程工作台',description:'明确标识的确定性演示。选择本机 Codex 或配置 API 后可运行真实 AI。',instructions:'区分事实、假设和待验证项；用可追溯模型连接需求、功能、部件与测试。'});
-    const t=store.get('threads',p.coordinatorThreadId);
-    store.message(t.id,'assistant','这是离线说明，不是实时 AI 输出。可导入工程资料、编辑系统模型，或在设置中选择本机 Codex / 配置模型 API。命令执行需要逐项批准。');
-  }
+  if(seed && !data.projects.length) seedDemoReplayProject(store);
   store.save(); return store;
 }
