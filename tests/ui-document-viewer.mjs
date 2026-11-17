@@ -23,9 +23,9 @@ function kernel(operation, file) {
 }
 const mission = {path:'models/mission.sysml',content:source};
 const fixture = {file:mission,model:kernel('query',mission),verification:kernel('verify',mission)};
-const carPath = 'examples/physical-preview/electric-vehicle.sysml';
+const carPath = 'examples/electric-sedan/Sedan.appearance.sysml';
 const car = {path:carPath,content:await fs.readFile(path.join(root,carPath),'utf8')};
-const editedCar = {...car,content:car.content.replace(/upperZ\s*=\s*1440\s*\[mm\]/g,'upperZ = 1470 [mm]')};
+const editedCar = {...car,content:car.content.replace('part roofBow100 {\n      attribute shape : String = "box";\n      attribute color : String = "#267BA0";\n      attribute centerX : LengthValue = 100 [mm];\n      attribute centerY : LengthValue = 0 [mm];\n      attribute centerZ : LengthValue = 1470 [mm];\n      attribute length : LengthValue = 60 [mm];\n      attribute width : LengthValue = 1300 [mm];\n      attribute height : LengthValue = 35 [mm];','part roofBow100 {\n      attribute shape : String = "box";\n      attribute color : String = "#267BA0";\n      attribute centerX : LengthValue = 100 [mm];\n      attribute centerY : LengthValue = 0 [mm];\n      attribute centerZ : LengthValue = 1470 [mm];\n      attribute length : LengthValue = 60 [mm];\n      attribute width : LengthValue = 1300 [mm];\n      attribute height : LengthValue = 65 [mm];')};
 assert.notEqual(editedCar.content,car.content);
 const threeModules = new Set(['/vendor/three/three.module.min.js','/vendor/three/three.core.min.js']);
 const markdown = '# NOS3 验证报告\n\n> 本次真实软件链结果\n\n| 场景 | 判据 |\n|---|---|\n| 正常 | **误差 < 0.02°** |\n\n- 坐标\n  - 输入\n- [x] 复核\n\n```sysml\npart starTracker : Sensor;\n```\n\n[查看模型](../models/mission.sysml#L16)\n\n[官方文档](https://nos3.readthedocs.io/)\n\n<img src=x onerror="window.pwned=1">\n\n[恶意](javascript:window.pwned=2)';
@@ -68,14 +68,14 @@ try {
     await cameraFrame();
   }
   await openProduct(car);
-  assert.match(await page.locator('.semantic-details').innerText(),/4720 × 2089 × 1440 mm/);
+  assert.match(await page.locator('.semantic-details').innerText(),/4730 × 2140 × 1487\.5 mm/);
   const part = page.locator('select[data-physical-part]');
   const names = await part.locator('option').allTextContents();
-  for(const name of ['bodyShell','panoramicGlass','frontLeftTyre','frontRightTyre','rearLeftTyre','rearRightTyre'])
+  for(const name of ['battery','inverter','motor','frontLeftTire','frontRightTire','rearLeftTire','rearRightTire'])
     assert.ok(names.some(label => label.includes(name)),name);
-  await part.selectOption(await part.locator('option').filter({hasText:'frontLeftTyre'}).getAttribute('value'));
-  assert.match(await page.locator('.semantic-details').innerText(),/frontLeftTyre/);
-  assert.match(await page.locator('.semantic-details').innerText(),/668\.7 × 235 × 668\.7 mm/);
+  await part.selectOption(await part.locator('option').filter({hasText:'frontLeftTire'}).getAttribute('value'));
+  assert.match(await page.locator('.semantic-details').innerText(),/frontLeftTire/);
+  assert.match(await page.locator('.semantic-details').innerText(),/660 × 220 × 660 mm/);
   await cameraFrame();
   const initialImage = await canvas.screenshot();
   await page.locator('[data-document-zoom="in"]').click();
@@ -101,13 +101,13 @@ try {
   const sourceLine = Number(await location.getAttribute('data-document-source-line'));
   await location.click();
   assert.equal(await page.locator('.source-line.is-highlighted').getAttribute('data-source-line'),String(sourceLine));
-  assert.ok(car.content.split(/\r?\n/)[sourceLine-1].includes('frontLeftTyre'));
+  assert.ok(car.content.split(/\r?\n/)[sourceLine-1].includes('frontLeftTire'));
   assert.equal(await canvas.count(),0);
 
   await openProduct(car);
   const originalCar = await canvas.screenshot({path:path.join(temporary,'electric-vehicle.png')});
   await openProduct(editedCar);
-  assert.match(await page.locator('.semantic-details').innerText(),/4720 × 2089 × 1470 mm/);
+  assert.match(await page.locator('.semantic-details').innerText(),/4730 × 2140 × 1502\.5 mm/);
   assert.ok(!originalCar.equals(await canvas.screenshot()),'editing the roof section height should change the solid assembly');
   steps.push('SysML electric vehicle assembly, dimension change, missing geometry, part selection, camera and source location');
   await page.evaluate(() => viewer.update({...fixture,tab:'diagram'}));

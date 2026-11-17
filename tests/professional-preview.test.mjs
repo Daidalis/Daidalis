@@ -11,6 +11,6 @@ test('long solver preview retains the final time after document viewer parsing',
  assert.deepEqual(rows.at(-1),table.rows.at(-1));
  const parsed=parseDelimitedData('time,v(out)\n'+rows.map(row=>row.join(',')).join('\n'));
  assert.equal(parsed.rows.at(-1).time,0.01);
- assert.match(renderProfessionalWorkbench({tab:'result',result:{table}}),/完整结果 10022 行/);
- assert.match(renderProfessionalWorkbench({tab:'result',result:{table}}),/预览 2000 行/);
+ assert.match(renderProfessionalWorkbench({expanded:'simulation',result:{integrity:{verified:true},table}}),/完整结果 10022 行/);
+ assert.match(renderProfessionalWorkbench({expanded:'simulation',result:{integrity:{verified:true},table}}),/预览 2000 行/);
 });

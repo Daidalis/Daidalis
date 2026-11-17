@@ -59,7 +59,11 @@ export function browserActionNeedsApproval({action,source,permissionMode,baseUrl
 const DESKTOP_TOOL_NAMES=[['omedit',/^(OMEdit|OpenModelica)(?:[-_ \d.]*)\.app$/i],['capella',/^Capella(?:[-_ \d.]*)\.app$/i],['papyrus',/^Papyrus(?:[-_ \d.]*)\.app$/i],['matlab',/^MATLAB(?:[_ -]R?\d{4}[ab])?\.app$/i],['dymola',/^Dymola(?:[-_ \d.]*)\.app$/i],['amesim',/^Amesim(?:[-_ \d.]*)\.app$/i],['scilab',/^Scilab(?:[-_ \d.]*)\.app$/i],['freecad',/^FreeCAD(?:[-_ \d.]*)\.app$/i]];
 async function desktopTools(){let names=[];try{names=await fs.readdir('/Applications');}catch{}return DESKTOP_TOOL_NAMES.map(([id,re])=>{const name=names.find(n=>re.test(n));return{id,name:name||id,installed:!!name,path:name?path.join('/Applications',name):null};});}
 
-async function loadPlaywright(){for(const spec of ['playwright',...(process.env.DAIDALIS_NODE_MODULES?[path.join(process.env.DAIDALIS_NODE_MODULES,'playwright')]:[])]){try{return require(spec);}catch{}}return null;}
+async function loadPlaywright(){const [major]=process.versions.node.split('.').map(Number);
+ // Playwright hard-exits the process (process.exit, uncatchable) on Node < 20.
+ // Refuse to load it there so the studio keeps starting with computer disabled.
+ if(major<20)return null;
+ for(const spec of ['playwright',...(process.env.DAIDALIS_NODE_MODULES?[path.join(process.env.DAIDALIS_NODE_MODULES,'playwright')]:[])]){try{return require(spec);}catch{}}return null;}
 
 export async function createComputerService({root,dataDir,workspacesDir,store,requestApproval=async()=>false,emit=()=>{},desktopAdapter=null,browserFetch=null}={}){
   const shots=path.join(dataDir||path.join(root,'.local'),'computer-screenshots');await fs.mkdir(shots,{recursive:true});

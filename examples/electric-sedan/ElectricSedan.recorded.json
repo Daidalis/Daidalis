@@ -1,0 +1,43 @@
+{
+  "schema": "daidalis-recorded-trajectory-v1",
+  "provenance": "fmu-run",
+  "note": "electric-sedan/ElectricSedan.sysml 与 ElectricSedan.fmu 的 FMI 协同仿真，作业 professional_5994fed6c94a44dca78da7a6abcaf575，751 行采样，60 秒起步工况。巡航判据未通过：末速 18.85 m/s 高于 16±0.5 m/s 目标，逆变器末段功率为 0 W。失败判据按原样保留。",
+  "csv": "trajectory.csv",
+  "bindings": {
+    "battery": "battery",
+    "inverter": "inverter",
+    "motor": "motor"
+  },
+  "drive": "motor",
+  "checks": [
+    {"variable": "battery", "passed": true},
+    {"variable": "battery", "passed": true},
+    {"variable": "battery", "passed": true},
+    {"variable": "motor", "passed": true},
+    {"variable": "motor", "passed": true},
+    {"variable": "motor", "passed": true},
+    {"variable": "inverter", "passed": true},
+    {"variable": "inverter", "passed": true},
+    {"variable": "inverter", "passed": false},
+    {"variable": "motor", "passed": false},
+    {"variable": "motor", "passed": false}
+  ],
+  "receipt": {
+    "schema": "daidalis-professional-execution-v1",
+    "jobId": "professional_5994fed6c94a44dca78da7a6abcaf575",
+    "inputHash": "66d3fd842ee1da6a104df43f393316b28b62e8dca2beda1c8115622ef3a3f2b1",
+    "model": {
+      "path": "electric-sedan/ElectricSedan.sysml",
+      "sha256": "bb4871e6c64f17db9448656d383fae67e5f779c2a73172b3e25ac95c66401a6a",
+      "language": "sysml"
+    },
+    "operation": "simulate",
+    "tool": {
+      "id": "sysml-fmi",
+      "version": "v0.12.1/opensysml-0.12.1/fmpy-0.3.32"
+    },
+    "executionSucceeded": false,
+    "verification": "failed",
+    "scope": "Digital model check / numerical simulation only; no physical, HIL, certification or project-completion claim"
+  }
+}

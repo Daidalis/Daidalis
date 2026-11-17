@@ -56,25 +56,82 @@ export function modelingSnapshots(activities=[]){
  }
  return slots;
 }
+function fileRole(path){
+ if(/\.appearance\.sysml$/i.test(path))return 'appearance';
+ if(/\.sysml$/i.test(path))return 'system';
+ if(/\.mo$/i.test(path))return 'modelica';
+ if(/\.scad$/i.test(path))return 'scad';
+ return '';
+}
+function writeFailed(data){return Boolean(data.result&&typeof data.result==='object'&&data.result.error);}
+/** Corner key used to split an appearance into assembly beats. Parts without a side stay together. */
+export function assemblyKey(label=''){
+ const name=String(label||'');
+ const side=/left/i.test(name)?'L':/right/i.test(name)?'R':'';
+ if(!side)return 'center';
+ const end=/rear/i.test(name)?'rear':/front/i.test(name)?'front':'';
+ return end+side;
+}
+/** End indexes for newly added drawable parts. One small addition is a single beat. */
+export function assemblySteps(parts=[], already=0){
+ const list=Array.isArray(parts)?parts:[];
+ const start=Math.max(0,Math.min(list.length,Number.isInteger(already)?already:0));
+ if(start>=list.length)return [];
+ const groups=[];
+ for(let index=start;index<list.length;){
+  const key=assemblyKey(list[index]?.label);
+  let end=index+1;
+  while(end<list.length&&end-index<8&&assemblyKey(list[end]?.label)===key)end++;
+  groups.push([index,end]);
+  index=end;
+ }
+ const merged=[];
+ for(let index=0;index<groups.length;index++){
+  const [from,to]=groups[index],next=groups[index+1];
+  if(to-from===1&&assemblyKey(list[from]?.label)==='center'&&next&&next[1]-from<=8){merged.push(next[1]);index++;}
+  else merged.push(to);
+ }
+ if(merged.length>8)return merged.slice(0,7).concat(list.length);
+ return merged;
+}
+export function retainedAssemblyCount(labels=[], parts=[]){
+ const previous=Array.isArray(labels)?labels:[],next=Array.isArray(parts)?parts:[];
+ let index=0;
+ while(index<previous.length&&index<next.length&&previous[index]===next[index]?.label)index++;
+ return index;
+}
+function systemFile(path){return /\.sysml$/i.test(path||'')&&!/\.appearance\.sysml$/i.test(path||'');}
+/** How one sidebar event changes the open files. A Modelica save does not replace a system SysML file. */
+export function followFile(open={}, target={}){
+ const path=String(target.path||''),role=target.role||fileRole(path),systemOpen=systemFile(open.path);
+ if(target.stage==='checked'||target.stage==='check-failed')return {expand:'source',sourceView:'diagnostics',path:path||open.path||'',replaceSource:Boolean(path)&&(!systemOpen||path===open.path)};
+ if(role==='modelica'&&systemOpen)return {keep:true};
+ if(role==='appearance')return {expand:'source',sourceView:'preview3d',appearancePath:path,path:systemOpen?open.path:path,replaceSource:!systemOpen};
+ if(role==='system')return {expand:'source',sourceView:'code',path,replaceSource:true};
+ if(role==='scad'||target.slot==='shape')return {expand:'shape',shapePath:path,shapeStage:target.stage==='running'?'running':target.stage==='failed'?'failed':target.stage==='completed'?'ready':'pending'};
+ if(target.slot==='simulation')return {expand:'simulation'};
+ return null;
+}
 /** One persisted event refreshes one sidebar slot. Log lines do not redraw a card. */
 export function modelingEventTarget(event={}){
  const type=String(event.type||''),data=event.data&&typeof event.data==='object'?event.data:{};
  if(type==='professional.log'||type==='professional.environment.log')return null;
  const path=String(data.path||data.modelPath||data.args?.path||data.args?.file_path||'');
- if(type==='professional.model.saved'||type==='tool.completed'&&writeTools.has(String(data.tool||'').split('__').at(-1))){
-  if(/\.scad$/i.test(path))return {slot:'shape',path,stage:'running',jobId:data.jobId||null};
-  if(/\.(sysml|mo)$/i.test(path))return {slot:'source',path,stage:'written',sha256:data.sha256||null};
+ const jobId=data.jobId||null,sha256=data.sha256||null;
+ if((type==='professional.model.saved'||type==='tool.completed'&&writeTools.has(String(data.tool||'').split('__').at(-1)))){
+  if(type==='tool.completed'&&writeFailed(data))return null;
+  const role=fileRole(path);
+  if(role==='scad')return {slot:'shape',path,stage:'pending',jobId,role,sha256};
+  if(role)return {slot:'source',path,stage:'written',sha256,role};
   return null;
  }
- if(type==='professional.queued'||type==='professional.running'){
-  if(/\.scad$/i.test(path))return {slot:'shape',path,stage:'running',jobId:data.jobId||null};
-  if(/\.(mo|sysml)$/i.test(path))return {slot:'simulation',path,stage:'running',jobId:data.jobId||null};
-  return null;
- }
- if(type==='professional.completed'||type==='professional.failed'){
-  const stage=type.endsWith('failed')?'failed':'completed';
-  if(/\.scad$/i.test(path))return {slot:'shape',path,stage,jobId:data.jobId||null};
-  if(/\.(mo|sysml)$/i.test(path))return {slot:'simulation',path,stage,jobId:data.jobId||null};
+ if(type==='professional.queued'||type==='professional.running'||type==='professional.completed'||type==='professional.failed'){
+  const operation=data.operation||data.args?.operation||'';
+  const failed=type==='professional.failed';
+  const done=type==='professional.completed'||failed;
+  if(/\.scad$/i.test(path))return {slot:'shape',path,stage:failed?'failed':done?'completed':'running',jobId,operation,role:'scad'};
+  if(operation==='check'&&/\.(sysml|mo)$/i.test(path))return done?{slot:'source',path,stage:failed?'check-failed':'checked',jobId,operation,role:'check'}:null;
+  if(/\.(mo|sysml)$/i.test(path)&&operation!=='check')return {slot:'simulation',path,stage:failed?'failed':done?'completed':'running',jobId,operation:operation||'simulate'};
  }
  return null;
 }

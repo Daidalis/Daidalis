@@ -25,6 +25,14 @@ test('native Modelica drafts save, reopen, list and preserve a prior revision wi
  const f=await fixture(t),saved=await f.service.saveModel({projectId:f.projectId,path:f.model.path,expectedHash:f.model.sha256,content:MODEL+'// design change\n'});
  assert.equal(saved.saved,true);assert.equal(saved.validationStatus,'not-checked');assert.equal(saved.previousSha256,hash(MODEL));assert.equal((await f.service.readModel({projectId:f.projectId,path:f.model.path})).content,MODEL+'// design change\n');
  assert.equal(await fs.readFile(path.join(f.workspace,'.daidalis/professional-model-history/'+hash(MODEL)+'.mo'),'utf8'),MODEL);assert.equal((await f.service.listModels({projectId:f.projectId})).models.length,1);
+ // Every replaced version lands in the ordered index, so a session can be replayed as it ran.
+ const second=await f.service.saveModel({projectId:f.projectId,path:f.model.path,expectedHash:saved.sha256,content:MODEL+'// second change\n'});
+ const index=(await fs.readFile(path.join(f.workspace,'.daidalis/professional-model-history/index.jsonl'),'utf8')).trim().split('\n').map(line=>JSON.parse(line));
+ assert.equal(index.length,2);
+ assert.equal(index[0].path,'models/Thermal.mo');assert.equal(index[0].sha256,hash(MODEL));
+ assert.equal(index[1].path,'models/Thermal.mo');assert.equal(index[1].sha256,saved.sha256);
+ assert.ok(index[0].savedAt<=index[1].savedAt,'index rows are in save order');
+ assert.equal((await f.service.listModels({projectId:f.projectId})).models.length,1,'archived versions stay out of the model list');
 });
 
 test('optimistic source guards prevent lost updates and missing submission hashes',async t=>{

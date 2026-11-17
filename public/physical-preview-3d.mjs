@@ -1,4 +1,43 @@
 // SysML part dimensions and centers are in millimetres, with +Z up.
+// A rect-sweep carries one rectangular section along a path of section points.
+function sweepGeometry(THREE, sections, scale) {
+  const ring = ({x, y = 0, z, width, height}) => [
+    [x / scale, (y - width / 2) / scale, (z - height / 2) / scale],
+    [x / scale, (y + width / 2) / scale, (z - height / 2) / scale],
+    [x / scale, (y + width / 2) / scale, (z + height / 2) / scale],
+    [x / scale, (y - width / 2) / scale, (z + height / 2) / scale]
+  ];
+  const rings = sections.map(ring);
+  const corners = 4, vertices = [], indices = [], lines = [];
+  for (let side = 0; side < corners; side++) {
+    const next = (side + 1) % corners;
+    let base = vertices.length / 3;
+    for (let i = 0; i < rings.length; i++, base += 2) {
+      vertices.push(...rings[i][side], ...rings[i][next]);
+      if (i + 1 < rings.length) {
+        indices.push(base, base + 1, base + 3, base, base + 3, base + 2);
+        lines.push(...rings[i][side], ...rings[i + 1][side]);
+      }
+    }
+  }
+  for (const [index, cap] of [rings[0], rings.at(-1)].entries()) {
+    const base = vertices.length / 3;
+    for (const corner of cap) vertices.push(...corner);
+    for (let side = 0; side < corners; side++) lines.push(...cap[side], ...cap[(side + 1) % corners]);
+    const contour = cap.map(([, y, z]) => new THREE.Vector2(y, z));
+    for (const [a, b, c] of THREE.ShapeUtils.triangulateShape(contour, [])) {
+      if (index === 0) indices.push(base + a, base + c, base + b);
+      else indices.push(base + a, base + b, base + c);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  const edges = new THREE.BufferGeometry();
+  edges.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
+  return {geometry, edges};
+}
 function loftGeometry(THREE, sections, scale) {
   // Corners proceed counterclockwise in the YZ plane when seen from +X.
   const rings = sections.map(({x, y = 0, lowerZ, upperZ, lowerWidth, upperWidth, shoulderWidth, shoulderZ}) => {
@@ -72,7 +111,7 @@ function studioEnvironment(THREE) {
   return texture;
 }
 
-function createAssembly(THREE, host, parts, onSelect) {
+function createAssembly(THREE, host, parts, onSelect, {visibleCount, onInteract} = {}) {
   const events = new AbortController();
   const listen = (target, type, listener, options) =>
     target.addEventListener(type, listener, {...options, signal:events.signal});
@@ -123,13 +162,14 @@ function createAssembly(THREE, host, parts, onSelect) {
   let selected = null;
   for (const part of parts) {
     const isLoft = part.shape === 'loft';
+    const isSweep = part.shape === 'sweep' || (isLoft && part.sections?.some(section => section.width !== undefined));
     const axis = part.axis || 'Z';
-    const geometryKey = isLoft ? part.sections : part.shape + ':' + axis;
-    const loftScale = isLoft ? Math.max(...part.size) : 1;
+    const geometryKey = isLoft || isSweep ? part.sections : part.shape + ':' + axis;
+    const loftScale = isLoft || isSweep ? Math.max(...part.size) : 1;
     if (!geometries.has(geometryKey)) {
       let geometry, edges;
-      if (isLoft) {
-        ({geometry, edges} = loftGeometry(THREE, part.sections, loftScale));
+      if (isLoft || isSweep) {
+        ({geometry, edges} = (isLoft ? loftGeometry : sweepGeometry)(THREE, part.sections, loftScale));
       } else {
         geometry = unitShapes[part.shape]();
         // Three creates these solids along +Y. The declared axis points
@@ -148,7 +188,7 @@ function createAssembly(THREE, host, parts, onSelect) {
     const material = materials.get(color);
     const mesh = new THREE.Mesh(geometries.get(geometryKey), material);
     mesh.position.fromArray(part.position).sub(center).divideScalar(modelScale);
-    if (isLoft) mesh.scale.setScalar(loftScale / modelScale);
+    if (isLoft || isSweep) mesh.scale.setScalar(loftScale / modelScale);
     else mesh.scale.fromArray(part.size).divideScalar(modelScale);
     mesh.userData.partId = part.id;
     const edges = edgeGeometries.get(geometryKey);
@@ -156,6 +196,11 @@ function createAssembly(THREE, host, parts, onSelect) {
     meshes.push(mesh);
     instances.set(part.id, {mesh, material});
     scene.add(mesh);
+  }
+  function setVisibleCount(count) {
+    const limit = Number.isFinite(count) ? count : meshes.length;
+    for (let index = 0; index < meshes.length; index++) meshes[index].visible = index < limit;
+    schedule();
   }
 
   const homeYaw = -1, homePitch = .32;
@@ -188,6 +233,7 @@ function createAssembly(THREE, host, parts, onSelect) {
   function schedule() {
     if (!stopped && !frame) frame = requestAnimationFrame(draw);
   }
+  setVisibleCount(visibleCount);
   function resize() {
     width = host.clientWidth;
     height = host.clientHeight;
@@ -268,7 +314,7 @@ function createAssembly(THREE, host, parts, onSelect) {
     if (!rect.width || !rect.height) return;
     pointer.set(2 * (event.clientX - rect.left) / rect.width - 1, 1 - 2 * (event.clientY - rect.top) / rect.height);
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(meshes, false)[0];
+    const hit = raycaster.intersectObjects(meshes.filter(mesh => mesh.visible), false)[0];
     if (hit) {
       const id = hit.object.userData.partId;
       select(id);
@@ -280,6 +326,7 @@ function createAssembly(THREE, host, parts, onSelect) {
   listen(canvas, 'pointerdown', event => {
     if (drag || ![0, 1, 2].includes(event.button)) return;
     host.focus({preventScroll:true});
+    onInteract?.();
     drag = {id:event.pointerId, x:event.clientX, y:event.clientY, pan:event.shiftKey || event.button !== 0, moved:false};
     canvas.setPointerCapture(event.pointerId);
     event.preventDefault();
@@ -315,6 +362,7 @@ function createAssembly(THREE, host, parts, onSelect) {
   listen(canvas, 'contextmenu', event => event.preventDefault());
   listen(canvas, 'wheel', event => {
     event.preventDefault();
+    onInteract?.();
     zoom(event.deltaY > 0 ? 1.13 : 1 / 1.13);
   }, {passive:false});
   listen(host, 'keydown', event => {
@@ -328,6 +376,7 @@ function createAssembly(THREE, host, parts, onSelect) {
       case 'Home': fit();break;
       default:return;
     }
+    onInteract?.();
     event.preventDefault();
     schedule();
   });
@@ -354,19 +403,19 @@ function createAssembly(THREE, host, parts, onSelect) {
     host.textContent = '三维显示已中断。请重新打开实体预览。';
   }
   listen(canvas, 'webglcontextlost', showRenderFailure);
-  return {select, emphasize, fit, zoom, destroy};
+  return {select, emphasize, fit, zoom, setVisibleCount, destroy};
 }
 
-export function mountPhysicalPreview(host, {parts, onSelect}) {
+export function mountPhysicalPreview(host, {parts, onSelect, visibleCount, onInteract} = {}) {
   host.classList.add('physical-preview-3d');
   host.tabIndex = 0;
   host.setAttribute('aria-label', '三维实体装配预览。方向键旋转，加减键缩放，Home 键复位。');
-  let preview, selected, emphasis, destroyed = false;
+  let preview, selected, emphasis, destroyed = false, shown = Number.isFinite(visibleCount) ? visibleCount : parts.length;
   if (parts.length) {
     host.textContent = '正在加载实体预览…';
     import('/vendor/three/three.module.min.js').then(THREE => {
       if (destroyed) return;
-      preview = createAssembly(THREE, host, parts, onSelect);
+      preview = createAssembly(THREE, host, parts, onSelect, {visibleCount:shown, onInteract});
       if (selected != null) preview.select(selected);
       if (emphasis) preview.emphasize(emphasis);
     }).catch(() => {
@@ -380,6 +429,7 @@ export function mountPhysicalPreview(host, {parts, onSelect}) {
     emphasize(entries) {emphasis = entries || [];preview?.emphasize(emphasis);},
     fit() {preview?.fit();},
     zoom(factor) {preview?.zoom(factor);},
+    setVisibleCount(count) {shown = count;preview?.setVisibleCount(count);},
     destroy() {destroyed = true;preview?.destroy();host.replaceChildren();}
   };
 }

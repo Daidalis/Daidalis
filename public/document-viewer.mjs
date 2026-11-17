@@ -721,6 +721,7 @@ export function mountDocumentViewer(container, options = {}) {
   };
   const getNavigation=()=>({...current.navigation,origin:modelOrigin(current.file||{},current.modelContext)});
   const selectPart = id => {
+    current.onAssemblyInteract?.();
     if (!physical) return;
     const selected = physical.parts.find(part => part.id === id);
     spatialPreview?.select(selected?.id);
@@ -742,7 +743,7 @@ export function mountDocumentViewer(container, options = {}) {
     setupCanvas();
     const host = container.querySelector('[data-physical-preview]');
     if (host) {
-      spatialPreview = mountPhysicalPreview(host,{parts:physical.parts,onSelect:selectPart});
+      spatialPreview = mountPhysicalPreview(host,{parts:physical.parts,onSelect:selectPart,visibleCount:current.visibleCount,onInteract:current.onAssemblyInteract});
     }
     const stlHost = container.querySelector('[data-stl-preview]');
     if (stlHost && current.file?.encoding === 'base64' && current.file.content) {
@@ -751,9 +752,9 @@ export function mountDocumentViewer(container, options = {}) {
   };
   const selectTab = tab => { if (destroyed) return;current.tab = tab;draw();current.onTabChange?.(tab); };
   const setBox = box => { viewBox = box;container.querySelector('.semantic-svg')?.setAttribute('viewBox',`${box.x} ${box.y} ${box.w} ${box.h}`); };
-  const fit = () => {if (spatialPreview) return spatialPreview.fit();defaultViewport = false;if(initialBox)setBox({...initialBox});};
+  const fit = () => {if (spatialPreview){current.onAssemblyInteract?.();return spatialPreview.fit();}defaultViewport = false;if(initialBox)setBox({...initialBox});};
   const zoom = (factor, clientX, clientY) => {
-    if (spatialPreview) return spatialPreview.zoom(factor);
+    if (spatialPreview){current.onAssemblyInteract?.();return spatialPreview.zoom(factor);}
     if (!viewBox || !initialBox) return;
     defaultViewport = false;
     const canvas = container.querySelector('.semantic-canvas'), rect = canvas?.getBoundingClientRect();
@@ -899,5 +900,5 @@ export function mountDocumentViewer(container, options = {}) {
     setBox({x:contentW < box.width ? minX - (box.width - contentW) / 2 : minX - pad,y:contentH < box.height ? minY - (box.height - contentH) / 2 : minY - pad,w:box.width,h:box.height});
   };
   container.addEventListener('click',onClick);container.addEventListener('input',onInput);container.addEventListener('change',onInput);container.addEventListener('keydown',onKey);container.addEventListener('pointerover',onDataHover);draw();if(current.sourceLine)sourceLine(current.sourceLine);
-  return {selectTab,fit,frameLabels,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();meshPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
+  return {selectTab,fit,frameLabels,selectElement,selectSourceLine:sourceLine,setAssemblyVisible(count){current.visibleCount=count;spatialPreview?.setVisibleCount(count);return Boolean(spatialPreview);},update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();meshPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
 }

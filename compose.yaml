@@ -38,6 +38,10 @@ services:
       - projects:/projects
       - home:/home/node
       - desktop-control:/desktop-control:ro
+      # Development override: the working-tree runtime and frontend replace the image copies so a
+      # rebuilt image is not required for runtime-level fixes such as effort control.
+      - ./server/runtimes/claude.mjs:/opt/daidalis/server/runtimes/claude.mjs:ro
+      - ./public:/opt/daidalis/public:ro
     tmpfs: ["/tmp:rw,nosuid,nodev,exec,size=1g,mode=1777"]
     healthcheck:
       test: [CMD, node, -e, "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
