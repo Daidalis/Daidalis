@@ -22,9 +22,12 @@ function collectAttributes(chain) {
   const attributes = new Map();
   for (const node of chain) {
     for (const row of node.rows || []) {
-      if (row.metaclass !== 'attributes') continue;
+      // Subsetting/redefinition rows (`:>> length = 2680 [mm]`) surface as
+      // `references`; plain reference rows carry no value and stay out.
+      if (row.metaclass !== 'attributes' && row.metaclass !== 'references') continue;
       const value = row.fullLabel || row.label;
       const separator = value.indexOf('=');
+      if (row.metaclass === 'references' && separator < 0) continue;
       attributes.set(memberName(row), {node, value:separator < 0 ? '' : value.slice(separator + 1).trim()});
     }
   }
@@ -44,7 +47,7 @@ function declaredStandardType(node, lines) {
 function geometryOf(chain, attributes, lines) {
   const selector = attributes.get('shape');
   if (selector) {
-    const shape = /^(?:"|')?(box|sphere|cylinder|cone|loft)(?:"|')?$/.exec(selector.value.trim())?.[1];
+    const shape = /^(?:"|')?(box|sphere|cylinder|cone|loft|sweep)(?:"|')?$/.exec(selector.value.trim())?.[1];
     return {shape, declaration:selector.node, unsupported:!shape};
   }
   if (['length','width','height'].every(name => attributes.has(name))) {
@@ -63,11 +66,45 @@ function geometryOf(chain, attributes, lines) {
   return null;
 }
 
+/** Shared closing for rect-sweep forms: ordered sections, bounding size, recentred. */
+function finishSweep(sections) {
+  sections.sort((a,b) => a.x - b.x);
+  if (sections.some((section, i) => i && section.x === sections[i - 1].x)) return {error: '扫掠截面的 X 位置重复，请为各截面指定不同的位置。'};
+  const xs = sections.map(s => s.x), low = sections.map(s => s.y - s.width / 2), high = sections.map(s => s.y + s.width / 2), bottoms = sections.map(s => s.z - s.height / 2), tops = sections.map(s => s.z + s.height / 2);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...low), maxY = Math.max(...high), minZ = Math.min(...bottoms), maxZ = Math.max(...tops);
+  const size = [maxX - minX, maxY - minY, maxZ - minZ];
+  const offset = [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
+  for (const section of sections) {section.x -= offset[0]; section.y -= offset[1]; section.z -= offset[2];}
+  return {size, sections, offset};
+}
+
+/** Loft stations declared as rectangular part items: centerX/centerY/centerZ/width/height. */
+function rectLoftForm(records, describe) {
+  const sections = [];
+  for (const record of records) {
+    const model = describe(record);
+    const read = name => millimetres(model.attributes.get(name)?.value);
+    const section = {x:read('centerX'), y:read('centerY'), z:read('centerZ'), width:read('width'), height:read('height')};
+    // A rectangular station's centerX/Y/Z are its data, so a resolved position here
+    // is expected; only nested geometry or errors disqualify the record.
+    if (model.geometry || model.error || model.children.length) {
+      return {error: memberName(record) + ' 必须是单一截面记录，不能含额外实体或独立变换。'};
+    }
+    for (const key of ['x','z','width','height']) if (!Number.isFinite(section[key])) return {error: memberName(record) + ' 的 ' + key + ' 需要含单位的长度。'};
+    if (!Number.isFinite(section.y)) section.y = 0;
+    if (section.width <= 0 || section.height <= 0) return {error: memberName(record) + ' 的宽和高必须为正。'};
+    sections.push(section);
+  }
+  return finishSweep(sections);
+}
+
 // A station is a symmetric trapezoid in a plane perpendicular to local X.
 // Lower and upper widths are full widths. Section positions are measured in the
 // declaring item's local frame, while renderer coordinates use the solid centre.
 function loftForm(records, describe) {
   if (records.length < 2) return {error:'放样形体至少需要两个不同 X 位置的截面 item。'};
+  const firstModel = describe(records[0]);
+  if (firstModel.attributes.has('width') && firstModel.attributes.has('height') && firstModel.attributes.has('centerX')) return rectLoftForm(records, describe);
   const sections = [];
   for (const record of records) {
     const model = describe(record);
@@ -111,6 +148,31 @@ function loftForm(records, describe) {
     section.upperZ -= offset[2];
     if ('shoulderZ' in section) section.shoulderZ -= offset[2];
   }
+  return {size, sections, offset};
+}
+
+// A rect-sweep carries one rectangular section along a path of section points:
+// sectionNX, sectionNY (optional, default 0), sectionNZ, sectionNWidth, sectionNHeight
+// for N = 1, 2, ... Rails, sills, roof bows and bumpers read naturally this way.
+function sweepForm(attributes) {
+  const read = name => millimetres(attributes.get(name)?.value);
+  const sections = [];
+  for (let index = 1; ; index++) {
+    const prefix = 'section' + index;
+    const has = attributes.has(prefix + 'X');
+    if (!has) break;
+    const x = read(prefix + 'X'), z = read(prefix + 'Z'), width = read(prefix + 'Width'), height = read(prefix + 'Height');
+    const y = attributes.has(prefix + 'Y') ? read(prefix + 'Y') : 0;
+    if (![x, z, width, height].every(Number.isFinite)) return {error: prefix + ' 的 X/Z/Width/Height 需要含单位的长度。'};
+    if (width <= 0 || height <= 0) return {error: prefix + ' 的宽和高必须为正。'};
+    sections.push({x, y, z, width, height});
+  }
+  if (sections.length < 2) return {error: 'loft 需要至少两站截面：嵌套 item 截面，或 sectionNX / sectionNZ / sectionNWidth / sectionNHeight 属性。'};
+  const xs = sections.map(s => s.x), low = sections.map(s => s.y - s.width / 2), high = sections.map(s => s.y + s.width / 2), bottoms = sections.map(s => s.z - s.height / 2), tops = sections.map(s => s.z + s.height / 2);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...low), maxY = Math.max(...high), minZ = Math.min(...bottoms), maxZ = Math.max(...tops);
+  const size = [maxX - minX, maxY - minY, maxZ - minZ];
+  const offset = [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
+  for (const section of sections) {section.x -= offset[0]; section.y -= offset[1]; section.z -= offset[2];}
   return {size, sections, offset};
 }
 
@@ -187,9 +249,9 @@ export function buildPhysicalModel(graph, source = '') {
     if ([...attributes.keys()].some(name => /^(orientation|rotation[XYZ]?|yaw|pitch|roll|transformation|coordinateFrame)$/i.test(name))) error = '含有当前预览不支持的旋转或坐标变换。';
     const multiplicity = / \[([^\]]+)\]$/.exec(node.label)?.[1];
     if (multiplicity && multiplicity !== '1') error = '多个或可选实例的数量与各自位置尚未明确。';
-    const members = [...childByName.values()];
-    const sections = geometry?.shape === 'loft' ? members.filter(child => child.metaclass === 'ItemUsage') : [];
-    const model = {geometry, attributes, position, sections, children:sections.length ? members.filter(child => child.metaclass !== 'ItemUsage') : members, error};
+  const members = [...childByName.values()];
+  const sections = geometry?.shape === 'loft' ? members.filter(child => child.metaclass === 'ItemUsage' || child.metaclass === 'PartUsage') : [];
+      const model = {geometry, attributes, position, sections, children:sections.length ? members.filter(child => child.metaclass !== 'ItemUsage' && child.metaclass !== 'PartUsage') : members, error};
     description.set(node.id, model);
     return model;
   }
@@ -235,7 +297,10 @@ export function buildPhysicalModel(graph, source = '') {
       const {node, model, instance, path} = frame;
       if (model.error) {issues.add(path + '：' + model.error);continue;}
       for (const name of frame.omitted) issues.add(path + '/' + name + '：缺少支持的形状声明，已略过。');
-      if (!frame.position && (parent.children.length > 1 || parent.omitted?.length || parent.model?.geometry)) {
+      // Rectangular sweeps and lofts carry absolute station coordinates, so the
+      // part needs no explicit center placement even beside sibling parts.
+      const selfLocating = model.geometry?.shape === 'loft' || model.geometry?.shape === 'sweep';
+      if (!frame.position && !selfLocating && (parent.children.length > 1 || parent.omitted?.length || parent.model?.geometry)) {
         issues.add(path + '：缺少相对于父级的中心坐标 centerX、centerY、centerZ，无法定位。');
         continue;
       }
@@ -247,7 +312,7 @@ export function buildPhysicalModel(graph, source = '') {
         const {shape, declaration, unsupported} = model.geometry;
         if (unsupported) issues.add(path + '：当前预览不支持此形状。');
         else {
-          const form = model.form ??= shape === 'loft' ? loftForm(model.sections, describe) : primitiveForm(shape, model.attributes);
+          const form = model.form ??= shape === 'loft' ? (model.sections.length ? loftForm(model.sections, describe) : sweepForm(model.attributes)) : shape === 'sweep' ? sweepForm(model.attributes) : primitiveForm(shape, model.attributes);
           const {size, offset, ...fields} = form;
           const center = offset ? position.map((value, index) => value + offset[index]) : position;
           if (form.error) issues.add(path + '：' + form.error);

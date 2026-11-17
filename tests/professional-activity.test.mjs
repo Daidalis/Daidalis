@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {describeProfessionalActivity,modelingEventTarget,modelingSnapshots} from '../public/professional-activity.mjs';
+import {readFileSync} from 'node:fs';
+import {assemblySteps,describeProfessionalActivity,followFile,modelingEventTarget,modelingSnapshots,retainedAssemblyCount} from '../public/professional-activity.mjs';
 import {visibleRunWork} from '../shared/run-presentation.mjs';
 test('native Modelica card names the actual model/backend and separates execution from failed criteria',()=>{
  const activity={tool:'mcp__daidalis__wait_professional_job',status:'completed',result:{jobId:'professional_'+'a'.repeat(32),status:'completed',executionSucceeded:true,operation:'simulate',model:{path:'engineering/models/STFDataDelivery.mo'},tool:{id:'openmodelica',name:'OpenModelica',version:'1.27.1'},passed:false,verification:{status:'failed',checks:[{passed:true},{passed:true},{passed:false}]}}},before=JSON.stringify(activity),view=describeProfessionalActivity(activity);
@@ -51,10 +52,59 @@ test('a save event and a finished job each refresh one slot',()=>{
  const saved=modelingEventTarget({type:'professional.model.saved',data:{path:'sedan/ElectricSedan.sysml',sha256:'abc'}});
  const shape=modelingEventTarget({type:'professional.completed',data:{jobId:'job-shape',modelPath:'sedan/Body.scad',status:'completed'}});
  const log=modelingEventTarget({type:'professional.log',data:{jobId:'job-shape'}});
- assert.deepEqual(saved,{slot:'source',path:'sedan/ElectricSedan.sysml',stage:'written',sha256:'abc'});
+ assert.deepEqual(saved,{slot:'source',path:'sedan/ElectricSedan.sysml',stage:'written',sha256:'abc',role:'system'});
  assert.equal(shape.slot,'shape');
  assert.equal(shape.jobId,'job-shape');
  assert.equal(log,null);
+});
+
+test('a native write opens the source slot, and check stays off the simulation slot',()=>{
+ const written=modelingEventTarget({type:'tool.completed',data:{tool:'Write',path:'sedan/ElectricSedan.sysml'}});
+ assert.equal(written.slot,'source');assert.equal(written.role,'system');assert.equal(written.path,'sedan/ElectricSedan.sysml');
+ assert.equal(modelingEventTarget({type:'tool.completed',data:{tool:'Write',path:'sedan/ElectricSedan.sysml',result:{error:'denied'}}}),null);
+ const queued=modelingEventTarget({type:'professional.queued',data:{jobId:'check-1',operation:'check',modelPath:'sedan/ElectricSedan.sysml'}});
+ assert.equal(queued,null);
+ const checked=modelingEventTarget({type:'professional.completed',data:{jobId:'check-1',operation:'check',modelPath:'sedan/ElectricSedan.sysml',status:'completed'}});
+ assert.equal(checked.slot,'source');assert.equal(checked.stage,'checked');assert.notEqual(checked.slot,'simulation');
+ const simulated=modelingEventTarget({type:'professional.running',data:{jobId:'sim-2',operation:'simulate',modelPath:'sedan/ElectricSedan.sysml'}});
+ assert.equal(simulated.slot,'simulation');assert.equal(simulated.stage,'running');
+ const log=modelingEventTarget({type:'professional.log',data:{jobId:'sim-2',path:'sedan/ElectricSedan.sysml'}});
+ assert.equal(log,null);
+});
+
+test('appearance and Modelica saves leave an open system SysML in place',()=>{
+ const open={path:'sedan/ElectricSedan.sysml'};
+ const appearance=modelingEventTarget({type:'professional.model.saved',data:{path:'sedan/Sedan.appearance.sysml',sha256:'app'}});
+ const followed=followFile(open,appearance);
+ assert.equal(followed.path,open.path);assert.equal(followed.sourceView,'preview3d');assert.equal(followed.replaceSource,false);
+ const modelica=modelingEventTarget({type:'tool.completed',data:{tool:'Write',path:'sedan/Sedan.mo'}});
+ assert.equal(followFile(open,modelica).keep,true);
+ assert.equal(followFile({},appearance).replaceSource,true);
+});
+
+test('assembly beats grow from the powertrain to the body, and one added part is one beat',()=>{
+ const labels=['floor','battery','inverter','motor','frontSubframe','frontLeftTire','frontLeftRim','frontLeftHub','frontLeftLowerArm','frontLeftUpperArm','frontLeftStrut','frontLeftHalfshaft','frontRightTire','frontRightRim','frontRightHub','frontRightLowerArm','frontRightUpperArm','frontRightStrut','frontRightHalfshaft','rearSubframe','rearLeftTire','rearLeftRim','rearLeftHub','rearLeftLowerArm','rearLeftUpperArm','rearLeftStrut','rearLeftHalfshaft','rearRightTire','rearRightRim','rearRightHub','rearRightLowerArm','rearRightUpperArm','rearRightStrut','rearRightHalfshaft','LeftSill','LeftHeadlamp','FrontBumper','RearBumper','roofBow100'];
+ const parts=labels.map(label=>({label}));
+ const steps=assemblySteps(parts,0);
+ assert.deepEqual(parts.slice(0,steps[0]).map(part=>part.label),['floor','battery','inverter','motor','frontSubframe']);
+ const shown=end=>parts.slice(0,end).map(part=>part.label);
+ const tire=steps.findIndex(end=>shown(end).includes('frontLeftTire'));
+ const roof=steps.findIndex(end=>shown(end).includes('roofBow100'));
+ assert.ok(tire>=0&&tire<roof);
+ assert.equal(steps.at(-1),parts.length);
+ assert.ok(shown(steps.at(-1)).includes('LeftSill'));
+ assert.deepEqual(assemblySteps(parts,parts.length-1),[parts.length]);
+ assert.equal(retainedAssemblyCount(labels.slice(0,5),parts),5);
+ assert.equal(assemblySteps(parts,5)[0]>5,true);
+});
+
+test('the system prompt saves appearance by assembly group and still runs each solver once',()=>{
+ const source=readFileSync(new URL('../server/engine.mjs',import.meta.url),'utf8');
+ assert.match(source,/floor and powertrain, then the front-left corner, the front-right corner, the rear wheels and suspension, then the body panels/);
+ assert.match(source,/Save that structure file first with save_professional_model, then submit one check/);
+ assert.match(source,/Use only a few solids on the structure diagram/);
+ assert.match(source,/Do not repeat the FMU export, the SysML simulate, or the OpenSCAD simulate because the files were saved in steps/);
+ assert.match(source,/After one Euler FMU, one successful SysML simulate and one OpenSCAD simulate, stop/);
 });
 
 test('tampered native evidence is marked for attention in chat, including nested wait receipts',()=>{
