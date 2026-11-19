@@ -1,0 +1,23 @@
+{
+  "schema": "daidalis-professional-input-v1",
+  "model": {
+    "path": "electric-sedan/Sedan.scad",
+    "sha256": "654d316fc048bfc5ad960424cbc68ece776e29a5f25619d700dd2900f2eee142",
+    "language": "openscad"
+  },
+  "sourceFiles": [
+    {
+      "path": "electric-sedan/Sedan.scad",
+      "sha256": "654d316fc048bfc5ad960424cbc68ece776e29a5f25619d700dd2900f2eee142"
+    }
+  ],
+  "modelName": null,
+  "operation": "simulate",
+  "parameters": {},
+  "simulation": {
+    "mode": "native-source"
+  },
+  "signals": [],
+  "checks": [],
+  "inputHash": "4a665f3487a6f10f093e7b7f970e5f7eb0ff89424dd182cdb0328d2395528dde"
+}

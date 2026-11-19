@@ -15,11 +15,14 @@ function seedDemoReplayProject(store) {
   const sourceDir=fileURLToPath(new URL('../examples/electric-sedan',import.meta.url));
   let entries;try{entries=fs.readdirSync(sourceDir,{withFileTypes:true});}catch{return;}
   const files=entries.filter(entry=>entry.isFile()).map(entry=>entry.name);
-  if(!files.includes('replay.json')||!files.includes('ElectricSedan.sysml'))return;
+  if(!files.includes('replay.json')||!files.includes('Sedan.sysml'))return;
   const p=store.createProject({name:'示例',description:'留存运行示例：叙事为整理后的说明，模型、轨迹与判据来自一次真实求解的留存产物。',instructions:''});
   store.patch('projects',p.id,{kind:'demo-replay'});
-  const folder=store.workspace(p.id),sedan=path.join(folder,'sedan');
+  const folder=store.workspace(p.id),sedan=path.join(folder,'electric-sedan');
   fs.mkdirSync(sedan,{recursive:true});
+  // The seeded subfolder keeps the real session's layout: a directory whose name
+  // differs from the model stem stays a single-file parse root (no conventional
+  // source-root merge), so the appearance model keeps exactly one physical root.
   for(const entry of entries){
     const from=path.join(sourceDir,entry.name),to=path.join(sedan,entry.name);
     if(entry.isDirectory()){try{fs.cpSync(from,to,{recursive:true});}catch{/* skip directories that cannot be copied */}continue;}

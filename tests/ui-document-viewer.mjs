@@ -23,15 +23,11 @@ function kernel(operation, file) {
 }
 const mission = {path:'models/mission.sysml',content:source};
 const fixture = {file:mission,model:kernel('query',mission),verification:kernel('verify',mission)};
-const carPath = 'examples/electric-sedan/Sedan.appearance.sysml';
-const car = {path:carPath,content:await fs.readFile(path.join(root,carPath),'utf8')};
-const editedCar = {...car,content:car.content.replace('part roofBow100 {\n      attribute shape : String = "box";\n      attribute color : String = "#267BA0";\n      attribute centerX : LengthValue = 100 [mm];\n      attribute centerY : LengthValue = 0 [mm];\n      attribute centerZ : LengthValue = 1470 [mm];\n      attribute length : LengthValue = 60 [mm];\n      attribute width : LengthValue = 1300 [mm];\n      attribute height : LengthValue = 35 [mm];','part roofBow100 {\n      attribute shape : String = "box";\n      attribute color : String = "#267BA0";\n      attribute centerX : LengthValue = 100 [mm];\n      attribute centerY : LengthValue = 0 [mm];\n      attribute centerZ : LengthValue = 1470 [mm];\n      attribute length : LengthValue = 60 [mm];\n      attribute width : LengthValue = 1300 [mm];\n      attribute height : LengthValue = 65 [mm];')};
-assert.notEqual(editedCar.content,car.content);
 const threeModules = new Set(['/vendor/three/three.module.min.js','/vendor/three/three.core.min.js']);
 const markdown = '# NOS3 验证报告\n\n> 本次真实软件链结果\n\n| 场景 | 判据 |\n|---|---|\n| 正常 | **误差 < 0.02°** |\n\n- 坐标\n  - 输入\n- [x] 复核\n\n```sysml\npart starTracker : Sensor;\n```\n\n[查看模型](../models/mission.sysml#L16)\n\n[官方文档](https://nos3.readthedocs.io/)\n\n<img src=x onerror="window.pwned=1">\n\n[恶意](javascript:window.pwned=2)';
 const server = http.createServer(async(req,res) => {
   const route = new URL(req.url,'http://localhost').pathname;
-  if(route === '/') {res.writeHead(200,{'content-type':'text/html'});return res.end('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/document-viewer.css"><link rel="stylesheet" href="/physical-preview-3d.css"><style>body{margin:0;font-family:system-ui;height:100vh}#viewer{height:100vh}</style><div id="viewer"></div><script type="module">import{mountDocumentViewer}from"/document-viewer.mjs";window.opened=[];window.external=[];window.fixture=await(await fetch("/fixture.json")).json();window.viewer=mountDocumentViewer(document.querySelector("#viewer"),{...fixture,onOpenPath:(path,detail)=>opened.push({path,...detail}),onOpenExternal:url=>external.push(url)});window.ready=true;</script>');}
+  if(route === '/') {res.writeHead(200,{'content-type':'text/html'});return res.end('<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="/document-viewer.css"><style>body{margin:0;font-family:system-ui;height:100vh}#viewer{height:100vh}</style><div id="viewer"></div><script type="module">import{mountDocumentViewer}from"/document-viewer.mjs";window.opened=[];window.external=[];window.fixture=await(await fetch("/fixture.json")).json();window.viewer=mountDocumentViewer(document.querySelector("#viewer"),{...fixture,onOpenPath:(path,detail)=>opened.push({path,...detail}),onOpenExternal:url=>external.push(url)});window.ready=true;</script>');}
   if(route === '/fixture.json') {res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify(fixture));}
   if(route === '/api/test-image') {res.writeHead(200,{'content-type':'image/png'});return res.end(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yF9sAAAAASUVORK5CYII=','base64'));}
   const relative = route.slice(1);if(relative.includes('..')) {res.writeHead(404);return res.end();}
@@ -56,60 +52,6 @@ try {
   await page.locator('[data-document-home]').click();
   await page.locator('[data-document-filter]').selectOption('requirements');assert.match(await page.locator('.semantic-svg').textContent(),/requirement/);
   await page.screenshot({path:path.join(temporary,'model.png')});steps.push('real semantic model diagram, element details, filter and zoom');
-  await page.locator('button[data-document-tab="preview3d"]').click();
-  assert.equal(await page.locator('[data-physical-preview] canvas').count(),0);
-  assert.match(await page.locator('.document-main').innerText(),/几何|实体|外形/);
-
-  const canvas = page.locator('[data-physical-preview] canvas');
-  const cameraFrame = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  async function openProduct(file) {
-    await page.evaluate(options => viewer.update(options),{file,model:kernel('query',file),verification:null,tab:'preview3d'});
-    await canvas.waitFor();
-    await cameraFrame();
-  }
-  await openProduct(car);
-  assert.match(await page.locator('.semantic-details').innerText(),/4730 × 2140 × 1487\.5 mm/);
-  const part = page.locator('select[data-physical-part]');
-  const names = await part.locator('option').allTextContents();
-  for(const name of ['battery','inverter','motor','frontLeftTire','frontRightTire','rearLeftTire','rearRightTire'])
-    assert.ok(names.some(label => label.includes(name)),name);
-  await part.selectOption(await part.locator('option').filter({hasText:'frontLeftTire'}).getAttribute('value'));
-  assert.match(await page.locator('.semantic-details').innerText(),/frontLeftTire/);
-  assert.match(await page.locator('.semantic-details').innerText(),/660 × 220 × 660 mm/);
-  await cameraFrame();
-  const initialImage = await canvas.screenshot();
-  await page.locator('[data-document-zoom="in"]').click();
-  await cameraFrame();
-  assert.ok(!initialImage.equals(await canvas.screenshot()),'zoom should change the rendered model');
-  await page.locator('[data-document-fit]').click();
-  await cameraFrame();
-  assert.ok(initialImage.equals(await canvas.screenshot()),'fit should restore the original view');
-  const area = await canvas.boundingBox();
-  const x = area.x + area.width / 2, y = area.y + area.height / 2;
-  await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+70,y+30,{steps:5});await page.mouse.up();
-  await cameraFrame();
-  const rotated = await canvas.screenshot();
-  assert.ok(!initialImage.equals(rotated),'drag should rotate the car');
-  await page.keyboard.down('Shift');
-  await page.mouse.down();await page.mouse.move(x+120,y+80,{steps:5});await page.mouse.up();
-  await page.keyboard.up('Shift');await cameraFrame();
-  assert.ok(!rotated.equals(await canvas.screenshot()),'shift-drag should pan the car');
-  await page.setViewportSize({width:700,height:800});await cameraFrame();
-  assert.ok((await canvas.boundingBox()).width < area.width);
-  await page.setViewportSize({width:1440,height:1000});await cameraFrame();
-  const location = page.locator('.semantic-details [data-document-source-line]').first();
-  const sourceLine = Number(await location.getAttribute('data-document-source-line'));
-  await location.click();
-  assert.equal(await page.locator('.source-line.is-highlighted').getAttribute('data-source-line'),String(sourceLine));
-  assert.ok(car.content.split(/\r?\n/)[sourceLine-1].includes('frontLeftTire'));
-  assert.equal(await canvas.count(),0);
-
-  await openProduct(car);
-  const originalCar = await canvas.screenshot({path:path.join(temporary,'electric-vehicle.png')});
-  await openProduct(editedCar);
-  assert.match(await page.locator('.semantic-details').innerText(),/4730 × 2140 × 1502\.5 mm/);
-  assert.ok(!originalCar.equals(await canvas.screenshot()),'editing the roof section height should change the solid assembly');
-  steps.push('SysML electric vehicle assembly, dimension change, missing geometry, part selection, camera and source location');
   await page.evaluate(() => viewer.update({...fixture,tab:'diagram'}));
   await page.locator('button[data-document-tab="outline"]').click();await page.locator('[data-document-search]').fill('CorrectFrame');assert.match(await page.locator('.semantic-outline').innerText(),/CorrectFrame/);assert.ok(await page.locator('.semantic-outline-row').count() <= 3);
   await page.locator('.semantic-outline-row').first().click();assert.equal(await page.locator('.source-line.is-highlighted').count(),1,JSON.stringify({errors,tab:await page.locator('.document-viewer').getAttribute('data-document-tab'),body:(await page.locator('#viewer').innerText()).slice(0,1000)}));steps.push('searchable semantic outline jumps to original source');

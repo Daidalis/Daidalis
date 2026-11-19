@@ -1,0 +1,23 @@
+{
+  "schema": "daidalis-professional-input-v1",
+  "model": {
+    "path": "electric-sedan/Sedan.sysml",
+    "sha256": "a1db071174523e4c1907ce51837152efff61123154684f63e69e60e97e922a29",
+    "language": "sysml"
+  },
+  "sourceFiles": [
+    {
+      "path": "electric-sedan/Sedan.sysml",
+      "sha256": "a1db071174523e4c1907ce51837152efff61123154684f63e69e60e97e922a29"
+    }
+  ],
+  "modelName": null,
+  "operation": "check",
+  "parameters": {},
+  "simulation": {
+    "mode": "native-source"
+  },
+  "signals": [],
+  "checks": [],
+  "inputHash": "92d1367852cf0ee7c8154de159a69002577afc78ae98dd370540ede17f82f30c"
+}

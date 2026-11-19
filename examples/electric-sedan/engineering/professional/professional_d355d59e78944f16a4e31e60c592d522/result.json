@@ -1,0 +1,108 @@
+{
+  "schema": "daidalis-professional-result-v1",
+  "jobId": "professional_d355d59e78944f16a4e31e60c592d522",
+  "status": "completed",
+  "ready": true,
+  "operation": "simulate",
+  "model": {
+    "path": "electric-sedan/Sedan.scad",
+    "sha256": "654d316fc048bfc5ad960424cbc68ece776e29a5f25619d700dd2900f2eee142",
+    "language": "openscad"
+  },
+  "sourceFiles": [
+    {
+      "path": "electric-sedan/Sedan.scad",
+      "sha256": "654d316fc048bfc5ad960424cbc68ece776e29a5f25619d700dd2900f2eee142"
+    }
+  ],
+  "inputHash": "4a665f3487a6f10f093e7b7f970e5f7eb0ff89424dd182cdb0328d2395528dde",
+  "executionSucceeded": true,
+  "tool": {
+    "id": "openscad",
+    "version": "OpenSCAD version 2021.01"
+  },
+  "exitCode": 0,
+  "diagnostics": "Geometries in cache: 336\nGeometry cache size in bytes: 678048\nCGAL Polyhedrons in cache: 49\nCGAL cache size in bytes: 6389792\nTotal rendering time: 0:00:03.666\n   Top level object is a 3D object:\n   Simple:        yes\n   Vertices:     3084\n   Halfedges:    9544\n   Edges:        4772\n   Halffacets:   3448\n   Facets:       1724\n   Volumes:        23\nCompiling design (CSG Products normalization)...\nNormalized CSG tree has 125 elements\nFailed to create /home/node/.cache for shader cache (Read-only file system)---disabling.\nGeometries in cache: 258\nGeometry cache size in bytes: 322896\nCGAL Polyhedrons in cache: 0\nCGAL cache size in bytes: 0\nTotal rendering time: 0:00:00.261\n",
+  "receipt": {
+    "schema": "daidalis-professional-execution-v1",
+    "jobId": "professional_d355d59e78944f16a4e31e60c592d522",
+    "inputHash": "4a665f3487a6f10f093e7b7f970e5f7eb0ff89424dd182cdb0328d2395528dde",
+    "model": {
+      "path": "electric-sedan/Sedan.scad",
+      "sha256": "654d316fc048bfc5ad960424cbc68ece776e29a5f25619d700dd2900f2eee142",
+      "language": "openscad"
+    },
+    "sourceFiles": [
+      {
+        "path": "electric-sedan/Sedan.scad",
+        "sha256": "654d316fc048bfc5ad960424cbc68ece776e29a5f25619d700dd2900f2eee142"
+      }
+    ],
+    "operation": "simulate",
+    "parameters": {},
+    "simulation": {
+      "mode": "native-source"
+    },
+    "signals": [],
+    "tool": {
+      "id": "openscad",
+      "version": "OpenSCAD version 2021.01"
+    },
+    "runnerReceipt": {
+      "schema": "daidalis-professional-execution-v1",
+      "inputHash": "4a665f3487a6f10f093e7b7f970e5f7eb0ff89424dd182cdb0328d2395528dde",
+      "sourceFiles": [
+        {
+          "path": "electric-sedan/Sedan.scad",
+          "sha256": "654d316fc048bfc5ad960424cbc68ece776e29a5f25619d700dd2900f2eee142"
+        }
+      ],
+      "operation": "simulate",
+      "tool": {
+        "id": "openscad",
+        "version": "OpenSCAD version 2021.01"
+      },
+      "durationSeconds": 4.302948713302612,
+      "exitCode": 0,
+      "success": true,
+      "isolation": "dedicated rootless Docker task container; network disabled; no application credentials"
+    },
+    "executionSucceeded": true,
+    "createdAt": "2026-11-19T13:27:56.598Z",
+    "startedAt": "2026-11-19T13:27:56.619Z",
+    "finishedAt": "2026-11-19T13:28:01.669Z",
+    "scope": "Digital model check / numerical simulation only; no physical, HIL, certification or project-completion claim"
+  },
+  "nativeVerification": null,
+  "geometry": {
+    "triangles": 6104,
+    "boundingBox": {
+      "min": [
+        -2302.5,
+        -1110,
+        0
+      ],
+      "max": [
+        2302.5,
+        1110,
+        1521
+      ]
+    },
+    "units": "source model units"
+  },
+  "outputKind": "geometry",
+  "table": null,
+  "series": [],
+  "tableFile": null,
+  "verification": {
+    "status": "not-requested",
+    "checks": []
+  },
+  "passed": null,
+  "receiptSha256": "f2593633077293a2385bd977168e402a4e7740aaf0b40d9e1f0ed8348d80d6a3",
+  "resultPath": "engineering/professional/professional_d355d59e78944f16a4e31e60c592d522/result.json",
+  "limitations": [
+    "Simulation outcomes apply only to the exact recorded model, parameters, scenario and tool version.",
+    "Missing physical tests, independent review and applicable engineering work remain open."
+  ]
+}

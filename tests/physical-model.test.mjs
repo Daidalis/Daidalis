@@ -194,23 +194,27 @@ test('source axis gives rotational solids their world-axis dimensions', () => {
 });
 
 test('electric sedan appearance keeps the recorded body bounds and wheel positions', () => {
-  const {parts,issues} = preview(readFileSync(local('examples/electric-sedan/ElectricSedan.appearance.sysml'), 'utf8'));
+  const {parts,issues} = preview(readFileSync(local('examples/electric-sedan/Sedan.appearance.sysml'), 'utf8'));
   assert.deepEqual(issues, []);
-  assert.equal(parts.length, 57);
-  assert.equal(parts.filter(part => part.shape === 'loft' && part.sections?.some(section => section.width !== undefined)).length, 16, 'the shell reads as rectangular-section lofts');
+  assert.equal(parts.length, 63);
+  assert.equal(parts.filter(part => part.shape === 'loft' && part.sections?.some(section => section.width !== undefined)).length, 28, 'the shell reads as rectangular-section lofts');
   const bounds = [0,1,2].map(i => [
     Math.min(...parts.map(p => p.position[i] - p.size[i] / 2)),
     Math.max(...parts.map(p => p.position[i] + p.size[i] / 2)),
   ]);
-  assert.deepEqual(bounds, [[-2300,2300],[-1090,1090],[0,1465]]);
+  assert.deepEqual(bounds, [[-2302.5,2302.5],[-1110,1110],[0,1521]]);
   for (const name of ['battery','inverter','motor']) assert.ok(parts.some(part => part.label === name), name);
   const tires = parts.filter(part => /Tire$/i.test(part.label));
   assert.deepEqual(Object.fromEntries(tires.map(part => [part.label,part.position])), {
-    frontLeftTire:[1350,780,325], frontRightTire:[1350,-780,325],
-    rearLeftTire:[-1350,780,325], rearRightTire:[-1350,-780,325],
+    frontLeftTire:[1400,850,330], frontRightTire:[1400,-850,330],
+    rearLeftTire:[-1400,850,330], rearRightTire:[-1400,-850,330],
   });
   for (const tire of tires) {
     assert.equal(tire.axis, 'Y');
-    assert.deepEqual(tire.size, [650,215,650]);
+    assert.deepEqual(tire.size, [660,215,660]);
   }
+  // named CSS colors render instead of falling back to defaults
+  const colored = parts.filter(part => part.color);
+  assert.ok(colored.length > 40, 'most parts carry a resolved color');
+  for (const part of colored) assert.match(part.color, /^#[a-f0-9]{6}$/i);
 });

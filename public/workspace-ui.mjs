@@ -124,7 +124,6 @@ export function createWorkspaceUI({api,getProject,getArtifacts=()=>[],getKnowled
     if(sourceRoot!==undefined&&sourceRoot!==tab.sourceRoot){tab.sourceRoot=sourceRoot;changed=true;}
     if(changed||resetNavigation){tab.viewerState={};tab.documentTab='diagram';tab.model=null;tab.file=null;}
     if(source){tab.documentTab='source';tab.sourceLine=Number.isInteger(line)&&line>0?line:undefined;}else tab.sourceLine=undefined;
-    if(!source && view==='physical' && /\.sysml$/i.test(relative))tab.documentTab='preview3d';
     active=tab.id;if(!tab.file&&!tab.simulation&&!tab.loading)await loadTab(tab);else draw();
   }
   async function openModelProject(project){return openPath(project.entryPath,{modelView:project.sourceRoot?'project':'file',sourceRoot:project.sourceRoot||undefined,resetNavigation:true});}

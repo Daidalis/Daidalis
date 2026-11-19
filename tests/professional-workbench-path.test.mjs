@@ -44,41 +44,31 @@ test('the focus stage carries SysML solids and the tabs carry live status',()=>{
  const runningTab=renderProfessionalWorkbench({expanded:'simulation',path:'models/A.mo',draft:'model A end A;',currentJob:{id:'job-1',status:'running',operation:'simulate',model:{path:'models/A.mo'}},result:{integrity:{verified:true},table:{columns:['time','speed'],rows:[[0,0],[1,2]]}}});
  assert.match(runningTab,/仿真进行中/);assert.match(runningTab,/停止执行/);assert.doesNotMatch(runningTab,/pm-spark/);
 
- // A system SysML with solids: the stage hosts the 3D preview even while the code editor is open.
- const sysml=renderProfessionalWorkbench({expanded:'source',path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
- assert.match(sysml,/data-pm-stage-kind="physical"/);assert.match(sysml,/<div data-pm-physical><\/div>/);
- assert.match(sysml,/data-source-view="code"/);assert.match(sysml,/data-source-view="diagram"/);assert.match(sysml,/模型图/);assert.match(sysml,/实物预览/);assert.match(sysml,/大纲/);assert.match(sysml,/诊断/);assert.match(sysml,/约束/);assert.match(sysml,/原生模型源码/);
- assert.doesNotMatch(sysml,/battery/);
+ // A system SysML shows only source/diagram sub-tabs; the 实物预览 tab is gone and there is no stage without a mesh.
+ const sysml=renderProfessionalWorkbench({expanded:'source',path:'sedan/ElectricSedan.sysml',draft:'package E {}',semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
+ assert.match(sysml,/data-source-view="code"/);assert.match(sysml,/data-source-view="diagram"/);assert.match(sysml,/模型图/);assert.doesNotMatch(sysml,/实物预览/);assert.match(sysml,/大纲/);assert.match(sysml,/诊断/);assert.match(sysml,/约束/);assert.match(sysml,/原生模型源码/);
+ assert.doesNotMatch(sysml,/data-pm-stage-kind="physical"/);assert.doesNotMatch(sysml,/pm-focus-stage/,'no mesh means no stage');
 
- // The diagram sub-tab mounts the structure view in the detail region; the stage keeps the 3D preview.
- const diagram=renderProfessionalWorkbench({expanded:'source',sourceView:'diagram',path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}]});
- assert.match(diagram,/data-pm-structure/);assert.match(diagram,/<div data-pm-physical><\/div>/);assert.doesNotMatch(diagram,/textarea/);
-
- // Without solids the stage explains itself instead of showing an empty canvas.
- const bare=renderProfessionalWorkbench({expanded:'source',path:'bare/Bare.sysml',draft:'package B {}'});
- assert.match(bare,/可绘制的实体几何/);
+ // The diagram sub-tab mounts the structure view in the detail region.
+ const diagram=renderProfessionalWorkbench({expanded:'source',sourceView:'diagram',path:'sedan/ElectricSedan.sysml',draft:'package E {}'});
+ assert.match(diagram,/data-pm-structure/);assert.doesNotMatch(diagram,/textarea/);
 
  // A non-simulation tab never renders the run form.
  const closedSim=renderProfessionalWorkbench({path:'models/A.mo',draft:'model A end A;',modelName:'A'});
  assert.doesNotMatch(closedSim,/仿真设置|运行仿真/);
 
- // The shape tab: STL in the stage, archived PNG beside the render action.
- const stlShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeGeometryBytes:new Uint8Array(84),shapeStage:'ready'});
- assert.match(stlShape,/data-pm-stage-kind="shape"/);assert.match(stlShape,/data-pm-shape-geometry/);assert.match(stlShape,/pm-shape-thumb/);assert.match(stlShape,/生成几何/);
- const pngShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready'});
- assert.match(pngShape,/class="pm-shape-full"/);assert.doesNotMatch(pngShape,/data-pm-shape-geometry/);
- const staleShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready',shapeStale:true});
- assert.match(staleShape,/上一版几何/);assert.match(staleShape,/state-stale/);
- const freshShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready',shapeStale:false});
- assert.doesNotMatch(freshShape,/上一版几何/);
- const generating=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapeStage:'running',shapeStale:true,shapePreviewUrl:'data:image/png;base64,iV'});
- assert.match(generating,/几何生成中/);assert.doesNotMatch(generating,/上一版几何/);
+ // The geometry tab is gone: the model tab hosts the OpenSCAD STL as its stage.
+ const sysmlShape=renderProfessionalWorkbench({expanded:'source',path:'sedan/ElectricSedan.sysml',draft:'package E {}',shapeGeometryBytes:new Uint8Array(84),shapeGeometryName:'Body.stl'});
+ assert.match(sysmlShape,/data-pm-stage-kind="shape"/);assert.match(sysmlShape,/data-pm-shape-geometry/);
+ assert.doesNotMatch(sysmlShape,/data-tab="shape"/);assert.doesNotMatch(sysmlShape,/生成几何/);
+ const scadContext=renderProfessionalWorkbench({expanded:'source',path:'sedan/Body.scad',shapePath:'sedan/Body.scad',jobs:[{id:'job-shape',status:'completed',operation:'simulate',model:{path:'sedan/Body.scad'}}]});
+ assert.doesNotMatch(scadContext,/data-tab="shape"/,'even with OpenSCAD context there is no geometry tab');
 
- // The simulation tab keeps trajectory detail and drives the same stage.
+ // The simulation tab keeps trajectory detail and shares the STL stage when a mesh exists.
  const staleSim=renderProfessionalWorkbench({expanded:'simulation',path:'sedan/ElectricSedan.sysml',draft:'package E {}',simulationStale:true,currentJob:{id:'job-sim',status:'completed',operation:'simulate',model:{path:'sedan/ElectricSedan.sysml',sha256:'old'}},result:{ready:true,integrity:{verified:true},executionSucceeded:true,table:{columns:['time','battery'],rows:[[0,80],[1,79]]}}});
- assert.match(staleSim,/上一版仿真/);assert.match(staleSim,/pm-spark|battery/);assert.match(staleSim,/data-pm-stage-kind="physical"/);
- const freshSim=renderProfessionalWorkbench({expanded:'simulation',path:'sedan/ElectricSedan.sysml',draft:'package E {}',simulationStale:false,currentJob:{id:'job-sim',status:'completed',operation:'simulate',model:{path:'sedan/ElectricSedan.sysml'}},result:{ready:true,integrity:{verified:true},executionSucceeded:true,table:{columns:['time','battery'],rows:[[0,80],[1,79]]}}});
- assert.doesNotMatch(freshSim,/上一版仿真/);assert.match(freshSim,/>有轨迹</);
+ assert.match(staleSim,/上一版仿真/);assert.match(staleSim,/pm-spark|battery/);assert.doesNotMatch(staleSim,/data-pm-stage-kind="physical"/);
+ const simWithMesh=renderProfessionalWorkbench({expanded:'simulation',path:'sedan/ElectricSedan.sysml',draft:'package E {}',shapeGeometryBytes:new Uint8Array(84),simulationStale:false,currentJob:{id:'job-sim',status:'completed',operation:'simulate',model:{path:'sedan/ElectricSedan.sysml'}},result:{ready:true,integrity:{verified:true},executionSucceeded:true,table:{columns:['time','battery'],rows:[[0,80],[1,79]]}}});
+ assert.doesNotMatch(simWithMesh,/上一版仿真/);assert.match(simWithMesh,/>有轨迹</);assert.match(simWithMesh,/data-pm-stage-kind="shape"/,'the simulation tab shows the same OpenSCAD mesh stage');
 
  // A check result surfaces on the model tab.
  const checked=renderProfessionalWorkbench({expanded:'source',sourceView:'diagnostics',path:'sedan/ElectricSedan.sysml',draft:'package E {}',checkResult:{executionSucceeded:true,ready:true}});
@@ -107,19 +97,19 @@ test('live events follow while the user has not taken the tab rail, then downgra
  Source.current.listeners.update[0](done);
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(calls.filter(route=>route.includes('/jobs/job-shape')).length,jobsBefore+2);
- assert.equal(ui.inspect().expanded,'shape');
- assert.match(host.innerHTML,/data-tab="shape" role="tab" aria-selected="true"/);
+ assert.equal(ui.inspect().expanded,'source');
+ assert.doesNotMatch(host.innerHTML,/data-tab="shape"/);
  assert.equal(focused,0);assert.doesNotMatch(host.innerHTML,/workbench-focus/);
  // The user takes the tab rail through the public entry point.
  await ui.selectJob('job-shape');
- assert.equal(ui.inspect().userFocus,true);assert.equal(ui.inspect().expanded,'shape');
+ assert.equal(ui.inspect().userFocus,true);assert.equal(ui.inspect().expanded,'source');
  // The next agent event still loads job data but no longer moves the view.
  const simDone={data:JSON.stringify({type:'professional.completed',data:{jobId:'job-sim',modelPath:'sedan/A.sysml',operation:'simulate',status:'completed'}})};
  const simCallsBefore=calls.filter(route=>route.includes('/jobs/job-sim')).length;
  Source.current.listeners.update[0](simDone);
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(calls.filter(route=>route.includes('/jobs/job-sim')).length,simCallsBefore+2);
- assert.equal(ui.inspect().expanded,'shape');
+ assert.equal(ui.inspect().expanded,'source');
  assert.equal(ui.inspect().followHint?.tab,'simulation');
  assert.match(host.innerHTML,/pm-follow-hint/);
  ui.detach();
