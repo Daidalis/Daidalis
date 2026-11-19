@@ -167,7 +167,7 @@ export async function createStudioServer(options={}) {
       }
       let stat;
       try{stat=await fsp.stat(file);}catch{throw new HttpError(404,'File not found');}if(!stat.isFile())throw new HttpError(404,'File not found');
-      res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','content-length':stat.size,'content-security-policy':`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors ${relative==='engineering.html'?"'self'":"'none'"}`});if(req.method==='HEAD')res.end();else fs.createReadStream(file).pipe(res);return;
+      res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','content-length':stat.size,'cache-control':relative==='app.js'||relative.endsWith('.mjs')?'no-cache':'public, max-age=3600','content-security-policy':`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors ${relative==='engineering.html'?"'self'":"'none'"}`});if(req.method==='HEAD')res.end();else fs.createReadStream(file).pipe(res);return;
     }
     if(req.method==='OPTIONS')throw new HttpError(403,'Cross-origin API access is not enabled');
     const method=req.method;
