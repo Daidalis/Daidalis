@@ -49,6 +49,7 @@ test('the focus stage carries SysML solids and the tabs carry live status',()=>{
  // A system SysML with solids: the stage hosts the 3D preview even while the code editor is open.
  const sysml=renderProfessionalWorkbench({expanded:'source',path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
  assert.match(sysml,/data-pm-stage-kind="physical"/);assert.match(sysml,/<div data-pm-physical><\/div>/);
+ assert.match(sysml,/class="pm-tab-rail".*class="pm-page".*data-pm-stage-kind="physical".*class="pm-detail"/);
  assert.match(sysml,/data-source-view="code"/);assert.match(sysml,/data-source-view="diagram"/);assert.match(sysml,/模型图/);assert.match(sysml,/实物预览/);assert.match(sysml,/大纲/);assert.match(sysml,/诊断/);assert.match(sysml,/约束/);assert.match(sysml,/原生模型源码/);
  assert.doesNotMatch(sysml,/battery/);
 
@@ -67,6 +68,7 @@ test('the focus stage carries SysML solids and the tabs carry live status',()=>{
  // The shape tab: STL in the stage, archived PNG beside the render action.
  const stlShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeGeometryBytes:new Uint8Array(84),shapeStage:'ready'});
  assert.match(stlShape,/data-pm-stage-kind="shape"/);assert.match(stlShape,/data-pm-shape-geometry/);assert.match(stlShape,/pm-shape-thumb/);assert.match(stlShape,/生成几何/);
+ assert.match(stlShape,/class="pm-tab-rail".*class="pm-page".*data-pm-stage-kind="shape".*class="pm-detail"/);
  const pngShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready'});
  assert.match(pngShape,/class="pm-shape-full"/);assert.doesNotMatch(pngShape,/data-pm-shape-geometry/);
  const staleShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready',shapeStale:true});

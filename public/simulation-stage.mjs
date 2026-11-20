@@ -306,6 +306,11 @@ export function renderTrajectoryThumbnail(table){
  return `<div class="pm-trajectory-thumb" data-pm-trajectory-thumb>${sparkline(signal.spark)}<span>${esc(signal.name)}</span></div>`;
 }
 
+function timelinePosition(rows,sampleIndex){
+ const last=Math.max(0,rows.length-1),index=Math.min(last,Math.max(0,sampleIndex??last));
+ return {last,index,progress:last?index/last*100:0};
+}
+
 export function renderSimulationStage(input, options={}){
  if(!input?.table?.rows?.length)return '';
  const summary=signalSummaries(input.table,{checks:input.checks,receipt:input.receipt});
@@ -330,9 +335,10 @@ export function renderSimulationStage(input, options={}){
  const featured=[...named.filter(signal=>signal.checks.length),...named.filter(signal=>!signal.checks.length)];
  const shown=(featured.length?featured:summary.signals).slice(0,4);
  const hidden=summary.signals.filter(signal=>!shown.includes(signal));
- const last=Math.max(0,summary.rows.length-1);
+ const {last,index,progress}=timelinePosition(summary.rows,input.sampleIndex);
+ const timeline=`<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${index}" style="--pm-progress:${progress}%" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div>`;
  const visuals=options.scope==='timeline'?'':`<div class="pm-stage-split"><div><h3>结构</h3><div data-pm-structure></div></div><div><h3>流向</h3>${flowDiagram(edges,bindings,columns)}</div></div><div class="pm-physical-block"><h3>实物</h3><div class="pm-physical-stage"><div data-pm-physical></div><p class="pm-scene-readout" data-pm-scene-readout></p></div><div data-pm-geometry></div></div>`;
- return `<section class="pm-stage" data-pm-stage${input.recorded?` data-recorded-provenance="${esc(input.provenance)}"`:''}>${banner}${unmatchedNote}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${shown.length?`<div class="pm-signal-grid">${shown.map(card).join('')}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}${hidden.length?`<details class="pm-signal-more"><summary>展开全部 · ${summary.signals.length} 个信号</summary><div class="pm-signal-grid">${hidden.map(card).join('')}</div></details>`:''}<div class="pm-transport"><button type="button" class="button compact" data-pm-action="play">${input.playing?'暂停':'播放'}</button><div class="pm-time"><span class="pm-time-name">时间</span><input data-pm-sample type="range" min="0" max="${last}" value="${Math.min(last,Math.max(0,input.sampleIndex??last))}" aria-label="轨迹时间"><output data-pm-sample-label></output><span class="pm-time-unit" data-pm-sample-unit>s</span></div></div>${visuals}</section>`;
+ return `<section class="pm-stage" data-pm-stage${input.recorded?` data-recorded-provenance="${esc(input.provenance)}"`:''}>${banner}${unmatchedNote}<div class="pm-stage-heading"><h3>${input.recorded?'记录轨迹':'结果总览'}</h3><span>${summary.rows.length} 行采样 · ${summary.signals.length} 个数值信号</span></div>${shown.length?`<div class="pm-signal-grid">${shown.map(card).join('')}</div>`:'<p class="muted">这条轨迹没有两个以上的数值采样，不绘制曲线。</p>'}${hidden.length?`<details class="pm-signal-more"><summary>展开全部 · ${summary.signals.length} 个信号</summary><div class="pm-signal-grid">${hidden.map(card).join('')}</div></details>`:''}${timeline}${visuals}</section>`;
 }
 
 function columnValue(summary,name,index){
@@ -344,11 +350,13 @@ function columnValue(summary,name,index){
 export function applySimulationFrame(root,input,{preview}={}){
  if(!root||!input?.table)return;
  const summary=signalSummaries(input.table,{checks:input.checks,receipt:input.receipt});
- const index=Math.min(summary.rows.length-1,Math.max(0,input.sampleIndex??summary.rows.length-1));
+ const {index,progress}=timelinePosition(summary.rows,input.sampleIndex);
  const row=summary.rows[index]||[];
  const time=summary.timeIndex>=0?row[summary.timeIndex]:index;
+ const slider=root.querySelector('[data-pm-sample]');
  const label=root.querySelector('[data-pm-sample-label]');
  const unit=root.querySelector('[data-pm-sample-unit]');
+ if(slider){slider.value=String(index);slider.style.setProperty('--pm-progress',`${progress}%`);}
  if(label)label.textContent=summary.timeIndex>=0?formatClock(time):String(index).padStart(6);
  if(unit)unit.textContent=summary.timeIndex>=0?'s':'';
  const structure=structureFromSource(input.source);

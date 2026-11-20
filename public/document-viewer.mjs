@@ -528,7 +528,7 @@ function modelOrigin(file,context){
   return context?{...context,filePath:file.path,title:context.mode==='project'?context.name:basename(file.path)}:null;
 }
 
-function renderModelNavigation(graph,file,model,navigation){
+function renderModelNavigation(graph,file,model,navigation,tools){
   const state=modelNavigation(graph,navigation);
   const trail=modelNavigationPath(graph,navigation);
   const origin=state.origin;
@@ -536,7 +536,7 @@ function renderModelNavigation(graph,file,model,navigation){
   const breadcrumbs=trail.map((id,index)=>`<span aria-hidden="true">/</span><button type="button" data-document-breadcrumb="${index}"${index===trail.length-1?' aria-current="page"':''}>${esc(state.byId.get(id).label)}</button>`).join('');
   const projectLink=origin?.mode==='file'&&origin.sourceRoot?`<button type="button" data-document-project>${esc(origin.name)}</button><span aria-hidden="true">/</span>`:'';
   const entry=origin?.entryKind==='convention'&&origin.mode==='project'?`<button type="button" class="model-entry-file" data-document-entry title="打开入口文件">${esc(basename(origin.entryPath))}</button>`:'';
-  return `<div class="model-navigation" aria-label="模型导航"><button type="button" data-document-up aria-label="返回上级"${state.atHome&&!(origin?.mode==='file'&&origin.sourceRoot)?' disabled':''}>‹</button><nav class="model-breadcrumbs" aria-label="模型路径">${projectLink}<button type="button" data-document-home${state.atHome?' aria-current="page"':''}>${esc(home)}</button>${breadcrumbs}</nav>${entry}${origin?'<button type="button" data-document-packages>包浏览</button><button type="button" data-document-files>浏览文件</button>':''}</div>`;
+  return `<div class="model-navigation" aria-label="模型导航"><button type="button" data-document-up aria-label="返回上级"${state.atHome&&!(origin?.mode==='file'&&origin.sourceRoot)?' disabled':''}>‹</button><nav class="model-breadcrumbs" aria-label="模型路径">${projectLink}<button type="button" data-document-home${state.atHome?' aria-current="page"':''}>${esc(home)}</button>${breadcrumbs}</nav>${entry}${origin?'<button type="button" data-document-packages>包浏览</button><button type="button" data-document-files>浏览文件</button>':''}${tools}</div>`;
 }
 
 function renderOutline(graph, query = '') {
@@ -549,7 +549,18 @@ function renderOutline(graph, query = '') {
     return value;
   };
   const filtered = rows.filter(node => !search || (node.label + ' ' + node.qname + ' ' + node.metaclass).toLocaleLowerCase().includes(search)).sort((a,b) => (a.line || Infinity) - (b.line || Infinity));
-  return `<div class="semantic-outline" role="list">${filtered.map(node => `<div class="semantic-outline-item" role="listitem"><button type="button" class="semantic-outline-row" data-document-element="${attr(node.id)}" style="--outline-depth:${search ? 0 : depth(node)}"><span class="semantic-kind">${esc(node.stereo)}</span><span>${esc(node.label)}</span>${node.line ? `<span class="semantic-line">${esc(node.file)}:${node.line}</span>` : ''}</button><button type="button" class="semantic-outline-focus" data-document-focus="${attr(node.member?node.parent:node.id)}" aria-label="在图中查看 ${attr(node.label)}">在图中查看</button></div>`).join('') || '<div class="document-empty">没有匹配的模型元素。</div>'}</div>`;
+  const locateIcon = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/></svg>';
+  const items = filtered.map(node => {
+    const name = node.fullLabel || node.label, location = [node.file,node.line].filter(Boolean).join(':');
+    const role = node.member ? 'member' : node.kind === 'package' ? 'package' : node.nodeKind === 'def' || node.metaclass.endsWith('Definition') ? 'definition' : 'usage';
+    return `<div class="semantic-outline-item" role="listitem">
+      <button type="button" class="semantic-outline-row" data-document-element="${attr(node.id)}" data-outline-role="${role}" style="--outline-depth:${search ? 0 : Math.min(5,depth(node))}">
+        <span class="semantic-outline-name" title="${attr(name)}">${esc(node.label)}</span><span class="semantic-kind" title="${attr(node.stereo)}">${esc(node.stereo)}</span>${node.line ? `<span class="semantic-line" title="${attr(location)}">L${node.line}</span>` : ''}
+      </button>
+      <button type="button" class="semantic-outline-focus" data-document-focus="${attr(node.member?node.parent:node.id)}" title="在图中查看" aria-label="在图中查看 ${attr(name)}">${locateIcon}</button>
+    </div>`;
+  });
+  return `<div class="semantic-outline" role="list">${items.join('') || '<div class="document-empty">没有匹配的模型元素。</div>'}</div>`;
 }
 
 function renderSource(content, kind) {
@@ -586,7 +597,7 @@ function renderDiagnostics(model,sourcePath) {
     const target=item.file||item.unit||item.unitName;
     return `${target&&target!==sourcePath?esc(target)+' · ':''}查看第 ${locationOf(item)} 行`;
   };
-  return `<div class="document-diagnostics"><p class="document-check-state ${model.valid === true ? 'is-valid' : 'has-findings'}">${model.valid === true ? '语法、引用及支持的语义规则校验通过' : '模型包含需要检查的诊断'}</p>${findings.length ? findings.map(item => `<article class="document-finding"><div><span class="document-status ${attr(item.severity === 'error' ? 'violated' : 'undecided')}">${esc(item.severity || 'finding')}</span><strong>${esc(item.message || item.detail || item.code || '模型诊断')}</strong></div><p>${esc(item.stage || '')}</p>${locationOf(item) ? `<button type="button" ${sourceAttributes(item)}>${locationLabel(item)}</button>` : ''}</article>`).join('') : '<p>没有发现错误或未解析的引用。</p>'}<p class="document-scope">Open-MBEE SysML v2 · 支持规则范围内的校验；仿真结果单独记录。</p></div>`;
+  return `<div class="document-diagnostics"><p class="document-check-state ${state === 'valid' ? 'is-valid' : 'has-findings'}">${state === 'valid' ? '语法、引用及支持的语义规则校验通过' : '模型包含需要检查的诊断'}</p>${findings.map(item => `<article class="document-finding"><div><span class="document-status ${attr(item.severity === 'error' ? 'violated' : 'undecided')}">${esc(item.severity || 'finding')}</span><strong>${esc(item.message || item.detail || item.code || '模型诊断')}</strong></div><p>${esc(item.stage || '')}</p>${locationOf(item) ? `<button type="button" ${sourceAttributes(item)}>${locationLabel(item)}</button>` : ''}</article>`).join('')}</div>`;
 }
 
 function verificationData(verification, model) {
@@ -597,12 +608,15 @@ function verificationData(verification, model) {
 function renderConstraints(graph, verification, model) {
   const result = verificationData(verification,model), nodes = graph.nodes.filter(node => /Constraint/i.test(node.metaclass));
   const constraints = result?.constraints || nodes.map(node => ({name:node.label,line:node.line,file:node.file,status:'not-evaluated',detail:'尚未运行本次模型的静态约束求值'}));
+  if (!constraints.length) {
+    const confirmed = Boolean(result) || semanticCheckState(model) === 'valid';
+    return `<div class="document-constraints"><p class="document-check-state${confirmed ? ' is-valid' : ''}">${confirmed ? '模型中没有约束元素' : '尚未取得约束信息。'}</p></div>`;
+  }
   const status = value => ({satisfied:'通过',violated:'不满足',undecided:'未确定','not-evaluated':'未求值'}[value] || value || '未求值');
-  return `<div class="document-constraints"><p class="document-scope">${result ? '后端静态约束求值。测量值来自模型中已绑定的数据。' : '以下约束来自 SysML 语义模型。打开文件不会启动仿真。'}</p>${result?.summary ? `<div class="constraint-summary"><span class="document-status satisfied">${Number(result.summary.satisfied) || 0} 通过</span><span class="document-status violated">${Number(result.summary.violated) || 0} 不满足</span><span class="document-status undecided">${Number(result.summary.undecided) || 0} 未确定</span></div>` : ''}<div class="document-table-scroll"><table><thead><tr><th>约束</th><th>结果</th><th>说明</th><th>源码</th></tr></thead><tbody>${constraints.map(item => `<tr><td>${esc(item.name || item.qname)}</td><td><span class="document-status ${['satisfied','violated','undecided'].includes(item.status) ? item.status : 'undecided'}">${esc(status(item.status))}</span></td><td>${esc(item.detail || item.method || '')}</td><td>${locationOf(item) ? `<button type="button" ${sourceAttributes(item)}>L${locationOf(item)}</button>` : '—'}</td></tr>`).join('') || '<tr><td colspan="4">模型中没有约束元素。</td></tr>'}</tbody></table></div></div>`;
+  return `<div class="document-constraints"><p class="document-scope">${result ? '后端静态约束求值。测量值来自模型中已绑定的数据。' : '以下约束来自 SysML 语义模型。打开文件不会启动仿真。'}</p>${result?.summary ? `<div class="constraint-summary"><span class="document-status satisfied">${Number(result.summary.satisfied) || 0} 通过</span><span class="document-status violated">${Number(result.summary.violated) || 0} 不满足</span><span class="document-status undecided">${Number(result.summary.undecided) || 0} 未确定</span></div>` : ''}<div class="document-table-scroll"><table><thead><tr><th>约束</th><th>结果</th><th>说明</th><th>源码</th></tr></thead><tbody>${constraints.map(item => `<tr><td>${esc(item.name || item.qname)}</td><td><span class="document-status ${['satisfied','violated','undecided'].includes(item.status) ? item.status : 'undecided'}">${esc(status(item.status))}</span></td><td>${esc(item.detail || item.method || '')}</td><td>${locationOf(item) ? `<button type="button" ${sourceAttributes(item)}>L${locationOf(item)}</button>` : '—'}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 
 function elementDetails(node, graph, file) {
-  if (!node) return '<div class="document-empty"></div>';
   const edges = graph.edges.filter(edge => edge.source === node.id || edge.target === node.id), byId = new Map(graph.nodes.map(item => [item.id,item]));
   const members = node.rows?.length ? '<h4>成员</h4>' + node.rows.map(row => `<button type="button" class="semantic-member" data-document-element="${attr(row.id)}"><span>${esc(row.label)}</span><small>${esc(row.metaclass)}</small></button>`).join('') : '';
   const relationships = edges.length ? '<h4>语义关系</h4>' + edges.map(edge => {
@@ -700,11 +714,11 @@ export function renderDocumentViewer({file = {},model,verification,tab,filter = 
   const selector = hasPhysicalParts
     ? `<select aria-label="选择实体零件" data-physical-part><option value="">整件物品</option>${physical.parts.map(p => `<option value="${attr(p.id)}">${esc(p.label)}</option>`).join('')}</select>`
     : `<select aria-label="模型视图" data-document-filter><option value="structure"${filter==='structure'?' selected':''}>结构与互连</option><option value="requirements"${filter==='requirements'?' selected':''}>需求与约束</option><option value="all"${filter==='all'?' selected':''}>元素与类型关系</option></select>`;
-  const details = hasPhysicalParts ? physicalDetails(physical.parts,null,graph,file) : isDiagram ? elementDetails(null,graph,file) : '';
+  const details = hasPhysicalParts ? physicalDetails(physical.parts,null,graph,file) : '';
   const modelTools=`<div class="document-diagram-tools">${selector}<button type="button" data-document-zoom="out" title="缩小" aria-label="缩小">−</button><button type="button" data-document-zoom="in" title="放大" aria-label="放大">+</button><button type="button" data-document-fit>适合窗口</button></div>`;
   const search=`<input type="search" class="document-outline-search" data-document-search placeholder="查找模型元素" aria-label="查找模型元素" value="${attr(navigation.query||'')}">`;
   const modelFooter=`<footer class="document-model-meta">${metadata}</footer>`;
-  return `<section class="document-viewer" data-document-kind="${kind}" data-document-tab="${effectiveTab}"><header class="document-toolbar"><nav class="document-tabs" aria-label="文件视图">${tabs.map(([key,name])=>`<button type="button" data-document-tab="${key}" class="${effectiveTab===key?'active':''}" aria-pressed="${effectiveTab===key}">${name}${key==='diagnostics'&&model?.findings?.length?` <span>${model.findings.length}</span>`:''}</button>`).join('')}</nav>${diagramTools?modelTools:isModel&&effectiveTab==='outline'?search:''}</header>${isDiagram?renderModelNavigation(graph,file,model,navigation):''}<div class="document-viewer-body${diagramTools?' has-model-details':''}"><div class="document-main">${body}</div>${diagramTools?`<aside class="semantic-details" aria-label="元素详情">${details}</aside>`:''}</div>${isModel&&effectiveTab!=='diagram'?modelFooter:isData&&/^[a-f0-9]{64}$/i.test(file.sha256||'')?`<footer class="document-model-meta"><span>项目文件 · ${esc(file.path||file.name||'')}</span><span title="${attr(file.sha256)}">SHA-256 ${esc(file.sha256.slice(0,12))}</span></footer>`:''}</section>`;
+  return `<section class="document-viewer" data-document-kind="${kind}" data-document-tab="${effectiveTab}"><header class="document-toolbar"><nav class="document-tabs" aria-label="文件视图">${tabs.map(([key,name])=>`<button type="button" data-document-tab="${key}" class="${effectiveTab===key?'active':''}" aria-pressed="${effectiveTab===key}">${name}${key==='diagnostics'&&model?.findings?.length?` <span>${model.findings.length}</span>`:''}</button>`).join('')}</nav>${hasPhysicalParts?modelTools:isModel&&effectiveTab==='outline'?search:''}</header>${isDiagram?renderModelNavigation(graph,file,model,navigation,modelTools):''}<div class="document-viewer-body${diagramTools?' has-model-details':''}"><div class="document-main">${body}</div>${diagramTools?`<aside class="semantic-details" aria-label="元素详情"${details?'':' hidden'}>${details}</aside>`:''}</div>${isModel&&effectiveTab!=='diagram'?modelFooter:isData&&/^[a-f0-9]{64}$/i.test(file.sha256||'')?`<footer class="document-model-meta"><span>项目文件 · ${esc(file.path||file.name||'')}</span><span title="${attr(file.sha256)}">SHA-256 ${esc(file.sha256.slice(0,12))}</span></footer>`:''}</section>`;
 }
 
 export function mountDocumentViewer(container, options = {}) {
@@ -785,20 +799,25 @@ export function mountDocumentViewer(container, options = {}) {
     if(path&&path!==current.file?.path){current.onOpenPath?.(path,{line:value,raw:true});return;}
     selectTab('source');const source = container.querySelector(`[data-source-line="${value}"]`);source?.classList.add('is-highlighted');source?.scrollIntoView({block:'center'});
   };
+  const showDetails = html => {
+    const details=container.querySelector('.semantic-details');if(!details)return false;
+    details.hidden=false;
+    if(!details.getClientRects().length){details.hidden=true;return false;}
+    details.innerHTML=html;
+    return true;
+  };
   const selectElement = (id,sourceFallback=true) => {
     const graph = getGraph(), node = [...graph.nodes,...graph.rows].find(item => item.id === id);if(!node)return;
     container.querySelectorAll('[data-document-element]').forEach(element => {const selected = element.dataset.documentElement === id;element.classList.toggle('is-selected',selected);element.setAttribute('aria-selected',String(selected));});
     container.querySelectorAll('.semantic-edge').forEach(edge => {edge.classList.remove('is-selected');edge.classList.toggle('is-connected',edge.dataset.edgeSource === id || edge.dataset.edgeTarget === id);edge.setAttribute('aria-selected','false');});
-    const details = container.querySelector('.semantic-details');if(details?.getClientRects().length)details.innerHTML = elementDetails(node,graph,current.file || {});
-    else if(sourceFallback&&node.line)sourceLine(node.line,node.file);
+    if(!showDetails(elementDetails(node,graph,current.file||{}))&&sourceFallback&&node.line)sourceLine(node.line,node.file);
     current.onSelectElement?.(node);
   };
   const selectEdge = id => {
     const graph = getGraph(), edge = graph.edges.find(item => item.id === id);if(!edge)return;
     container.querySelectorAll('[data-document-element]').forEach(element => {element.classList.remove('is-selected');element.setAttribute('aria-selected','false');});
     container.querySelectorAll('.semantic-edge').forEach(element => {const selected = element.dataset.documentEdge === id;element.classList.toggle('is-selected',selected);element.classList.toggle('is-connected',selected);element.setAttribute('aria-selected',String(selected));});
-    const details = container.querySelector('.semantic-details');if(details?.getClientRects().length)details.innerHTML = edgeDetails(edge,graph,current.file || {});
-    else if(edge.line)sourceLine(edge.line,edge.file);
+    if(!showDetails(edgeDetails(edge,graph,current.file||{}))&&edge.line)sourceLine(edge.line,edge.file);
     current.onSelectEdge?.(edge);
   };
   const saveNavigation=()=>current.onNavigationChange?.({navigation:{...current.navigation},filter:current.filter});
