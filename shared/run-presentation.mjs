@@ -220,7 +220,8 @@ export function buildRunPresentation({messages=[],runs=[],events=[],agents=[],th
       userMessages:ownMessages.filter(m=>m.role==='user'&&!origins.get(m)),processMessages:ordinaryAssistant.filter(m=>m!==finalMessage),
       internalMessages:ownMessages.filter(m=>origins.get(m)).map(message=>({message,origin:origins.get(message)})),finalMessage,
       finalMessageMissing:run.status==='completed'&&Boolean(result)&&!finalMessage,
-      activities,approvals:runApprovals,agents:agents.filter(a=>a.runId===run.id),
+      activities,failedJobIds:ownEvents.filter(e=>e.type==='professional.failed'||e.type==='nos3.failed').map(e=>e.data?.jobId).filter(Boolean),
+      approvals:runApprovals,agents:agents.filter(a=>a.runId===run.id),
       childThreads:childThreads.filter(t=>t.originRunId===run.id||t.createdByRunId===run.id),
       eventHistory:historyFor(run.id,ownEvents,eventHistory),error:run.error || null,
     });

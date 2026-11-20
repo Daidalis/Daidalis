@@ -1,6 +1,28 @@
 import {runExecutionStatus} from '../shared/run-presentation.mjs';
 import {containsThreadMention} from './legacy-names.mjs';
 const routineReadTools=new Set(['read_file','list_files','search_files','search_knowledge','web_search','web_fetch','WebFetch','WebSearch','codex.webSearch','Read','Glob','Grep']);
+const autoDiagnostics=new Set(['model.request.retry','model.request.recovery_exhausted','agent.failed']);
+const failedJobResult=result=>result?.status==='failed'||result?.executionSucceeded===false&&!['cancelled','interrupted'].includes(result.status);
+const resultJobId=result=>result?.jobId||result?.id||result?.job?.id||result?.result?.jobId;
+
+export function chatRunVisibility(row={}) {
+ const activities=row.activities||[],hiddenJobIds=new Set();
+ if(row.run?.permissionMode!=='auto')return {activities,hiddenJobIds};
+ for(const id of row.failedJobIds||[])hiddenJobIds.add(id);
+ for(const activity of activities){
+  if(activity.kind!=='tool')continue;
+  const result=activity.result,id=resultJobId(result);
+  if(/^(professional|nos3)_[a-f0-9]{32}$/.test(id||'')&&(failedJobResult(result)||failedJobResult(result?.result)))hiddenJobIds.add(id);
+ }
+ return {hiddenJobIds,activities:activities.filter(activity=>{
+  if(autoDiagnostics.has(activity.type))return false;
+  if(activity.kind!=='tool')return true;
+  const result=activity.result;
+  return !['failed','error','blocked','rejected'].includes(activity.status)&&!failedJobResult(result)&&!failedJobResult(result?.result)
+    &&!hiddenJobIds.has(resultJobId(result)||activity.args?.jobId);
+ })};
+}
+
 /** Source and file discovery failures remain inspectable in the process record.
  * Solver, verification, write and approval failures are never treated as routine. */
 export function isRoutineReadFailure(activity={}) {
@@ -13,12 +35,13 @@ export function chatDetailOrigin({projectId,mainThreadId,sideThreadId,sideThread
  return {projectId,threadId:side?sideThreadId:mainThreadId,title:side?sideThreadTitle||'Thread':'Coordinator'};
 }
 /** Completed turns show answers; public execution belongs to active turns. */
-export function chatTurnDisclosure(row={},visible={activities:[],routes:[],messages:[]}) {
+export function chatTurnDisclosure(row={},visible={activities:[],routes:[],messages:[]}, {activities=chatRunVisibility(row).activities}={}) {
  const live=['running','queued','waiting_approval','awaiting_approval','pending','waiting'].includes(row.rawStatus||row.status);
  const important=a=>['running','started','queued','pending','waiting_approval','waiting_tasks','waiting_job','preparing_environment','failed','error','rejected','blocked'].includes(a.status)||a.result?.verification?.status==='failed';
- const publicActivities=live?(visible.activities||[]).filter(a=>a.kind!=='thread'&&!isRoutineReadFailure(a)&&important(a)):[];
+ const allowedIds=new Set(activities.map(a=>a.id));
+ const publicActivities=live?(visible.activities||[]).filter(a=>allowedIds.has(a.id)&&a.kind!=='thread'&&!isRoutineReadFailure(a)&&important(a)):[];
  const routes=visible.routes||[],publicIds=new Set([...publicActivities,...routes].map(a=>a.id));
- return {live,publicActivities,routes,messages:live?visible.messages||[]:[],processActivities:(row.activities||[]).filter(a=>!publicIds.has(a.id)),foldedReadFailureCount:(row.activities||[]).filter(isRoutineReadFailure).length};
+ return {live,publicActivities,routes,messages:live?visible.messages||[]:[],processActivities:activities.filter(a=>!publicIds.has(a.id)),foldedReadFailureCount:activities.filter(isRoutineReadFailure).length};
 }
 
 /** Keep one live entry per delegated task. A real result receipt supersedes its

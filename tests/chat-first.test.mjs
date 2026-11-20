@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {chatDetailOrigin,chatTurnDisclosure,compactThreadHandoffs,detailPromptDraft,isRoutineReadFailure,resolveThreadExecutionStatus} from '../public/chat-navigation.mjs';
 import {completedTurnEntries} from '../public/chat-assets.mjs';
+import {buildRunPresentation,visibleRunWork} from '../shared/run-presentation.mjs';
 test('a completed turn folds every execution card while preserving full inspectable process',()=>{
  const activities=Array.from({length:71},(_,i)=>({id:'operation'+i,kind:'tool',status:i===3?'failed':'completed'})),row={status:'completed',activities},visible={activities,routes:[],messages:[{id:'progress'}]},view=chatTurnDisclosure(row,visible);
  assert.equal(view.live,false);assert.deepEqual(view.publicActivities,[]);assert.deepEqual(view.messages,[]);assert.equal(view.processActivities.length,71);assert.ok(view.processActivities.some(a=>a.status==='failed'));assert.equal(activities.length,71);
@@ -17,6 +18,47 @@ test('routine source failures and thread receipts fold while engineering failure
  assert.deepEqual(view.processActivities.map(a=>a.id),['source','file','task']);
  assert.equal(view.foldedReadFailureCount,2);
  assert.equal(isRoutineReadFailure(activities[2]),false);
+});
+test('Auto omits intermediate errors from live work and expanded history without changing Manual or raw records',()=>{
+ const run={id:'run',threadId:'main',status:'running',startedAt:'2026-11-20T01:00:00Z'},jobId='professional_'+'a'.repeat(32);
+ const tool=(id,type,tool,result)=>({id,type,runId:run.id,data:{tool,result}});
+ const events=[
+  tool('command','tool.completed','codex.commandExecution',{code:1}),
+  tool('read','tool.completed','read_file',{error:'file missing'}),
+  tool('solver','tool.completed','mcp__daidalis__wait_professional_job',{jobId,executionSucceeded:false,verification:{status:'unknown'}}),
+  {id:'retry',type:'model.request.retry',runId:run.id},
+  tool('continuing','tool.started','save_professional_model'),
+ ];
+ const approvals=[{id:'approval',runId:run.id,status:'pending',tool:'save_professional_model'}];
+ for(const permissionMode of ['auto','manual']){
+  const [row]=buildRunPresentation({runs:[{...run,permissionMode}],events,approvals});
+  const view=chatTurnDisclosure(row,visibleRunWork(row));
+  assert.deepEqual(view.publicActivities.map(a=>a.id).sort(),permissionMode==='auto'?['continuing']:['command','continuing']);
+  assert.equal(view.publicActivities.find(a=>a.id==='continuing').status,'waiting_approval');
+  assert.deepEqual(view.processActivities.map(a=>a.id),permissionMode==='auto'?[]:['read','solver','retry']);
+  assert.equal(view.foldedReadFailureCount,permissionMode==='auto'?0:1);
+  assert.equal(row.activities.find(a=>a.id==='command').result.code,1);
+  assert.equal(row.activities.find(a=>a.id==='solver').result.executionSucceeded,false);
+ }
+});
+test('Auto unlists failed jobs and their artifacts but keeps executed simulations with unmet criteria',()=>{
+ const run={id:'run',threadId:'main',status:'completed'},failedId='professional_'+'a'.repeat(32),resultId='professional_'+'b'.repeat(32),eventOnlyId='professional_'+'c'.repeat(32);
+ const receipt=(id,tool,result)=>({id,type:'tool.completed',runId:run.id,data:{tool,result}});
+ const events=[
+  receipt('submitted','submit_professional_job',{id:failedId,status:'queued'}),
+  receipt('failed','wait_professional_job',{id:failedId,result:{jobId:failedId,executionSucceeded:false}}),
+  receipt('checked','wait_professional_job',{jobId:resultId,status:'completed',executionSucceeded:true,verification:{status:'failed',checks:[{passed:false}]}}),
+  {id:'failed-job-event',runId:run.id,type:'professional.failed',data:{jobId:eventOnlyId}},
+ ];
+ const artifacts=[failedId,resultId,eventOnlyId].map(id=>({id,runId:run.id,path:`engineering/professional/${id}/receipt.json`}));
+ for(const permissionMode of ['auto','manual']){
+  const [row]=buildRunPresentation({runs:[{...run,permissionMode}],events});
+  const view=completedTurnEntries(row,{artifacts});
+  assert.deepEqual(view.jobs.map(job=>job.id).sort(),permissionMode==='auto'?[resultId]:[failedId,resultId,eventOnlyId]);
+  assert.match(view.jobs.find(job=>job.id===resultId).verification,/1 项未通过/);
+  const history=chatTurnDisclosure(row).processActivities;
+  assert.deepEqual(history.map(a=>a.id),permissionMode==='auto'?['checked']:['submitted','failed','checked']);
+ }
 });
 test('one compact task handoff supersedes the start receipt and explicit prose avoids duplicate start',()=>{
  const started={id:'start',kind:'thread',type:'thread.started',childThreadId:'worker',status:'queued'};
