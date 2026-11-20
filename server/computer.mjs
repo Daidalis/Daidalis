@@ -17,7 +17,7 @@ const KEYCODES={Enter:36,Tab:48,Escape:53,Backspace:51,Delete:117,ArrowLeft:123,
 function exec(program,args,timeout=12000){return new Promise((resolve,reject)=>{const child=spawn(program,args,{stdio:['ignore','pipe','pipe']});let output='',error='';const timer=setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Computer action timed out'));},timeout);child.stdout.on('data',d=>output+=d.toString().slice(0,10000));child.stderr.on('data',d=>error+=d.toString().slice(0,10000));child.on('error',e=>{clearTimeout(timer);reject(e);});child.on('close',code=>{clearTimeout(timer);code===0?resolve(output):reject(new Error(error||`Computer driver exited ${code}`));});});}
 function assertNumber(v,name,min,max){if(!Number.isFinite(v)||v<min||v>max)throw new Error(`${name} must be between ${min} and ${max}`);return v;}
 function remoteHostAllowed(host,allowed){return allowed.some(d=>host===d||host.endsWith('.'+d));}
-const ENGINEERING_STATIC=new Set(['/engineering.html','/engineering.js','/engineering.css']);
+const ENGINEERING_STATIC=new Set(['/engineering.html','/engineering.js','/engineering.css','/select-controls.css']);
 const ENGINEERING_API=/^\/api\/engineering\/(catalog|run|runs(?:\/[a-zA-Z0-9_-]+)?|outputs\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+)$/;
 export function validateBrowserUrl(value,{baseUrl,allowedHosts=[],projectId}={}){
   const url=new URL(value);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error('Only ordinary HTTP(S) pages are allowed');

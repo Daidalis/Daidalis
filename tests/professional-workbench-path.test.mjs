@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {createProfessionalWorkbench,inferModelName,preferredModel,renderProfessionalWorkbench} from '../public/professional-workbench.mjs';
 import {resolveBoundAnalysisUsage} from '../server/professional-models.mjs';
 
+const mesh=Buffer.from('solid mesh\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid mesh').toString('base64');
+
 test('an example project opens the system SysML ahead of its appearance file',()=>{
  assert.equal(preferredModel({models:[{path:'sedan/Sedan.appearance.sysml'},{path:'sedan/Sedan.sysml'},{path:'sedan/Sedan.mo'}]}),'sedan/Sedan.sysml');
  assert.equal(preferredModel({models:[{path:'sedan/Sedan.mo'}]}),'sedan/Sedan.mo');
@@ -31,7 +33,11 @@ test('SysML FMI workbench exposes an analysis name, pinned FMU selection and sim
  assert.match(html,/value="simulate"[^>]*>运行 FMI 仿真/);
  assert.doesNotMatch(html,/name="numberOfIntervals"/);
  assert.match(html,/data-pm-action="tab" data-tab="source"/);assert.match(html,/data-pm-action="tab" data-tab="simulation"/);
- assert.doesNotMatch(html,/data-tab="shape"/,'a project without OpenSCAD context has no geometry tab');
+ assert.match(html,/data-tab="shape"[^>]*>几何.*?未生成/);
+ const emptyGeometry=renderProfessionalWorkbench({expanded:'shape'});
+ assert.match(emptyGeometry,/data-tab="shape" role="tab" aria-selected="true"/);
+ assert.match(emptyGeometry,/生成几何后在此查看模型网格/);
+ assert.doesNotMatch(emptyGeometry,/data-pm-action="render"/);
  assert.doesNotMatch(html,/workbench-focus/);
 });
 
@@ -47,6 +53,7 @@ test('the focus stage carries SysML solids and the tabs carry live status',()=>{
  // A system SysML with solids: the stage hosts the 3D preview even while the code editor is open.
  const sysml=renderProfessionalWorkbench({expanded:'source',path:'sedan/ElectricSedan.sysml',draft:'package E {}',physicalParts:[{label:'battery',shape:'box'}],semanticGraph:{nodes:[{id:'vehicle',kind:'part',label:'vehicle'}],edges:[]}});
  assert.match(sysml,/data-pm-stage-kind="physical"/);assert.match(sysml,/<div data-pm-physical><\/div>/);
+ assert.match(sysml,/class="pm-tab-rail".*class="pm-page".*data-pm-stage-kind="physical".*class="pm-detail"/);
  assert.match(sysml,/data-source-view="code"/);assert.match(sysml,/data-source-view="diagram"/);assert.match(sysml,/模型图/);assert.match(sysml,/实物预览/);assert.match(sysml,/大纲/);assert.match(sysml,/诊断/);assert.match(sysml,/约束/);assert.match(sysml,/原生模型源码/);
  assert.doesNotMatch(sysml,/battery/);
 
@@ -65,6 +72,7 @@ test('the focus stage carries SysML solids and the tabs carry live status',()=>{
  // The shape tab: STL in the stage, archived PNG beside the render action.
  const stlShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeGeometryBytes:new Uint8Array(84),shapeStage:'ready'});
  assert.match(stlShape,/data-pm-stage-kind="shape"/);assert.match(stlShape,/data-pm-shape-geometry/);assert.match(stlShape,/pm-shape-thumb/);assert.match(stlShape,/生成几何/);
+ assert.match(stlShape,/class="pm-tab-rail".*class="pm-page".*data-pm-stage-kind="shape".*class="pm-detail"/);
  const pngShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready'});
  assert.match(pngShape,/class="pm-shape-full"/);assert.doesNotMatch(pngShape,/data-pm-shape-geometry/);
  const staleShape=renderProfessionalWorkbench({expanded:'shape',shapePath:'sedan/Body.scad',shapePreviewUrl:'data:image/png;base64,iV',shapeStage:'ready',shapeStale:true});
@@ -83,6 +91,41 @@ test('the focus stage carries SysML solids and the tabs carry live status',()=>{
  // A check result surfaces on the model tab.
  const checked=renderProfessionalWorkbench({expanded:'source',sourceView:'diagnostics',path:'sedan/ElectricSedan.sysml',draft:'package E {}',checkResult:{executionSucceeded:true,ready:true}});
  assert.match(checked,/校验通过/);
+});
+
+test('opening a system model queries its appearance file across directories in the same model tree',async()=>{
+ const source='ev-sedan/structure/Sedan.sysml',appearance='ev-sedan/appearance/Sedan.appearance.sysml';
+ const calls=[];
+ const ui=createProfessionalWorkbench({getProject:()=>({id:'p1'}),api:async route=>{
+  calls.push(decodeURIComponent(route));
+  if(route.endsWith('/models'))return {models:[
+   {path:'threads/thread1/ev-sedan/appearance/Sedan.appearance.sysml'},
+   {path:source},{path:appearance}
+  ]};
+  if(route.includes('/professional/model?'))return {path:decodeURIComponent(route.split('path=')[1]),content:'package Sedan {}'};
+  return {};
+ }});
+ await ui.refresh();
+ assert.ok(calls.includes(`/api/projects/p1/workspace/model?path=${appearance}`));
+ assert.ok(!calls.some(route=>route.includes('/model?path=threads/')));
+});
+
+test('a differently named appearance is loaded from its recorded model link',async()=>{
+ const source='electric-sedan/dynamics/SedanDrive.sysml',appearance='electric-sedan/appearance/Sedan.appearance.sysml';
+ const unrelated='electric-sedan/appearance/Truck.appearance.sysml';
+ const calls=[];
+ const ui=createProfessionalWorkbench({getProject:()=>({id:'p1'}),api:async route=>{
+  const url=new URL(route,'http://test'),path=url.searchParams.get('path');
+  if(url.pathname.endsWith('/professional/models'))return {models:[{path:source},{path:unrelated},{path:appearance}]};
+  if(url.pathname.endsWith('/professional/model'))return {path,content:'package Sedan {}'};
+  if(url.pathname.endsWith('/workspace/model'))calls.push(path);
+  if(url.pathname.endsWith('/workspace/file')&&path.endsWith('.appearance.recorded.json')){
+   return {content:JSON.stringify({schema:'daidalis-recorded-trajectory-v1',provenance:'fmu-run',csv:'trajectory.csv',receipt:{model:{path:path.endsWith('/Sedan.appearance.recorded.json')?source:'electric-sedan/dynamics/TruckDrive.sysml'}}})};
+  }
+  return {};
+ }});
+ await ui.refresh();
+ assert.deepEqual(calls.filter(path=>path.endsWith('.appearance.sysml')),[appearance]);
 });
 
 test('live events follow while the user has not taken the tab rail, then downgrade to a hint',async()=>{
@@ -124,6 +167,69 @@ test('live events follow while the user has not taken the tab rail, then downgra
  assert.match(host.innerHTML,/pm-follow-hint/);
  ui.detach();
  delete globalThis.EventSource;
+});
+
+test('a finished render loads its STL without requiring a preceding source event',async()=>{
+ const path='sedan/Body.scad',file='engineering/professional/render/mesh.stl';
+ const ui=createProfessionalWorkbench({getProject:()=>({id:'p1'}),api:async route=>{
+  if(route.endsWith('/jobs'))return {jobs:[{id:'render',model:{path},operation:'simulate',status:'completed'}]};
+  if(route.endsWith('/jobs/render'))return {id:'render',model:{path},operation:'simulate',status:'completed'};
+  if(route.endsWith('/jobs/render/result'))return {ready:true,status:'completed',executionSucceeded:true,integrity:{verified:true},artifacts:[{path:file}]};
+  if(route.includes('/output?file='))return {contentBase64:mesh};
+  return {};
+ }});
+ const host={isConnected:true,innerHTML:'',addEventListener(){},removeEventListener(){},querySelector(){return null;}};
+ ui.mount(host);
+ try{
+  await ui.refresh();
+  assert.ok(host.innerHTML.includes('>就绪</'),'the completed job mesh should be ready');
+ }finally{ui.detach();}
+});
+
+test('an archived STL survives an OpenSCAD check and a render with no usable output',async()=>{
+ const path='sedan/Body.scad',renderJob={id:'render',status:'failed',operation:'simulate',model:{path}};
+ const api=async route=>{
+  if(route.endsWith('/models'))return {models:[{path}]};
+  if(route.endsWith('/jobs'))return {jobs:[]};
+  if(route.endsWith('Body.stl'))return {encoding:'base64',content:mesh};
+  if(route.endsWith('/jobs/check'))return {id:'check',status:'completed',operation:'check',model:{path}};
+  if(route.endsWith('/jobs/check/result'))return {ready:true,status:'completed',integrity:{verified:true},artifacts:[]};
+  if(route.endsWith('/jobs/render'))return renderJob;
+  if(route.endsWith('/jobs/render/result'))return {ready:true,status:'failed',executionSucceeded:false,integrity:{verified:true},artifacts:[]};
+  return {};
+ };
+ const host={isConnected:true,innerHTML:'',addEventListener(){},removeEventListener(){},querySelector(){return null;}};
+ const ui=createProfessionalWorkbench({api,getProject:()=>({id:'p1'})});
+ ui.mount(host);
+ try{
+  await ui.refresh();
+  assert.match(host.innerHTML,/>就绪</);
+  await ui.applyModelingEvent({type:'professional.model.saved',data:{path,sha256:'edited'}});
+  await ui.applyModelingEvent({type:'professional.completed',data:{jobId:'check',operation:'check',modelPath:path}});
+  assert.ok(host.innerHTML.includes('data-pm-shape-geometry'),'a source check must not erase the existing mesh');
+  await ui.applyModelingEvent({type:'professional.failed',data:{jobId:'render',operation:'simulate',modelPath:path}});
+  assert.match(host.innerHTML,/data-pm-shape-geometry/);
+  assert.match(host.innerHTML,/>上一版</);
+ }finally{ui.detach();}
+});
+
+test('a task that writes an STL directly gets a preview when the task finishes',async()=>{
+ const path='sedan/Body.scad';
+ let archived=false;
+ const ui=createProfessionalWorkbench({getProject:()=>({id:'p1'}),api:async route=>{
+  if(route.endsWith('/models'))return {models:archived?[{path}]:[]};
+  if(archived&&route.endsWith('Body.stl'))return {encoding:'base64',content:mesh};
+  return {};
+ }});
+ const host={isConnected:true,innerHTML:'',addEventListener(){},removeEventListener(){},querySelector(){return null;}};
+ ui.mount(host);
+ try{
+  await ui.refresh();
+  assert.match(host.innerHTML,/data-tab="shape"[^>]*>几何.*?未生成/);
+  archived=true;
+  await ui.applyModelingEvent({type:'run.finished'});
+  assert.match(host.innerHTML,/data-tab="shape"[^>]*>几何.*?就绪/);
+ }finally{ui.detach();}
 });
 
 test('native model links cannot fetch another project or a traversal path',async()=>{

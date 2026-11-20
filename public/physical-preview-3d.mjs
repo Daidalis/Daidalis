@@ -111,7 +111,7 @@ function studioEnvironment(THREE) {
   return texture;
 }
 
-function createAssembly(THREE, host, parts, onSelect, {visibleCount, onInteract} = {}) {
+function createAssembly(THREE, host, parts, onSelect, {visibleCount, onInteract, wheelZoomRequiresModifier} = {}) {
   const events = new AbortController();
   const listen = (target, type, listener, options) =>
     target.addEventListener(type, listener, {...options, signal:events.signal});
@@ -361,6 +361,7 @@ function createAssembly(THREE, host, parts, onSelect, {visibleCount, onInteract}
   listen(canvas, 'lostpointercapture', endDrag);
   listen(canvas, 'contextmenu', event => event.preventDefault());
   listen(canvas, 'wheel', event => {
+    if (wheelZoomRequiresModifier && !event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     onInteract?.();
     zoom(event.deltaY > 0 ? 1.13 : 1 / 1.13);
@@ -406,7 +407,7 @@ function createAssembly(THREE, host, parts, onSelect, {visibleCount, onInteract}
   return {select, emphasize, fit, zoom, setVisibleCount, destroy};
 }
 
-export function mountPhysicalPreview(host, {parts, onSelect, visibleCount, onInteract} = {}) {
+export function mountPhysicalPreview(host, {parts, onSelect, visibleCount, onInteract, wheelZoomRequiresModifier} = {}) {
   host.classList.add('physical-preview-3d');
   host.tabIndex = 0;
   host.setAttribute('aria-label', '三维实体装配预览。方向键旋转，加减键缩放，Home 键复位。');
@@ -415,7 +416,7 @@ export function mountPhysicalPreview(host, {parts, onSelect, visibleCount, onInt
     host.textContent = '正在加载实体预览…';
     import('/vendor/three/three.module.min.js').then(THREE => {
       if (destroyed) return;
-      preview = createAssembly(THREE, host, parts, onSelect, {visibleCount:shown, onInteract});
+      preview = createAssembly(THREE, host, parts, onSelect, {visibleCount:shown, onInteract, wheelZoomRequiresModifier});
       if (selected != null) preview.select(selected);
       if (emphasis) preview.emphasize(emphasis);
     }).catch(() => {

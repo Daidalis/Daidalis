@@ -45,6 +45,27 @@ test('Host, Origin, CSRF content type and static files are protected',async t=>{
   assert.equal((await fetch(base+'/')).status,200);
 });
 
+test('development reload is opt-in and serves the synchronized revision without caching',async t=>{
+  const root=await fixture(t),marker=path.join(root,'revision');
+  await fs.writeFile(path.join(root,'public/index.html'),'<html><body>Studio</body></html>');
+  await fs.writeFile(marker,'first');
+  const disabled=await createStudioServer({root,seed:false,computer:false,evaluator:false,developmentRevisionFile:''});
+  const initial=await disabled.listen({port:0});
+  try{
+    assert.equal((await fetch(`http://127.0.0.1:${initial.port}/api/dev-reload`)).status,404);
+    assert.doesNotMatch(await fetch(`http://127.0.0.1:${initial.port}/`).then(r=>r.text()),/dev-reload/);
+  }finally{await disabled.close();}
+  const enabled=await createStudioServer({root,seed:false,computer:false,evaluator:false,developmentRevisionFile:marker});
+  const {port}=await enabled.listen({port:0});t.after(()=>enabled.close());
+  const page=await fetch(`http://127.0.0.1:${port}/`);
+  assert.equal(page.headers.get('cache-control'),'no-store');
+  assert.match(await page.text(),/<script type="module" src="\/dev-reload.mjs"><\/script>/);
+  const revision=()=>fetch(`http://127.0.0.1:${port}/api/dev-reload`).then(r=>r.json());
+  assert.deepEqual(await revision(),{revision:'first'});
+  await fs.writeFile(marker,'second');
+  assert.deepEqual(await revision(),{revision:'second'});
+});
+
 test('Evaluation history is persistent, project-filtered and preserves the reported scope',async t=>{
   const root=await fixture(t);let sequence=0;const evaluator={evaluate:async({taskId,projectId})=>({id:`eval_history_${++sequence}`,taskId,projectId,createdAt:new Date().toISOString(),status:'evidence-complete',score:100,scoreLabel:'Deliverable completeness only',scope:'deliverable-completeness',upstreamReproduction:false,checks:[{id:'source',passed:true,detail:'Recorded source note; upstream behavior was not run.'}]})};
   let app=await createStudioServer({root,seed:false,computer:false,evaluator});let address=await app.listen({port:0});t.after(()=>app.close());let base=`http://127.0.0.1:${address.port}`;

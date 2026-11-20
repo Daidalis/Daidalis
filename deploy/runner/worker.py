@@ -291,7 +291,7 @@ def professional(request):
         output=WORK/('daidalis_geometry.stl' if operation=='simulate' else 'daidalis_geometry.csg')
         success=success and output.is_file() and output.stat().st_size>10 and 'ERROR:' not in diagnostics
         if success and operation=='simulate':
-            preview=run(['xvfb-run','-a','openscad','--imgsize=1280,800',*defines,'-o','daidalis_preview.png',main],min(request.get('timeoutMs',600000)/1000,600))
+            preview=run(['xvfb-run','-a','openscad','--imgsize=1280,800','--camera=0,0,0,62,0,28,0','--viewall','--autocenter',*defines,'-o','daidalis_preview.png',main],min(request.get('timeoutMs',600000)/1000,600))
             diagnostics+=preview['stdout']+preview['stderr']
             png=WORK/'daidalis_preview.png'
             success=success and preview['code']==0 and png.is_file() and png.read_bytes()[:8]==b'\x89PNG\r\n\x1a\n' and 'ERROR:' not in preview['stderr']
