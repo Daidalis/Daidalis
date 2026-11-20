@@ -120,14 +120,13 @@ export function renderProfessionalWorkbench(ui={}){
  const shapeStale=ui.shapeStale&&shapeStage!=='running'?'<p class="pm-pending" role="status">上一版几何</p>':'';
  const shapeChipLabel=shapeStage==='running'?'生成中':ui.shapeStale?'上一版':(ui.shapePreviewUrl||ui.shapeGeometryBytes)?'就绪':'未生成';
  const shapeChip=`<span class="pm-tab-chip"><i class="pm-chip-dot state-${shapeStage==='running'?'running':ui.shapeStale?'stale':(ui.shapePreviewUrl||ui.shapeGeometryBytes)?'passed':'empty'}"></i>${shapeChipLabel}</span>`;
- const shapeDetail=`${ui.shapeGeometryBytes&&ui.shapePreviewUrl?`<img class="pm-shape-thumb" alt="" src="${esc(ui.shapePreviewUrl)}">`:`<p class="muted">${esc(ui.shapePreviewNote||(ui.shapePath?'已连接 OpenSCAD 文件。':'几何尚未生成'))}</p>`}${button('render','生成几何',ui.busy||!ui.shapePath?'disabled':'')}`;
+ const shapeDetail=`${ui.shapeGeometryBytes&&ui.shapePreviewUrl?`<img class="pm-shape-thumb" alt="" src="${esc(ui.shapePreviewUrl)}">`:''}${ui.shapePath?button('render','生成几何',ui.busy||shapeStage==='running'?'disabled':''):''}`;
  const simStale=!live&&ui.simulationStale&&input?'<p class="pm-pending" role="status">上一版仿真</p>':'';
  const simVerdict=live?'running':input?((list(input.checks).some(c=>c.passed===false)||ui.result?.verification?.status==='failed')?'failed':list(input.checks).length?'passed':'ready'):ui.simulationStale?'stale':'empty';
  const simChip=`<span class="pm-tab-chip"><i class="pm-chip-dot state-${simVerdict}"></i>${({running:'进行中',failed:'未通过',passed:'判据通过',ready:'有轨迹',stale:'上一版',empty:'未开始'})[simVerdict]}</span>${!live&&input?renderTrajectoryThumbnail(input.table):''}`;
  const sourceChip=dirty?`<span class="pm-tab-chip"><i class="pm-chip-dot state-warn"></i>未保存</span>`:ui.model?.sha256?`<span class="pm-tab-chip"><i class="pm-chip-dot state-empty"></i>${esc(ui.model.sha256.slice(0,6))}</span>`:'';
  const tabButton=(name,label,chip)=>`<button type="button" class="pm-tab${expanded===name?' active':''}" data-pm-action="tab" data-tab="${name}" role="tab" aria-selected="${expanded===name}">${label}${chip}</button>`;
- const hasShapeContext=scadPath(path)||scadPath(ui.shapePath)||jobRows(jobs).some(job=>scadPath(job.model?.path))||modelRows(models).some(item=>scadPath(item.path||item.name||''));
- const tabRail=`<div class="pm-tab-rail" role="tablist">${tabButton('source','模型',sourceChip)}${hasShapeContext?tabButton('shape','几何',shapeChip):''}${tabButton('simulation','仿真',simChip)}${ui.followHint?`<button type="button" class="pm-follow-hint" data-pm-action="tab" data-tab="${esc(ui.followHint.tab||'source')}">Agent 更新了${esc(ui.followHint.label||'模型')} · 查看</button>`:''}</div>`;
+ const tabRail=`<div class="pm-tab-rail" role="tablist">${tabButton('source','模型',sourceChip)}${tabButton('shape','几何',shapeChip)}${tabButton('simulation','仿真',simChip)}${ui.followHint?`<button type="button" class="pm-follow-hint" data-pm-action="tab" data-tab="${esc(ui.followHint.tab||'source')}">Agent 更新了${esc(ui.followHint.label||'模型')} · 查看</button>`:''}</div>`;
  let stage='';
  if(expanded==='shape'){
   const inner=ui.shapeGeometryBytes?'<div data-pm-shape-geometry></div>':shapeStage==='running'?'<p class="pm-stage-empty" role="status">几何生成中</p>':ui.shapePreviewUrl?`<img class="pm-shape-full" alt="" src="${esc(ui.shapePreviewUrl)}">`:'<p class="pm-stage-empty muted">生成几何后在此查看模型网格。</p>';

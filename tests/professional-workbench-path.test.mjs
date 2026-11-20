@@ -33,7 +33,11 @@ test('SysML FMI workbench exposes an analysis name, pinned FMU selection and sim
  assert.match(html,/value="simulate"[^>]*>运行 FMI 仿真/);
  assert.doesNotMatch(html,/name="numberOfIntervals"/);
  assert.match(html,/data-pm-action="tab" data-tab="source"/);assert.match(html,/data-pm-action="tab" data-tab="simulation"/);
- assert.doesNotMatch(html,/data-tab="shape"/,'a project without OpenSCAD context has no geometry tab');
+ assert.match(html,/data-tab="shape"[^>]*>几何.*?未生成/);
+ const emptyGeometry=renderProfessionalWorkbench({expanded:'shape'});
+ assert.match(emptyGeometry,/data-tab="shape" role="tab" aria-selected="true"/);
+ assert.match(emptyGeometry,/生成几何后在此查看模型网格/);
+ assert.doesNotMatch(emptyGeometry,/data-pm-action="render"/);
  assert.doesNotMatch(html,/workbench-focus/);
 });
 
@@ -221,10 +225,10 @@ test('a task that writes an STL directly gets a preview when the task finishes',
  ui.mount(host);
  try{
   await ui.refresh();
-  assert.doesNotMatch(host.innerHTML,/data-tab="shape"/);
+  assert.match(host.innerHTML,/data-tab="shape"[^>]*>几何.*?未生成/);
   archived=true;
   await ui.applyModelingEvent({type:'run.finished'});
-  assert.match(host.innerHTML,/>就绪</);
+  assert.match(host.innerHTML,/data-tab="shape"[^>]*>几何.*?就绪/);
  }finally{ui.detach();}
 });
 
