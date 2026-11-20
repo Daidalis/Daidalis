@@ -1,0 +1,18 @@
+services:
+  daidalis:
+    environment:
+      DAIDALIS_DEV_REVISION_FILE: /opt/daidalis/deploy/local/dev/revision
+    volumes: !override
+      - state:/data
+      - projects:/projects
+      - home:/home/node
+      - desktop-control:/desktop-control:ro
+      - broker-control:/broker-control:ro
+      - model-control:/model-control
+      - ./public:/opt/daidalis/public:ro
+      - ./shared:/opt/daidalis/shared:ro
+      - ./server:/opt/daidalis/server:ro
+      - ./tests:/opt/daidalis/tests:ro
+      - ./scripts:/opt/daidalis/scripts:ro
+      - ./deploy/docker:/opt/daidalis/deploy/docker:ro
+      - ./deploy/local/dev:/opt/daidalis/deploy/local/dev:ro

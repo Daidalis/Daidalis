@@ -74,6 +74,7 @@ export async function createStudioServer(options={}) {
   const flightRunner=brokerMode&&process.env.DAIDALIS_BROKER_FLIGHT==='1'?createFlightContainerRunner({rpc:createBrokerFlightRpc()}):process.env.DAIDALIS_FLIGHT_SOCKET?createFlightContainerRunner():null;
   const containerRunner=options.containerRunner||(brokerMode?createBrokerRunner():process.env.DAIDALIS_EXECUTION_MODE==='shared-container'?createSharedContainerRunner():null);
   const root=path.resolve(options.root||defaultRoot),dataDir=path.resolve(root,options.dataDir||process.env.DAIDALIS_DATA_DIR||'data'),workspacesDir=path.resolve(root,options.workspacesDir||path.join(dataDir,'workspaces'));
+  const developmentRevisionFile=options.developmentRevisionFile??process.env.DAIDALIS_DEV_REVISION_FILE;
   const settings=options.settings||await createSettingsService({dataDir});
   const getDefaultPermissionMode=()=>settings.get().defaultPermissionMode;
   const store=options.store||createStore({dataDir,workspacesDir,root,seed:options.seed!==false,addDefaultCodexProvider:options.addDefaultCodexProvider!==false,getDefaultPermissionMode});
@@ -167,10 +168,12 @@ export async function createStudioServer(options={}) {
       }
       let stat;
       try{stat=await fsp.stat(file);}catch{throw new HttpError(404,'File not found');}if(!stat.isFile())throw new HttpError(404,'File not found');
-      res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','content-length':stat.size,'content-security-policy':`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors ${relative==='engineering.html'?"'self'":"'none'"}`});if(req.method==='HEAD')res.end();else fs.createReadStream(file).pipe(res);return;
+      const developmentHtml=developmentRevisionFile&&relative==='index.html'?(await fsp.readFile(file,'utf8')).replace('</body>','<script type="module" src="/dev-reload.mjs"></script></body>'):null;
+      res.writeHead(200,{'content-type':MIME[path.extname(file)]||'application/octet-stream','content-length':developmentHtml?Buffer.byteLength(developmentHtml):stat.size,...(developmentRevisionFile?{'cache-control':'no-store'}:{}),'content-security-policy':`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors ${relative==='engineering.html'?"'self'":"'none'"}`});if(req.method==='HEAD')res.end();else if(developmentHtml)res.end(developmentHtml);else fs.createReadStream(file).pipe(res);return;
     }
     if(req.method==='OPTIONS')throw new HttpError(403,'Cross-origin API access is not enabled');
     const method=req.method;
+    if(method==='GET'&&url.pathname==='/api/dev-reload'&&developmentRevisionFile)return send(res,200,{revision:(await fsp.readFile(developmentRevisionFile,'utf8')).trim()});
     if(method==='GET'&&parts[1]==='health')return send(res,200,{app:'daidalis',displayName:'Daidalis',version:'0.5.0',ok:true});
     if(parts[1]==='settings'&&parts.length===2){
       if(method==='GET')return send(res,200,settings.get());

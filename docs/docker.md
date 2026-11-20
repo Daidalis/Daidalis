@@ -328,6 +328,42 @@ placed inside the selected project remain readable by that project's task.
 
 ## Maintain and remove
 
+### Lima 开发实例
+
+本机验收使用 Lima `daidalis` 中的 `daidalis-isolated`，地址为
+`http://127.0.0.1:4317`。在 Mac 仓库根目录启动源码同步：
+
+```sh
+node scripts/lima-dev.mjs start
+node scripts/lima-dev.mjs status
+node scripts/lima-dev.mjs stop
+```
+
+`start` 沿用虚拟机 `$HOME/Daidalis/deploy/local/broker.env` 的部署与数据卷，
+保存首次启用前的源码副本，并添加 `deploy/docker/compose.dev.yaml`。
+`public`、`shared`、`server`、`tests`、`scripts` 和 `deploy/docker` 从当前仓库同步，
+以只读方式挂载到应用容器。保存前端后，已打开的页面自动刷新；
+后端或共享模块修改会先等活动任务结束，再替换应用容器。
+有未发送消息、未保存输入或打开的对话框时，页面自动刷新会延后。
+`stop` 只停止同步，不停止应用。Mac 重启后需再次执行 `start`。
+日志和同步状态保存在 Git 忽略的 `deploy/local/lima-dev.log` 与 `lima-dev.json`。
+
+相关测试在同一应用容器执行，例如：
+
+```sh
+node scripts/lima-dev.mjs test tests/professional-workbench-path.test.mjs
+```
+
+`test` 使用应用容器的 Linux、Node 和已安装依赖，但移除应用数据目录、
+项目根目录和开发刷新变量，让测试夹具使用自己的临时目录，避免修改验收项目。
+
+此入口更新应用源码。`package.json`、锁文件、Dockerfile、`deploy/runner`、
+原生工具链和 broker 代码仍由镜像提供。修改这些内容后，需先同步相应文件、
+构建镜像，并在没有活动任务时重新创建 broker 和应用；broker 会在启动时固定任务镜像 ID。
+回退开发挂载时，停止同步，从保存配置的 `COMPOSE_FILE` 中移除
+`:deploy/docker/compose.dev.yaml`，再用 `up -d --no-deps --force-recreate --wait daidalis`
+恢复镜像内的应用源码。项目与设置卷保留。
+
 ```sh
 sh deploy/docker/compose.sh ps
 sh deploy/docker/compose.sh logs --tail 100
