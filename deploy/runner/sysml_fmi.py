@@ -262,9 +262,10 @@ def resolve_experiment(supplied, model_defaults, fmu_defaults):
 def trajectory_columns(description):
     """FMU variables worth plotting: states and outputs, not parameters or derivatives."""
     columns = []
-    for variable in description.modelVariables:
+    variables = sorted(description.modelVariables, key=lambda variable: variable.causality != 'output')
+    for variable in variables:
         name = variable.name
-        if name.startswith('der('):
+        if name.startswith('der(') or variable.causality == 'local' and name.startswith('_D_'):
             continue
         if variable.causality not in ('output', 'local'):
             continue

@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location(
     'sysml_fmi', Path(__file__).resolve().parents[1] / 'deploy/runner/sysml_fmi.py'
@@ -30,6 +31,34 @@ def digest(data):
 
 
 class PureRunnerTests(unittest.TestCase):
+    def test_public_outputs_precede_locals_and_generated_aliases_are_not_plotted(self):
+        variables = [
+            SimpleNamespace(name='_D_outputAlias_battery', causality='local', variability='continuous', type='Real'),
+            SimpleNamespace(name='distance', causality='local', variability='continuous', type='Real'),
+            SimpleNamespace(name='_D_battery_der', causality='local', variability='continuous', type='Real'),
+            SimpleNamespace(name='battery', causality='output', variability='continuous', type='Real'),
+            SimpleNamespace(name='inverter', causality='output', variability='continuous', type='Real'),
+            SimpleNamespace(name='motor', causality='output', variability='continuous', type='Real'),
+        ]
+        self.assertEqual(
+            sysml_fmi.trajectory_columns(SimpleNamespace(modelVariables=variables)),
+            ['battery', 'inverter', 'motor', 'distance'],
+        )
+
+    def test_local_variable_limit_does_not_hide_public_outputs(self):
+        variables = [
+            SimpleNamespace(name='local_' + str(index), causality='local', variability='continuous', type='Real')
+            for index in range(40)
+        ]
+        variables.append(SimpleNamespace(name='result', causality='output', variability='continuous', type='Real'))
+        columns = sysml_fmi.trajectory_columns(SimpleNamespace(modelVariables=variables))
+        self.assertEqual(columns[0], 'result')
+        self.assertEqual(len(columns), sysml_fmi.MAX_TRAJECTORY_COLUMNS)
+
+    def test_user_output_with_a_generated_looking_name_is_preserved(self):
+        output = SimpleNamespace(name='_D_custom', causality='output', variability='continuous', type='Real')
+        self.assertEqual(sysml_fmi.trajectory_columns(SimpleNamespace(modelVariables=[output])), ['_D_custom'])
+
     def test_multiline_tool_variable_bindings(self):
         source='''calc def C {\n  in stopTime :\n    Real = 1.0 {\n      @ToolVariable { name = "fmi:stopTime"; }\n    }\n  return x : Real[1] { @ToolVariable { name = "x"; } }\n}\n'''
         self.assertEqual(sysml_fmi.experiment_from_model(source), {'stopTime': 1.0})
