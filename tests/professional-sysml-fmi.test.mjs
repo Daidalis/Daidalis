@@ -7,6 +7,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {createStore} from '../server/store.mjs';
 import {createProfessionalModelsService} from '../server/professional-models.mjs';
+import {createModelBackendService} from '../server/model-backend.mjs';
+import {PROFESSIONAL_AUTHORING} from '../server/professional-guidance.mjs';
 
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 const SYML_MODEL=[
@@ -157,6 +159,15 @@ test('the catalog advertises the SysML FMI backend alongside the semantic kernel
   assert.ok(entry,'sysml-fmi must appear in the tool catalog');
   assert.equal(entry.language,'sysml');
   assert.ok(entry.operations.includes('simulate'));
+  assert.deepEqual(catalog.authoring,PROFESSIONAL_AUTHORING);
+});
+
+test('the catalog FMI example passes the pinned semantic kernel',async t=>{
+  const fixture=await fmiFixture(t);
+  const store={workspace:()=>fixture.workspace};
+  const backend=await createModelBackendService({store});
+  const result=await backend.importModel({projectId:fixture.projectId,path:'models/Example.sysml',content:PROFESSIONAL_AUTHORING.sysmlFmi.example});
+  assert.equal(result.valid,true,JSON.stringify(result.findings));
 });
 
 test('a successful SysML FMI job leaves a replayable manifest beside the model',async t=>{
