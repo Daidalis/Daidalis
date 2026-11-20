@@ -12,7 +12,7 @@ const port=Number(process.env.PORT||4317);
 if(!Number.isInteger(port)||port<1024||port>65535||[8080,8081].includes(port))throw Error('Invalid PORT (8080 and 8081 are reserved)');
 const maxTurns=Number(process.env.DAIDALIS_MAX_TOOL_TURNS||DEFAULT_EXECUTION_BUDGET.maxRunTurns);
 if(!Number.isInteger(maxTurns)||maxTurns<2||maxTurns>200)throw Error('DAIDALIS_MAX_TOOL_TURNS must be an integer from 2 to 200');
-const app=await createStudioServer({seed:false,addDefaultCodexProvider:false,engineOptions:{maxTurns}});
+const app=await createStudioServer({seed:process.env.DAIDALIS_SEED_DEMO!=='disabled',addDefaultCodexProvider:false,engineOptions:{maxTurns}});
 await app.listen({host:'127.0.0.1',port});
 const sockets=new Set();
 const relay=net.createServer(client=>{

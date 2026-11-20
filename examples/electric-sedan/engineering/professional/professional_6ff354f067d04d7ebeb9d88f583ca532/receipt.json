@@ -1,0 +1,93 @@
+{
+  "schema": "daidalis-professional-execution-v1",
+  "jobId": "professional_6ff354f067d04d7ebeb9d88f583ca532",
+  "inputHash": "a1b8a8d0c27721f2bbf469bfe37339e9d92c5ce3f4204687e3e5f5e7c3e4b290",
+  "model": {
+    "path": "electric-sedan/Sedan.sysml",
+    "sha256": "ed712802c78a8866c0a6e0f6251645e8a8e1cf9fdd43dd50423655600c6e2beb",
+    "language": "sysml"
+  },
+  "sourceFiles": [
+    {
+      "path": "electric-sedan/Sedan.sysml",
+      "sha256": "ed712802c78a8866c0a6e0f6251645e8a8e1cf9fdd43dd50423655600c6e2beb"
+    }
+  ],
+  "operation": "simulate",
+  "parameters": {},
+  "simulation": {
+    "startTime": 0,
+    "stopTime": 60,
+    "stepSize": 0.01,
+    "tolerance": 0.000001
+  },
+  "signals": [],
+  "tool": {
+    "id": "sysml-fmi",
+    "version": "v0.12.1/opensysml-0.12.1/fmpy-0.3.32"
+  },
+  "runnerReceipt": {
+    "schema": "daidalis-sysml-fmi-execution-v1",
+    "jobId": "professional_6ff354f067d04d7ebeb9d88f583ca532",
+    "inputHash": "a1b8a8d0c27721f2bbf469bfe37339e9d92c5ce3f4204687e3e5f5e7c3e4b290",
+    "operation": "simulate",
+    "analysis": {
+      "fqn": "ElectricSedan::LaunchAnalysis",
+      "kind": "analysis"
+    },
+    "model": {
+      "path": "electric-sedan/Sedan.sysml",
+      "sha256": "ed712802c78a8866c0a6e0f6251645e8a8e1cf9fdd43dd50423655600c6e2beb"
+    },
+    "sourceHashes": [
+      {
+        "path": "electric-sedan/Sedan.sysml",
+        "sha256": "ed712802c78a8866c0a6e0f6251645e8a8e1cf9fdd43dd50423655600c6e2beb"
+      }
+    ],
+    "fmu": {
+      "path": "electric-sedan/Sedan.fmu",
+      "sha256": "3d54a71b12b41c9fee46cdd4e68284c0b9c21cb8826cc352ebfba7114a739710",
+      "platform": "linux64"
+    },
+    "experiment": {
+      "startTime": 0,
+      "stopTime": 60,
+      "stepSize": 0.01,
+      "tolerance": 0.000001
+    },
+    "parameters": {},
+    "trajectory": {
+      "path": "trajectory.csv",
+      "columns": [
+        "_D_outputAlias_battery",
+        "_D_outputAlias_motor",
+        "_D_battery_der",
+        "_D_inverter_der",
+        "_D_motor_der",
+        "battery",
+        "inverter",
+        "motor"
+      ],
+      "rows": 751
+    },
+    "tools": {
+      "opensysml": {
+        "id": "sysml-grpc",
+        "version": "v0.12.1",
+        "client": "0.12.1"
+      },
+      "fmpy": {
+        "id": "fmpy",
+        "version": "0.3.32"
+      }
+    },
+    "trajectoryMatchesVerdict": true,
+    "isolation": "shared application container; same user and filesystem access"
+  },
+  "executionSucceeded": true,
+  "createdAt": "2026-11-19T13:20:22.264Z",
+  "startedAt": "2026-11-19T13:20:22.285Z",
+  "finishedAt": "2026-11-19T13:20:23.822Z",
+  "scope": "Digital model check / numerical simulation only; no physical, HIL, certification or project-completion claim"
+}

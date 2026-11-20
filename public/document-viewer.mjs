@@ -1,7 +1,5 @@
 import {Marked, Renderer} from './vendor/marked/marked.esm.js';
 import {isGeoJSON,renderGeoJSONMap} from './geojson-viewer.mjs';
-import {buildPhysicalModel} from './physical-model.mjs';
-import {mountPhysicalPreview} from './physical-preview-3d.mjs';
 import {mountNativeGeometry} from './native-geometry.mjs';
 import {modelNavigation,modelNavigationPath,openModelNavigation,parentModelNavigation,scopeModelGraph,budgetModelGraph} from './model-navigation.mjs';
 import {projectModelStructure} from './model-structure.mjs';
@@ -626,60 +624,18 @@ function edgeDetails(edge, graph, file) {
   return `<div class="semantic-details-content"><span class="semantic-kind">${esc(edge.kind)}</span><h3>${esc(edge.label || edge.kind)}</h3><p class="semantic-qualified-name">${esc(edge.qname)}</p><dl><dt>类型</dt><dd>${esc(edge.metaclass || edge.kind)}</dd><dt>${edge.kind === 'flow' ? '起点' : '端点 1'}</dt><dd>${endpoint(edge.source)}</dd><dt>${edge.kind === 'flow' ? '终点' : '端点 2'}</dt><dd>${endpoint(edge.target)}</dd>${paths}${edge.line ? `<dt>位置</dt><dd><button type="button" ${sourceAttributes(edge)}>${esc(edge.file || file.path)}:${edge.line}${edge.col ? ':' + edge.col : ''}</button></dd>` : ''}</dl><details><summary>连接标识</summary><code>${esc(edge.sourceId||edge.id)}</code></details></div>`;
 }
 
-function renderPhysicalBody(physical, model) {
-  if (model?.available === false || model?.backend?.available === false)
-    return '<div class="document-empty">语义后端不可用。可在「诊断」中查看原因，或打开源码。</div>';
-  if (model?.valid === false)
-    return '<div class="document-empty">模型未通过语义检查。请打开「诊断」查看原因。</div>';
-  const issues = physical.issues.length ? `<details class="document-scope" ${physical.parts.length ? '' : 'open'}><summary>几何信息提示（${physical.issues.length}）</summary><ul>${physical.issues.map(issue => `<li>${esc(issue)}</li>`).join('')}</ul></details>` : '';
-  if (!physical.parts.length)
-    return `<div class="document-empty"><strong>当前模型没有可绘制的实体几何</strong><p>实物预览需要形状和尺寸。多个零件组成的物品还需要装配位置。</p>${issues}</div>`;
-  return `<div class="physical-preview-host" data-physical-preview></div>
-    ${issues}<div class="semantic-legend"><span>拖动旋转 · Shift + 拖动平移 · 滚轮缩放</span><span>${physical.parts.length} 个实体 · mm</span></div>`;
-}
-
-const shapeName = {box:'长方体', cylinder:'圆柱体', cone:'圆锥体', sphere:'球体', loft:'截面放样'};
-const formatLengths = (values, separator = ' × ') => values.map(value => Number(value.toPrecision(8))).join(separator) + ' mm';
-
-function physicalDetails(parts, selected, graph, file) {
-  if (!selected) {
-    const extents = [0,1,2].map(axis => {
-      let min = Infinity, max = -Infinity;
-      for (const {position,size} of parts) {
-        min = Math.min(min, position[axis] - size[axis] / 2);
-        max = Math.max(max, position[axis] + size[axis] / 2);
-      }
-      return max - min;
-    });
-    return `<div class="semantic-details-content"><h3>整体尺寸</h3><p>${formatLengths(extents)}</p><p class="document-scope">已绘制实体的 X × Y × Z 外包尺寸。点选零件可查看几何依据。</p></div>`;
-  }
-  const sourceIds = [...new Set([selected.nodeId,selected.shapeNodeId,selected.ownerNodeId].filter(Boolean))];
-  const sourceLinks = sourceIds.map(id => {
-    const node = graph.nodes.find(n => n.id === id);
-    return node?.line ? `<button type="button" class="semantic-member" data-document-source-line="${node.line}"><span>${esc(node.qname || node.label)}</span><small>${esc(file.path || node.file)} · L${node.line}</small></button>` : '';
-  }).join('');
-  return `<div class="semantic-details-content"><span class="semantic-kind">${esc(shapeName[selected.shape])}</span><h3>${esc(selected.label)}</h3>
-    <h4>尺寸（X × Y × Z）</h4><p>${formatLengths(selected.size)}</p>
-    <h4>中心坐标（X, Y, Z）</h4><p>${formatLengths(selected.position, ', ')}</p>
-    ${sourceLinks ? '<h4>SysML 源码</h4>' + sourceLinks : ''}</div>`;
-}
-
-export function renderDocumentViewer({file = {},model,verification,tab,filter = 'structure',resolveImage,dataState = {},parsedData,physicalModel,navigation={},modelContext,semanticGraph} = {}) {
+export function renderDocumentViewer({file = {},model,verification,tab,filter = 'structure',resolveImage,dataState = {},parsedData,navigation={},modelContext,semanticGraph} = {}) {
   if (filter === 'interconnection') filter = 'structure';
   navigation={...navigation,origin:modelOrigin(file,modelContext)};
   const kind = documentKind(file), isData = ['json','jsonl','csv'].includes(kind), parsed = parsedData || (isData ? parseDataDocument(file) : null), isMap = kind === 'json' && isGeoJSON(parsed?.root), isModel = kind === 'sysml', selectedTab = tab || (isModel ? 'diagram' : isMap ? 'map' : 'preview');
   const originalGraph=semanticGraph||normalizeSemanticGraph(model,{path:file.path,view:'combined'});
   const graph=semanticGraph||((selectedTab==='diagram'&&filter==='structure')?projectModelStructure(originalGraph,navigation):originalGraph);
   const modelTabs = [['diagram','模型图']];
-  if (/\.sysml$/i.test(file.path || file.name)) modelTabs.push(['preview3d','实物预览']);
   modelTabs.push(['outline','大纲'],['source','源码'],['diagnostics','诊断'],['constraints','约束']);
   const tabs = isModel ? modelTabs : kind === 'stl' ? [['preview','网格']] : kind === 'markdown' ? [['preview','阅读'],['source','源码']] : isMap ? [['map','地图'],['preview','数据'],['source','原始数据']] : isData ? [['preview','数据'],['source','原始数据']] : [['preview','内容']];
   const effectiveTab = tabs.some(([key]) => key === selectedTab) ? selectedTab : tabs[0][0];
   const isDiagram = isModel && effectiveTab === 'diagram';
-  const isPhysical = isModel && effectiveTab === 'preview3d';
-  const physical = isPhysical ? physicalModel || buildPhysicalModel(graph,file.content || '') : null;
-  const hasPhysicalParts = isPhysical && physical.parts.length > 0 && model?.available !== false && model?.backend?.available !== false && model?.valid !== false;
-  const diagramTools = isDiagram || hasPhysicalParts;
+  const diagramTools = isDiagram;
   const metadata=isModel?renderModelMetadata(graph,file,model):'';
   let body;
   if (kind === 'image') {
@@ -690,17 +646,14 @@ export function renderDocumentViewer({file = {},model,verification,tab,filter = 
   else if (kind === 'unsupported') body = '<div class="document-empty">此文件格式暂不支持应用内预览。请在文件列表中选择文档、SysML 模型或图片。</div>';
   else if (isModel && effectiveTab === 'diagram') body = renderDiagramNotices(model,graph) + renderDiagram(graph,filter,navigation,metadata);
   else if (isModel && effectiveTab === 'outline') body = renderOutline(graph,navigation.query);
-  else if (isPhysical) body = renderPhysicalBody(physical,model);
   else if (isModel && effectiveTab === 'diagnostics') body = renderDiagnostics(model,file.path);
   else if (isModel && effectiveTab === 'constraints') body = renderConstraints(normalizeSemanticGraph(model,{path:file.path}),verification,model);
   else if (isMap && effectiveTab === 'map') body = renderGeoJSONMap(parsed.root);
   else if (isData && effectiveTab !== 'source') body = renderDataPreview(file,dataState,parsed);
   else if (effectiveTab === 'source' || kind !== 'markdown') body = renderSource(file.content || '',kind);
   else body = `<article class="document-markdown">${renderMarkdown(file.content || '',{path:file.path,resolveImage})}</article>`;
-  const selector = hasPhysicalParts
-    ? `<select aria-label="选择实体零件" data-physical-part><option value="">整件物品</option>${physical.parts.map(p => `<option value="${attr(p.id)}">${esc(p.label)}</option>`).join('')}</select>`
-    : `<select aria-label="模型视图" data-document-filter><option value="structure"${filter==='structure'?' selected':''}>结构与互连</option><option value="requirements"${filter==='requirements'?' selected':''}>需求与约束</option><option value="all"${filter==='all'?' selected':''}>元素与类型关系</option></select>`;
-  const details = hasPhysicalParts ? physicalDetails(physical.parts,null,graph,file) : isDiagram ? elementDetails(null,graph,file) : '';
+  const selector = `<select aria-label="模型视图" data-document-filter><option value="structure"${filter==='structure'?' selected':''}>结构与互连</option><option value="requirements"${filter==='requirements'?' selected':''}>需求与约束</option><option value="all"${filter==='all'?' selected':''}>元素与类型关系</option></select>`;
+  const details = isDiagram ? elementDetails(null,graph,file) : '';
   const modelTools=`<div class="document-diagram-tools">${selector}<button type="button" data-document-zoom="out" title="缩小" aria-label="缩小">−</button><button type="button" data-document-zoom="in" title="放大" aria-label="放大">+</button><button type="button" data-document-fit>适合窗口</button></div>`;
   const search=`<input type="search" class="document-outline-search" data-document-search placeholder="查找模型元素" aria-label="查找模型元素" value="${attr(navigation.query||'')}">`;
   const modelFooter=`<footer class="document-model-meta">${metadata}</footer>`;
@@ -710,7 +663,7 @@ export function renderDocumentViewer({file = {},model,verification,tab,filter = 
 export function mountDocumentViewer(container, options = {}) {
   if (!container || typeof container.addEventListener !== 'function') throw new TypeError('Document viewer container required');
   let current = {...options,dataState:{...options.dataState},navigation:{...options.navigation}}, parsedFile = null, parsedData = null, destroyed = false, drag = null, viewBox, initialBox, cleanupCanvas, defaultViewport = true;
-  let spatialPreview = null, physical = null, meshPreview = null;
+  let meshPreview = null;
   let graphState,cachedGraph;
   const getGraph = () => {
     const state=[current.model,current.file,current.navigation,current.modelContext,current.filter,current.tab];
@@ -720,31 +673,14 @@ export function mountDocumentViewer(container, options = {}) {
     graphState=state;return cachedGraph;
   };
   const getNavigation=()=>({...current.navigation,origin:modelOrigin(current.file||{},current.modelContext)});
-  const selectPart = id => {
-    current.onAssemblyInteract?.();
-    if (!physical) return;
-    const selected = physical.parts.find(part => part.id === id);
-    spatialPreview?.select(selected?.id);
-    const selector = container.querySelector('[data-physical-part]');
-    if (selector) selector.value = selected?.id || '';
-    const details = container.querySelector('.semantic-details');
-    if (details) details.innerHTML = physicalDetails(physical.parts,selected,getGraph(),current.file);
-  };
   const draw = () => {
     cleanupCanvas?.();
     cleanupCanvas = null;
-    spatialPreview?.destroy();
-    spatialPreview = null;
     meshPreview?.destroy();
     meshPreview = null;
     if(parsedFile!==current.file){parsedFile=current.file;parsedData=['json','jsonl','csv'].includes(documentKind(current.file))?parseDataDocument(current.file):null;}
-    physical = current.tab === 'preview3d' ? buildPhysicalModel(getGraph(),current.file?.content || '') : null;
-    container.innerHTML = renderDocumentViewer({...current,parsedData,physicalModel:physical,semanticGraph:getGraph()});
+    container.innerHTML = renderDocumentViewer({...current,parsedData,semanticGraph:getGraph()});
     setupCanvas();
-    const host = container.querySelector('[data-physical-preview]');
-    if (host) {
-      spatialPreview = mountPhysicalPreview(host,{parts:physical.parts,onSelect:selectPart,visibleCount:current.visibleCount,onInteract:current.onAssemblyInteract});
-    }
     const stlHost = container.querySelector('[data-stl-preview]');
     if (stlHost && current.file?.encoding === 'base64' && current.file.content) {
       meshPreview = mountNativeGeometry(stlHost,{bytes:Uint8Array.from(atob(current.file.content),char=>char.charCodeAt(0)),name:current.file.name||basename(current.file.path)||'STL'});
@@ -752,9 +688,8 @@ export function mountDocumentViewer(container, options = {}) {
   };
   const selectTab = tab => { if (destroyed) return;current.tab = tab;draw();current.onTabChange?.(tab); };
   const setBox = box => { viewBox = box;container.querySelector('.semantic-svg')?.setAttribute('viewBox',`${box.x} ${box.y} ${box.w} ${box.h}`); };
-  const fit = () => {if (spatialPreview){current.onAssemblyInteract?.();return spatialPreview.fit();}defaultViewport = false;if(initialBox)setBox({...initialBox});};
+  const fit = () => {defaultViewport = false;if(initialBox)setBox({...initialBox});};
   const zoom = (factor, clientX, clientY) => {
-    if (spatialPreview){current.onAssemblyInteract?.();return spatialPreview.zoom(factor);}
     if (!viewBox || !initialBox) return;
     defaultViewport = false;
     const canvas = container.querySelector('.semantic-canvas'), rect = canvas?.getBoundingClientRect();
@@ -863,7 +798,6 @@ export function mountDocumentViewer(container, options = {}) {
     }
   };
   const onInput = event => {
-    if (event.type === 'change' && event.target.matches('[data-physical-part]')) {selectPart(event.target.value);return;}
     if(event.type==='change'&&event.target.matches('select[data-document-data]')){const action=event.target.dataset.documentData,value=event.target.value;current.dataState=action==='dataset'?{datasetId:value}:action==='x'?{...current.dataState,xKey:value}:action==='y'?{...current.dataState,yKey:value}:current.dataState;draw();return;}
     if(event.type === 'input' && event.target.matches('[data-document-search]')){current.navigation={...current.navigation,query:event.target.value};saveNavigation();container.querySelector('.document-main').innerHTML = renderOutline(getGraph(),event.target.value);}
     if(event.type === 'change' && event.target.matches('[data-document-filter]')) {current.filter = event.target.value;current.navigation={...current.navigation,page:0};saveNavigation();draw();}
@@ -900,5 +834,5 @@ export function mountDocumentViewer(container, options = {}) {
     setBox({x:contentW < box.width ? minX - (box.width - contentW) / 2 : minX - pad,y:contentH < box.height ? minY - (box.height - contentH) / 2 : minY - pad,w:box.width,h:box.height});
   };
   container.addEventListener('click',onClick);container.addEventListener('input',onInput);container.addEventListener('change',onInput);container.addEventListener('keydown',onKey);container.addEventListener('pointerover',onDataHover);draw();if(current.sourceLine)sourceLine(current.sourceLine);
-  return {selectTab,fit,frameLabels,selectElement,selectSourceLine:sourceLine,setAssemblyVisible(count){current.visibleCount=count;spatialPreview?.setVisibleCount(count);return Boolean(spatialPreview);},update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();spatialPreview?.destroy();meshPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
+  return {selectTab,fit,frameLabels,selectElement,selectSourceLine:sourceLine,update:next => {current = {...current,...next};draw();if(next.sourceLine)sourceLine(next.sourceLine);},destroy:() => {destroyed = true;cleanupCanvas?.();meshPreview?.destroy();container.removeEventListener('click',onClick);container.removeEventListener('input',onInput);container.removeEventListener('change',onInput);container.removeEventListener('keydown',onKey);container.removeEventListener('pointerover',onDataHover);}};
 }

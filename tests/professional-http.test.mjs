@@ -53,7 +53,7 @@ test('professional workbench identifies real source parameters and escapes sourc
  assert.match(sim,/运行仿真/);assert.match(sim,/准备 \/ 连接环境/);assert.doesNotMatch(sim,/隔离求解环境/);
 });
 
-test('native workbench time controls and output filters apply only to appropriate tools',()=>{assert.deepEqual(parseOutputSignals('a[1,2].x, temperature\nq[1]'),['a[1,2].x','temperature','q[1]']);const c=renderProfessionalWorkbench({path:'models/EPS.cir',catalog:{environment:{status:'ready'}}});assert.doesNotMatch(c,/name="stopTime"|name="signals"/);assert.match(c,/准备 \/ 连接环境/);assert.doesNotMatch(c,/隔离求解环境/);const s=renderProfessionalWorkbench({path:'models/System.sysml',expanded:'simulation'});assert.match(s,/value="simulate"/);assert.match(s,/name="fmuPath"/);assert.match(renderProfessionalWorkbench({path:'models/Cube.scad',expanded:'shape'}),/生成几何/);});
+test('native workbench time controls and output filters apply only to appropriate tools',()=>{assert.deepEqual(parseOutputSignals('a[1,2].x, temperature\nq[1]'),['a[1,2].x','temperature','q[1]']);const c=renderProfessionalWorkbench({path:'models/EPS.cir',catalog:{environment:{status:'ready'}}});assert.doesNotMatch(c,/name="stopTime"|name="signals"/);assert.match(c,/准备 \/ 连接环境/);assert.doesNotMatch(c,/隔离求解环境/);const s=renderProfessionalWorkbench({path:'models/System.sysml',expanded:'simulation'});assert.match(s,/value="simulate"/);assert.match(s,/name="fmuPath"/);const scad=renderProfessionalWorkbench({path:'models/Cube.scad',expanded:'simulation'});assert.match(scad,/value="simulate"/);assert.doesNotMatch(scad,/name="fmuPath"|name="stopTime"/);});
 
 test('invalid new-file hash fails before requesting approval',async()=>{
  let approvals=0;

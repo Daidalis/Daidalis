@@ -5,6 +5,19 @@ const standardShapes = new Map([
   ['RightCircularCylinder','cylinder'], ['RightCircularCone','cone'],
 ]);
 const units = new Map([['mm',1],['cm',10],['dm',100],['m',1000],['km',1e6],['um',.001],['µm',.001],['μm',.001]]);
+// Common CSS named colors, normalized lowercase. Agents and hand-written models
+// often use them; the preview accepts them instead of falling back to defaults.
+const namedColors = new Map(Object.entries({
+  black:'#000000', white:'#ffffff', silver:'#c0c0c0', gray:'#808080', grey:'#808080',
+  lightgray:'#d3d3d3', lightgrey:'#d3d3d3', darkgray:'#a9a9a9', darkgrey:'#a9a9a9',
+  dimgray:'#696969', dimgrey:'#696969', slategray:'#708090', slategrey:'#708090',
+  crimson:'#dc143c', red:'#ff0000', darkorange:'#ff8c00', orange:'#ffa500',
+  goldenrod:'#daa520', yellow:'#ffff00', lightyellow:'#ffffe0', deepskyblue:'#00bfff',
+  skyblue:'#87ceeb', steelblue:'#4682b4', royalblue:'#4169e1', midnightblue:'#191970',
+  blue:'#0000ff', lightsteelblue:'#b0c4de', mediumseagreen:'#3cb371', green:'#008000',
+  darkgreen:'#006400', seagreen:'#2e8b57', lime:'#00ff00', brown:'#a52a2a', tan:'#d2b48c',
+}));
+const namedColor = value => namedColors.get(String(value ?? '').replace(/^['"]|['"]$/g,'').trim().toLowerCase());
 const lengthLiteral = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)\s*\[\s*(?:SI::)?([\wµμ]+)\s*\]$/i;
 const memberName = node => (node.qname || node.label).split('::').at(-1);
 const isDefinition = node => /Definition$/.test(node.metaclass);
@@ -318,8 +331,8 @@ export function buildPhysicalModel(graph, source = '') {
           if (form.error) issues.add(path + '：' + form.error);
           else if (size.every(value => Number.isFinite(value) && value > 0) && center.every(Number.isFinite)) {
             const colorValue = model.attributes.get('color');
-            const color = /^"(#[a-f0-9]{6})"$/i.exec(colorValue?.value)?.[1];
-            if (colorValue && !color) issues.add(path + '：color 需要六位十六进制颜色字符串，本次使用默认颜色。');
+            const color = /^"(#[a-f0-9]{6})"$/i.exec(colorValue?.value)?.[1] || namedColor(colorValue?.value);
+            if (colorValue && !color) issues.add(path + '：color 需要六位十六进制或常见命名颜色字符串，本次使用默认颜色。');
             parts.push({id:JSON.stringify([node.id, path]), nodeId:(instance || node).id,
               shapeNodeId:declaration.id, ownerNodeId:parent.node?.id,
               label:instance ? path.slice(1) : frame.name, path, shape, size, position:center, ...fields, ...(color && {color}),

@@ -1,0 +1,91 @@
+{
+  "schema": "daidalis-professional-input-v1",
+  "model": {
+    "path": "electric-sedan/Sedan.sysml",
+    "sha256": "ed712802c78a8866c0a6e0f6251645e8a8e1cf9fdd43dd50423655600c6e2beb",
+    "language": "sysml"
+  },
+  "sourceFiles": [
+    {
+      "path": "electric-sedan/Sedan.sysml",
+      "sha256": "ed712802c78a8866c0a6e0f6251645e8a8e1cf9fdd43dd50423655600c6e2beb"
+    }
+  ],
+  "modelName": "ElectricSedan::LaunchAnalysis",
+  "operation": "simulate",
+  "parameters": {},
+  "simulation": {
+    "startTime": 0,
+    "stopTime": 60,
+    "stepSize": 0.01,
+    "tolerance": 0.000001
+  },
+  "signals": [],
+  "checks": [
+    {
+      "id": "initial-soc",
+      "variable": "battery",
+      "metric": "initial",
+      "operator": "==",
+      "expected": 0.8,
+      "tolerance": 1e-8
+    },
+    {
+      "id": "soc-lower-bound",
+      "variable": "battery",
+      "metric": "min",
+      "operator": ">=",
+      "expected": 0.78
+    },
+    {
+      "id": "soc-depletion",
+      "variable": "battery",
+      "metric": "final",
+      "operator": "<",
+      "expected": 0.8
+    },
+    {
+      "id": "peak-electrical-power",
+      "variable": "inverter",
+      "metric": "max",
+      "operator": "==",
+      "expected": 60000,
+      "tolerance": 1
+    },
+    {
+      "id": "final-cruise-power",
+      "variable": "inverter",
+      "metric": "final",
+      "operator": "==",
+      "expected": 7353.91304347826,
+      "tolerance": 0.01
+    },
+    {
+      "id": "starts-at-rest",
+      "variable": "motor",
+      "metric": "initial",
+      "operator": "==",
+      "expected": 0,
+      "tolerance": 1e-8
+    },
+    {
+      "id": "final-speed-low",
+      "variable": "motor",
+      "metric": "final",
+      "operator": ">=",
+      "expected": 18
+    },
+    {
+      "id": "final-speed-high",
+      "variable": "motor",
+      "metric": "final",
+      "operator": "<=",
+      "expected": 23
+    }
+  ],
+  "fmu": {
+    "path": "electric-sedan/Sedan.fmu",
+    "sha256": "3d54a71b12b41c9fee46cdd4e68284c0b9c21cb8826cc352ebfba7114a739710"
+  },
+  "inputHash": "a1b8a8d0c27721f2bbf469bfe37339e9d92c5ce3f4204687e3e5f5e7c3e4b290"
+}
