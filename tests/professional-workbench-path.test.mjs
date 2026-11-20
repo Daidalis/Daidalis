@@ -106,6 +106,24 @@ test('opening a system model queries its appearance file across directories in t
  assert.ok(!calls.some(route=>route.includes('/model?path=threads/')));
 });
 
+test('a differently named appearance is loaded from its recorded model link',async()=>{
+ const source='electric-sedan/dynamics/SedanDrive.sysml',appearance='electric-sedan/appearance/Sedan.appearance.sysml';
+ const unrelated='electric-sedan/appearance/Truck.appearance.sysml';
+ const calls=[];
+ const ui=createProfessionalWorkbench({getProject:()=>({id:'p1'}),api:async route=>{
+  const url=new URL(route,'http://test'),path=url.searchParams.get('path');
+  if(url.pathname.endsWith('/professional/models'))return {models:[{path:source},{path:unrelated},{path:appearance}]};
+  if(url.pathname.endsWith('/professional/model'))return {path,content:'package Sedan {}'};
+  if(url.pathname.endsWith('/workspace/model'))calls.push(path);
+  if(url.pathname.endsWith('/workspace/file')&&path.endsWith('.appearance.recorded.json')){
+   return {content:JSON.stringify({schema:'daidalis-recorded-trajectory-v1',provenance:'fmu-run',csv:'trajectory.csv',receipt:{model:{path:path.endsWith('/Sedan.appearance.recorded.json')?source:'electric-sedan/dynamics/TruckDrive.sysml'}}})};
+  }
+  return {};
+ }});
+ await ui.refresh();
+ assert.deepEqual(calls.filter(path=>path.endsWith('.appearance.sysml')),[appearance]);
+});
+
 test('live events follow while the user has not taken the tab rail, then downgrade to a hint',async()=>{
  class Source{constructor(url){this.url=url;this.listeners={};Source.current=this;}addEventListener(type,fn){(this.listeners[type]||=[]).push(fn);}close(){this.closed=true;}}
  globalThis.EventSource=Source;

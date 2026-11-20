@@ -42,20 +42,33 @@ export function inferModelName(source=''){
 }
 function modelRows(data){return list(data?.models||data?.files||data);}
 export function preferredModel(rows=[]){const paths=modelRows(rows).map(item=>item.path||item.name||'').filter(Boolean);return paths.find(path=>/\.sysml$/i.test(path)&&!/\.appearance\.sysml$/i.test(path))||paths.find(path=>/\.mo$/i.test(path))||'';}
-function matchingAppearance(path,models){
+async function matchingAppearance(path,models,readManifest){
  if(!/\.sysml$/i.test(path)||/\.appearance\.sysml$/i.test(path))return null;
  const segments=path.split('/'),name=segments.pop().replace(/\.sysml$/i,'.appearance.sysml').toLowerCase();
  const candidates=[];
  for(const model of modelRows(models)){
   const candidate=(model.path||model.name||'').split('/');
-  if(candidate.pop().toLowerCase()!==name)continue;
+  const file=candidate.pop().toLowerCase();
+  if(!file.endsWith('.appearance.sysml'))continue;
   let shared=0;
   while(shared<segments.length&&segments[shared]===candidate[shared])shared++;
   const distance=segments.length+candidate.length-2*shared;
-  if(shared>=(segments[0]==='threads'?2:1)||distance===0)candidates.push({model,distance});
+  if(shared>=(segments[0]==='threads'?2:1)||distance===0)candidates.push({model,distance,sameName:file===name});
  }
  candidates.sort((first,second)=>first.distance-second.distance);
- return candidates[0]&&candidates[0].distance!==candidates[1]?.distance?candidates[0].model:null;
+ const nearest=([first,second])=>first&&first.distance!==second?.distance?first.model:null;
+ const named=nearest(candidates.filter(candidate=>candidate.sameName));
+ if(named)return named;
+ for(const distance of new Set(candidates.map(candidate=>candidate.distance))){
+  const linked=(await Promise.all(candidates.filter(candidate=>candidate.distance===distance).map(async candidate=>{
+   try{
+    const manifest=await readManifest((candidate.model.path||candidate.model.name).replace(/\.sysml$/i,'.recorded.json'));
+    return isRecordedTrajectorySchema(manifest?.schema)&&manifest.receipt?.model?.path===path?candidate:null;
+   }catch{return null;}
+  }))).filter(Boolean);
+  if(linked.length)return nearest(linked);
+ }
+ return null;
 }
 function jobRows(data){return list(data?.jobs||data);}
 function jobLabel(job,withId){const name=(job.model?.path||job.modelName||job.operation||'作业').split('/').at(-1),variant=typeof job.parameters?.applyProtection==='boolean'?(job.parameters.applyProtection?' · 修复版':' · 原始版'):'';return `${name}${variant} · ${statusName(job.status)}${withId?` · ${(job.id||job.jobId||'').slice(-6)}`:''}`;}
@@ -232,7 +245,10 @@ export function createProfessionalWorkbench({api,getProject,isFocused=()=>false,
  }
  async function openRecorded({expand=true}={}){const [id,ui]=current();const manifest=ui.recordedManifest;if(!manifest)return;const csvPath=String(manifest.csv).includes('/')?manifest.csv:String(manifest.path||'').replace(/[^/]*$/,'')+manifest.csv;const file=await workspaceFile(id,csvPath);const table=tableFromCsv(file.content);if(!table.rows.length)throw Error('记录轨迹没有采样');ui.recordedView={provenance:recordedProvenance(manifest.provenance),note:typeof manifest.note==='string'?manifest.note:'',units:signalUnits(manifest.units),bindings:signalBindings(manifest.bindings),drive:driveSignal(manifest.drive),table,checks:Array.isArray(manifest.checks)?manifest.checks:[],receipt:manifest.receipt&&typeof manifest.receipt==='object'?manifest.receipt:null};ui.sampleIndex=table.rows.length-1;ui.playing=false;if(expand)ui.expanded='simulation';ui.result=null;ui.currentJob=null;draw();}
  async function hydrateAppearance(sourcePath){
-  const [,ui]=current(),match=matchingAppearance(sourcePath,ui.models),path=match?.path||match?.name;
+  const [id,ui]=current(),request=ui.appearanceRequest;
+  const match=await matchingAppearance(sourcePath,ui.models,async path=>JSON.parse((await workspaceFile(id,path)).content));
+  if(getProject()?.id!==id||ui.path!==sourcePath||ui.appearanceRequest!==request)return;
+  const path=match?.path||match?.name;
   if(path&&path===ui.appearancePath&&match.modifiedAt===ui.appearanceModifiedAt){ui.appearanceSourcePath=sourcePath;return;}
   if(!path&&sourcePath===ui.appearanceSourcePath&&ui.appearanceModifiedAt===undefined)return;
   if(sourcePath!==ui.appearanceSourcePath||!path){
