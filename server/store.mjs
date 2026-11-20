@@ -10,7 +10,8 @@ export const id = (prefix = 'id') => `${prefix}_${randomUUID()}`;
 export const DEFAULT_RESOURCES = Object.freeze({maxConcurrentAgents:4,maxTasksPerRun:16,maxAutoResumes:2,maxAutoTurns:4,maxAutoRunMs:300000,maxAutoContinuations:24,maxRunContinuations:DEFAULT_EXECUTION_BUDGET.maxRunContinuations,commandTimeoutMs:DEFAULT_EXECUTION_BUDGET.commandTimeoutMs});
 const collections = ['projects','threads','messages','runs','agents','artifacts','approvals','events','providers','knowledge','evaluations','steerings'];
 /** Seed the recorded sedan demo: a curated narrative plus byte-identical retained artifacts.
- *  The replay only reveals files already in the project folder; it never calls a live Agent or a solver. */
+ *  All artifacts start in a hidden staging folder and the replay timeline reveals them
+ *  into the workspace as it advances; no live Agent and no solver ever runs. */
 function seedDemoReplayProject(store) {
   const sourceDir=fileURLToPath(new URL('../examples/electric-sedan',import.meta.url));
   let entries;try{entries=fs.readdirSync(sourceDir,{withFileTypes:true});}catch{return;}
@@ -18,19 +19,42 @@ function seedDemoReplayProject(store) {
   if(!files.includes('replay.json')||!files.includes('Sedan.sysml'))return;
   const p=store.createProject({name:'示例',description:'留存运行示例：叙事为整理后的说明，模型、轨迹与判据来自一次真实求解的留存产物。',instructions:''});
   store.patch('projects',p.id,{kind:'demo-replay'});
-  const folder=store.workspace(p.id),sedan=path.join(folder,'electric-sedan');
-  fs.mkdirSync(sedan,{recursive:true});
-  // The seeded subfolder keeps the real session's layout: a directory whose name
-  // differs from the model stem stays a single-file parse root (no conventional
-  // source-root merge), so the appearance model keeps exactly one physical root.
+  const folder=store.workspace(p.id);
+  // Staging under .daidalis keeps the seed invisible: model listings skip dot
+  // directories and the viewer never opens them, so the project starts as empty
+  // as a live session and files appear only when the timeline reveals them.
+  const staged=path.join(folder,'.daidalis','replay-assets','electric-sedan');
+  fs.mkdirSync(staged,{recursive:true});
   for(const entry of entries){
-    const from=path.join(sourceDir,entry.name),to=path.join(sedan,entry.name);
+    const from=path.join(sourceDir,entry.name),to=path.join(staged,entry.name);
     if(entry.isDirectory()){try{fs.cpSync(from,to,{recursive:true});}catch{/* skip directories that cannot be copied */}continue;}
     try{fs.copyFileSync(from,to);}catch{/* skip files that cannot be copied */}
     if(entry.name==='replay.json')try{fs.copyFileSync(from,path.join(folder,'replay.json'));}catch{}
   }
 }
 const contains=(parent,child)=>child===parent||child.startsWith(parent+path.sep);
+/** Replay-only staging: the demo timeline reveals retained files into the workspace on demand.
+ *  Revealing is idempotent, refuses path escapes, and only ever copies from the hidden staging folder. */
+export async function revealDemoFiles(workspaceFolder, paths) {
+  const revealed=[],skipped=[];
+  if(typeof workspaceFolder!=='string'||!Array.isArray(paths)||!paths.length)return {revealed,skipped};
+  const staging=path.resolve(workspaceFolder,'.daidalis','replay-assets');
+  for(const item of paths){
+    if(typeof item!=='string'||!item||item.length>1024||item.includes('\\')||item.includes('\0')||path.isAbsolute(item)||item.split('/').includes('..')||item.split('/').some(part=>!part||part==='.')){skipped.push(String(item));continue;}
+    try{
+      const source=path.resolve(staging,item),dest=path.resolve(workspaceFolder,item);
+      if(!contains(staging,source)||!contains(path.resolve(workspaceFolder),dest)){skipped.push(item);continue;}
+      const stat=await fs.promises.stat(source);
+      if(await fs.promises.stat(dest).then(()=>true,()=>false))continue;
+      await fs.promises.mkdir(path.dirname(dest),{recursive:true});
+      if(stat.isDirectory())await fs.promises.cp(source,dest,{recursive:true});
+      else if(stat.isFile())await fs.promises.copyFile(source,dest);
+      else{skipped.push(item);continue;}
+      revealed.push(item);
+    }catch{skipped.push(String(item));}
+  }
+  return {revealed,skipped};
+}
 function existingDirectory(value){if(typeof value!=='string'||!value||value.includes('\0')||value.length>4096||!path.isAbsolute(value))throw new Error('项目文件夹必须是已存在目录的绝对路径。');let folder;try{folder=fs.realpathSync(value);if(!fs.statSync(folder).isDirectory())throw Error();}catch{throw new Error('项目文件夹不存在或不是目录，请先创建或选择工程文件夹。');}return folder;}
 export function createStore({dataDir, workspacesDir = path.join(dataDir, 'workspaces'), root, protectedPaths = [], seed = true, addDefaultCodexProvider = true, getDefaultPermissionMode = () => 'manual'}) {
   fs.mkdirSync(dataDir, {recursive:true,mode:0o700});
@@ -143,6 +167,6 @@ export function createStore({dataDir, workspacesDir = path.join(dataDir, 'worksp
   for(const provider of data.providers)if(provider.type==='codex-cli'){provider.type='codex-app-server';if(provider.id==='codex-local')provider.name='Codex · 本机 Agent';}
   if(addDefaultCodexProvider&&!data.providers.some(x=>x.id==='codex-local'))data.providers.push({id:'codex-local',name:'Codex · 本机 Agent',type:'codex-app-server',baseUrl:'',model:'',keyEnv:''});
   if(!data.providers.some(x=>x.id==='claude-local'))data.providers.push({id:'claude-local',name:'Claude Code · Agent SDK',type:'claude-agent',baseUrl:'',model:'',keyEnv:'ANTHROPIC_API_KEY'});
-  if(seed && !data.projects.length) seedDemoReplayProject(store);
+  if(seed && !data.projects.some(x=>x.kind==='demo-replay')) seedDemoReplayProject(store);
   store.save(); return store;
 }

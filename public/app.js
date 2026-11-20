@@ -149,8 +149,17 @@ function replayEntryView(entry){
   return '';
 }
 function replayRows(){const entries=state.replay.data.entries||[];return entries.slice(0,state.replay.cursor).map(replayEntryView).join('');}
-function replayApplyEntry(entry){
-  if(!entry||entry.kind!=='modeling')return;
+async function replayApplyEntry(entry){
+  if(!entry)return;
+  // Staged demo files exist only after their timeline entry reveals them, so the
+  // project file lists grow through the replay exactly like a live session.
+  const reveals=[...(Array.isArray(entry.reveal)?entry.reveal:[])];
+  if(entry.kind==='modeling'&&(entry.do==='open'||entry.do==='stl')&&typeof entry.path==='string')reveals.push(entry.path);
+  if(reveals.length){
+    try{await api('/api/projects/'+encodeURIComponent(state.projectId)+'/replay/reveal',{method:'POST',body:JSON.stringify({paths:reveals})});}catch{/* The staged file is already in place. */}
+    try{await professionalUI.refreshModelList();}catch{/* The professional pane may be closed. */}
+  }
+  if(entry.kind!=='modeling')return;
   if(entry.do==='open')void professionalUI.openPath(entry.path).catch(()=>{});
   else if(entry.do==='stl')void professionalUI.openShape(entry.path).catch(()=>{});
   else if(entry.do==='recorded')void professionalUI.openRecorded().catch(()=>{});
@@ -176,7 +185,7 @@ function replayAdvance(){
   const entries=r.data.entries||[];
   if(r.cursor>=entries.length){r.playing=false;clearTimeout(r.timer);renderMain(true);return;}
   const entry=entries[r.cursor];r.cursor++;
-  replayApplyEntry(entry);
+  void replayApplyEntry(entry);
   renderMain(true);
   if(r.playing)replaySchedule(entry);
 }

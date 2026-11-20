@@ -30,13 +30,19 @@
    "title": "保存模型 · Sedan.sysml",
    "detail": "结构：整车 + battery / inverter / motor 与功率流、扭矩流",
    "executionLabel": "已保存",
-   "t": 155
+   "t": 155,
+   "reveal": [
+    "electric-sedan/Sedan.sysml"
+   ]
   },
   {
    "kind": "modeling",
    "do": "open",
    "t": 159,
-   "path": "electric-sedan/Sedan.sysml"
+   "path": "electric-sedan/Sedan.sysml",
+   "reveal": [
+    "electric-sedan/Sedan.recorded.json"
+   ]
   },
   {
    "kind": "activity",
@@ -64,14 +70,20 @@
    "title": "Modelica 起步工况 · Sedan.mo",
    "detail": "电池荷电、逆变器输出功率、车速；功率指令先升高、中途回落、末段维持",
    "executionLabel": "已保存",
-   "t": 168
+   "t": 168,
+   "reveal": [
+    "electric-sedan/Sedan.mo"
+   ]
   },
   {
    "kind": "activity",
    "title": "FMU 导出 · Sedan.fmu",
    "detail": "OpenModelica Euler 协同仿真 FMU",
    "executionLabel": "已导出",
-   "t": 211
+   "t": 211,
+   "reveal": [
+    "electric-sedan/Sedan.fmu"
+   ]
   },
   {
    "kind": "message",
@@ -84,7 +96,10 @@
    "title": "起草几何 · 第 1 步：地板、动力部件与前左车轮",
    "detail": "OpenSCAD stage2.scad · 地板、电池包、逆变器、电机与前左悬架车轮",
    "executionLabel": "已起草",
-   "t": 303
+   "t": 303,
+   "reveal": [
+    "electric-sedan/Sedan.scad"
+   ]
   },
   {
    "kind": "modeling",
@@ -185,13 +200,19 @@
   {
    "kind": "modeling",
    "do": "recorded",
-   "t": 1174
+   "t": 1174,
+   "reveal": [
+    "electric-sedan/trajectory.csv"
+   ]
   },
   {
    "kind": "message",
    "role": "assistant",
    "content": "已在新建的 `electric-sedan/` 目录留下原生模型、实际渲染和可回放轨迹。**语义校验通过，实际求解成功；但整体要求尚未全部满足：8 项仿真判据中 7 项通过、1 项失败，外形也仍有明确缺口。**\n\n### 交付入口\n\n- [交付与验证报告](electric-sedan/电动轿车交付与验证报告.md)\n- [SysML 结构与计算](electric-sedan/Sedan.sysml)：整车下仅有 `battery`、`inverter`、`motor`，包含指定功率流与扭矩流。\n- [SysML 实物几何](electric-sedan/Sedan.appearance.sysml) · [同源 OpenSCAD](electric-sedan/Sedan.scad)\n- [实际彩色预览](electric-sedan/engineering/professional/professional_d355d59e78944f16a4e31e60c592d522/outputs/daidalis_preview.png) · [STL](electric-sedan/engineering/professional/professional_d355d59e78944f16a4e31e60c592d522/outputs/daidalis_geometry.stl)\n- [Modelica 动力学](electric-sedan/Sedan.mo) · [导出的 FMU](electric-sedan/Sedan.fmu)\n- [可回放轨迹](electric-sedan/Sedan.recorded.json) · [实际求解与判据](electric-sedan/engineering/professional/professional_6ff354f067d04d7ebeb9d88f583ca532/result.json)\n\n### 实际仿真结果\n\n完成一次 FMI 2.0 协同仿真 FMU 导出，并通过 SysML 绑定实际求解。三个输出与部件精确同名：\n\n| 输出 | 含义 | 初值 | 60 秒值 |\n|---|---|---:|---:|\n| `battery` | 电池 SOC | 0.800000 | 0.793143 |\n| `inverter` | 逆变器输出功率 | 4.000 kW | 7.354 kW |\n| `motor` | 车速 | 0 m/s | 25.709 m/s |\n\n**失败项为末速不超过 23 m/s，实际为 25.709 m/s（92.55 km/h）。**末段采用按 20 m/s 阻力平衡计算的固定功率，没有闭环调速或主动制动，因此尚未达到目标稳定巡航。失败结果已保留，没有放宽阈值。实际记录共 751 个样本，间隔为 0.08 秒，而非请求的 0.01 秒。\n\n### 外形完成范围与缺口\n\n已交付同源剖切模型，包含底盘、电池包、副车架、悬架、半轴、四轮轮辋、前舱动力部件、玻璃与灯镜。四轮最低点为 `z=0`，彩色渲染中电池包、逆变器和电机可见。\n\n尚未满足的部分：\n- 车壳仍是分段放样的概念造型，未达到要求的连续光顺曲面，轮眉也较粗略。\n- 全车装配间隙未验证，电池后端与后副车架存在包络重叠风险。\n- SysML 实物预览尚未进行 GUI 逐视角审阅。\n\n工作计划和证据记录已更新，以上缺口保持开放。本次交付是**部分完成、具有真实执行证据的数字概念模型**，不是可制造或通过实车安全验证的整车。",
-   "t": 1223
+   "t": 1223,
+   "reveal": [
+    "electric-sedan/电动轿车交付与验证报告.md"
+   ]
   }
  ]
 }

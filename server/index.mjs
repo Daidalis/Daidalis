@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
-import {createStore,id,now,DEFAULT_RESOURCES} from './store.mjs';
+import {createStore,id,now,DEFAULT_RESOURCES,revealDemoFiles} from './store.mjs';
 import {createWebSearchService} from './web-search.mjs';
 import {createProviderManager} from './providers.mjs';
 import {redactPublicValue} from './public-redaction.mjs';
@@ -200,6 +200,12 @@ export async function createStudioServer(options={}) {
         if(method==='GET')return send(res,200,await engineeringPlan.get(p.id));
         if(method==='POST')return send(res,200,await engineeringPlan.update(p.id,await jsonBody(req),{actor:{kind:'user',id:'local-user'}}));
         throw new HttpError(405,'不支持此工程计划操作');
+      }
+      if(parts[3]==='replay'&&parts.length===5&&parts[4]==='reveal'&&method==='POST'){
+        if(p.kind!=='demo-replay')throw new HttpError(403,'只有演示回放项目能按时间轴揭示暂存文件');
+        const body=await jsonBody(req),requested=Array.isArray(body.paths)?body.paths:[];
+        if(requested.length>200)throw new HttpError(400,'一次最多揭示 200 个路径');
+        return send(res,200,await revealDemoFiles(store.workspace(p.id),requested));
       }
       if(await professionalRoute({req,res,parts,project:p}))return;
       if(await orbit42Route({req,res,parts,project:p}))return;
