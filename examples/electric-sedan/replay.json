@@ -39,10 +39,7 @@
    "kind": "modeling",
    "do": "open",
    "t": 159,
-   "path": "electric-sedan/Sedan.sysml",
-   "reveal": [
-    "electric-sedan/Sedan.recorded.json"
-   ]
+   "path": "electric-sedan/Sedan.sysml"
   },
   {
    "kind": "activity",
@@ -50,7 +47,10 @@
    "detail": "SysML 语义检查",
    "executionLabel": "执行完成",
    "t": 163,
-   "verificationLabel": "校验通过"
+   "verificationLabel": "校验通过",
+   "reveal": [
+    "electric-sedan/engineering/professional/professional_08568e0ca6ee4ba8b8e0e30453dde3fd"
+   ]
   },
   {
    "kind": "modeling",
@@ -96,10 +96,7 @@
    "title": "起草几何 · 第 1 步：地板、动力部件与前左车轮",
    "detail": "OpenSCAD stage2.scad · 地板、电池包、逆变器、电机与前左悬架车轮",
    "executionLabel": "已起草",
-   "t": 303,
-   "reveal": [
-    "electric-sedan/Sedan.scad"
-   ]
+   "t": 303
   },
   {
    "kind": "modeling",
@@ -114,7 +111,18 @@
    "detail": "sysml-fmi 协同仿真 · 751 行采样 · 0.08 s 间隔",
    "executionLabel": "执行完成",
    "t": 440,
-   "verificationLabel": "判据 7/8 通过 · 巡航未通过"
+   "verificationLabel": "判据 7/8 通过 · 巡航未通过",
+   "reveal": [
+    "electric-sedan/Sedan.recorded.json",
+    "electric-sedan/trajectory.csv",
+    "electric-sedan/engineering/professional/professional_6ff354f067d04d7ebeb9d88f583ca532"
+   ]
+  },
+  {
+   "kind": "modeling",
+   "do": "open",
+   "t": 441,
+   "path": "electric-sedan/Sedan.sysml"
   },
   {
    "kind": "message",
@@ -169,7 +177,11 @@
    "title": "精修几何 · Sedan.scad 交付版",
    "detail": "OpenSCAD 同源截面精修，电池包、逆变器与电机保持可见",
    "executionLabel": "已精修",
-   "t": 825
+   "t": 825,
+   "reveal": [
+    "electric-sedan/Sedan.scad",
+    "electric-sedan/Sedan.appearance.sysml"
+   ]
   },
   {
    "kind": "modeling",
@@ -183,7 +195,10 @@
    "title": "生成几何 · Sedan.scad",
    "detail": "OpenSCAD 实际渲染，导出彩色 PNG 与 STL",
    "executionLabel": "作业结束",
-   "t": 897
+   "t": 897,
+   "reveal": [
+    "electric-sedan/engineering/professional/professional_d355d59e78944f16a4e31e60c592d522"
+   ]
   },
   {
    "kind": "message",
@@ -200,10 +215,7 @@
   {
    "kind": "modeling",
    "do": "recorded",
-   "t": 1174,
-   "reveal": [
-    "electric-sedan/trajectory.csv"
-   ]
+   "t": 1174
   },
   {
    "kind": "message",
