@@ -105,11 +105,11 @@ function systemFile(path){return /\.sysml$/i.test(path||'')&&!/\.appearance\.sys
 export function followFile(open={}, target={}){
  const path=String(target.path||''),role=target.role||fileRole(path),systemOpen=systemFile(open.path);
  if(target.stage==='checked'||target.stage==='check-failed')return {expand:'source',sourceView:'diagnostics',path:path||open.path||'',replaceSource:Boolean(path)&&(!systemOpen||path===open.path)};
+ if(target.slot==='simulation')return {expand:'simulation'};
  if(role==='modelica'&&systemOpen)return {keep:true};
  if(role==='appearance')return {expand:'source',sourceView:'preview3d',appearancePath:path,path:systemOpen?open.path:path,replaceSource:!systemOpen};
  if(role==='system')return {expand:'source',sourceView:'code',path,replaceSource:true};
  if(role==='scad'||target.slot==='shape')return {expand:'shape',shapePath:path,shapeStage:target.stage==='running'?'running':target.stage==='failed'?'failed':target.stage==='completed'?'ready':'pending'};
- if(target.slot==='simulation')return {expand:'simulation'};
  return null;
 }
 /** One persisted event refreshes one sidebar slot. Log lines do not redraw a card. */
@@ -129,7 +129,7 @@ export function modelingEventTarget(event={}){
   const operation=data.operation||data.args?.operation||'';
   const failed=type==='professional.failed';
   const done=type==='professional.completed'||failed;
-  if(/\.scad$/i.test(path))return {slot:'shape',path,stage:failed?'failed':done?'completed':'running',jobId,operation,role:'scad'};
+  if(/\.scad$/i.test(path))return operation==='check'?null:{slot:'shape',path,stage:failed?'failed':done?'completed':'running',jobId,operation,role:'scad'};
   if(operation==='check'&&/\.(sysml|mo)$/i.test(path))return done?{slot:'source',path,stage:failed?'check-failed':'checked',jobId,operation,role:'check'}:null;
   if(/\.(mo|sysml)$/i.test(path)&&operation!=='check')return {slot:'simulation',path,stage:failed?'failed':done?'completed':'running',jobId,operation:operation||'simulate'};
  }
